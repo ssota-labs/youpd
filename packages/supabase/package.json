@@ -8,7 +8,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./server": "./src/server.ts",
-    "./repositories/healthChecks": "./src/repositories/healthChecks.ts"
+    "./ssr": "./src/ssr.ts",
+    "./repositories/healthChecks": "./src/repositories/healthChecks.ts",
+    "./repositories/oauth": "./src/repositories/oauth/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -16,10 +18,17 @@
     "test": "echo \"(supabase) no tests configured\""
   },
   "dependencies": {
+    "@supabase/ssr": "^0.10.3",
+    "@supabase/supabase-js": "^2.47.10",
     "@youpd/db": "workspace:*",
     "@youpd/types": "workspace:*",
-    "@supabase/supabase-js": "^2.47.10",
     "drizzle-orm": "^0.36.4"
+  },
+  "peerDependencies": {
+    "next": ">=13.0.0"
+  },
+  "peerDependenciesMeta": {
+    "next": { "optional": true }
   },
   "devDependencies": {
     "@youpd/config": "workspace:*",

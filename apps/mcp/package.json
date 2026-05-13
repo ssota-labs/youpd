@@ -2,27 +2,36 @@
   "name": "@youpd/mcp",
   "version": "0.0.0",
   "private": true,
-  "type": "module",
-  "main": "./src/index.ts",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "start": "node --import tsx src/index.ts",
-    "build": "tsc -p tsconfig.json",
+    "dev": "next dev -p 3002 --turbopack",
+    "build": "next build",
+    "start": "next start -p 3002",
+    "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "lint": "echo \"(mcp) no lint configured\"",
-    "test": "echo \"(mcp) no tests configured\""
+    "test": "vitest run"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.18.0",
+    "@modelcontextprotocol/sdk": "1.26.0",
+    "@supabase/ssr": "^0.10.3",
+    "@supabase/supabase-js": "^2.47.10",
     "@youpd/db": "workspace:*",
     "@youpd/supabase": "workspace:*",
     "@youpd/types": "workspace:*",
+    "mcp-handler": "^1.1.0",
+    "next": "16.2.6",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "server-only": "^0.0.1",
     "zod": "^4.0.0"
   },
   "devDependencies": {
-    "@youpd/config": "workspace:*",
     "@types/node": "^22.10.0",
-    "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@youpd/config": "workspace:*",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.6",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
   }
 }
