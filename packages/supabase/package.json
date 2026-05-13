@@ -10,7 +10,8 @@
     "./server": "./src/server.ts",
     "./ssr": "./src/ssr.ts",
     "./repositories/healthChecks": "./src/repositories/healthChecks.ts",
-    "./repositories/oauth": "./src/repositories/oauth/index.ts"
+    "./repositories/oauth": "./src/repositories/oauth/index.ts",
+    "./repositories/quota": "./src/repositories/quota/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

@@ -8,15 +8,18 @@
     "start": "next start -p 3002",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:live:search": "tsx scripts/live-search-keyword.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.26.0",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.47.10",
+    "@youpd/api": "workspace:*",
     "@youpd/db": "workspace:*",
     "@youpd/supabase": "workspace:*",
     "@youpd/types": "workspace:*",
+    "@youpd/youtube": "workspace:*",
     "mcp-handler": "^1.1.0",
     "next": "16.2.6",
     "react": "19.2.4",
@@ -31,6 +34,7 @@
     "@youpd/config": "workspace:*",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
+    "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
   }
