@@ -5,6 +5,7 @@ export * from './endpoints/search';
 export * from './endpoints/videos';
 export * from './endpoints/channels';
 export * from './endpoints/commentThreads';
+export * from './endpoints/playlistItems';
 
 // Static unit costs per YouTube Data API v3 endpoint. videos.list / channels.list
 // / commentThreads.list / playlistItems.list are 1u; search.list is 100u; the

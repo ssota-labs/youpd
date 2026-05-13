@@ -9,7 +9,8 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:live:search": "tsx scripts/live-search-keyword.ts"
+    "test:live:search": "tsx scripts/live-search-keyword.ts",
+    "test:live:hot-chart": "tsx scripts/live-fetch-hot-chart.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.26.0",

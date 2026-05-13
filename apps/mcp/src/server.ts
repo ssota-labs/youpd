@@ -2,8 +2,18 @@ import 'server-only';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import {
+  FetchHotChartInputSchema,
+  FetchTrendingByKeywordInputSchema,
+  GetChannelAllVideosInputSchema,
+  GetChannelOverviewInputSchema,
+  GetVideoCommentsInputSchema,
   GetVideoDetailInputSchema,
   SearchKeywordInputSchema,
+  fetchHotChart,
+  fetchTrendingByKeyword,
+  getChannelAllVideos,
+  getChannelOverview,
+  getVideoComments,
   getVideoDetail,
   searchKeyword,
 } from '@youpd/api/mcp/tools';
@@ -24,6 +34,11 @@ export function registerTools(server: McpServer): void {
   registerPing(server);
   registerSearchKeyword(server);
   registerGetVideoDetail(server);
+  registerGetChannelOverview(server);
+  registerGetChannelAllVideos(server);
+  registerGetVideoComments(server);
+  registerFetchHotChart(server);
+  registerFetchTrendingByKeyword(server);
   registerVersionTools(server);
 }
 
@@ -106,6 +121,131 @@ function registerGetVideoDetail(server: McpServer): void {
       try {
         const out = await getVideoDetail(params);
         return jsonContent(out);
+      } catch (err) {
+        return errorContent(err);
+      }
+    },
+  );
+}
+
+function registerGetChannelOverview(server: McpServer): void {
+  server.registerTool(
+    'get_channel_overview',
+    {
+      title: 'Get channel overview with top-N popular videos',
+      description:
+        'channels.list + playlistItems.list (uploads, 50 most recent) + videos.list, sorted by view count locally. ~3 quota units.',
+      inputSchema: GetChannelOverviewInputSchema.shape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async (params) => {
+      try {
+        return jsonContent(await getChannelOverview(params));
+      } catch (err) {
+        return errorContent(err);
+      }
+    },
+  );
+}
+
+function registerGetChannelAllVideos(server: McpServer): void {
+  server.registerTool(
+    'get_channel_all_videos',
+    {
+      title: 'Bulk-fetch every video in a channel (paginated)',
+      description:
+        'channels.list + playlistItems pagination over uploads + videos.list batches. Budget = 1 + 2 × ceil(max_videos/50) units. For deep competitor analysis.',
+      inputSchema: GetChannelAllVideosInputSchema.shape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async (params) => {
+      try {
+        return jsonContent(await getChannelAllVideos(params));
+      } catch (err) {
+        return errorContent(err);
+      }
+    },
+  );
+}
+
+function registerGetVideoComments(server: McpServer): void {
+  server.registerTool(
+    'get_video_comments',
+    {
+      title: 'Get TOP N liked comments for a video',
+      description:
+        'commentThreads.list(order=relevance, maxResults=100) → sort by likeCount desc → top_n. 1 unit. Returns comments_disabled=true when YouTube refuses the call.',
+      inputSchema: GetVideoCommentsInputSchema.shape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async (params) => {
+      try {
+        return jsonContent(await getVideoComments(params));
+      } catch (err) {
+        return errorContent(err);
+      }
+    },
+  );
+}
+
+function registerFetchHotChart(server: McpServer): void {
+  server.registerTool(
+    'fetch_hot_chart',
+    {
+      title: 'YouTube most-popular chart for a region/category',
+      description:
+        'videos.list?chart=mostPopular for the given region (KR by default) + optional videoCategoryId. 1 unit.',
+      inputSchema: FetchHotChartInputSchema.shape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async (params) => {
+      try {
+        return jsonContent(await fetchHotChart(params));
+      } catch (err) {
+        return errorContent(err);
+      }
+    },
+  );
+}
+
+function registerFetchTrendingByKeyword(server: McpServer): void {
+  server.registerTool(
+    'fetch_trending_by_keyword',
+    {
+      title: 'Surface fast-rising videos in the last N hours for a keyword',
+      description:
+        'search.list(publishedAfter=now-Nh, order=viewCount) → videos.list + channels.list enrichment. Default 24h window, ~102 quota units.',
+      inputSchema: FetchTrendingByKeywordInputSchema.shape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async (params) => {
+      try {
+        return jsonContent(await fetchTrendingByKeyword(params));
       } catch (err) {
         return errorContent(err);
       }

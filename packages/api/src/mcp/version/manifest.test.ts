@@ -28,6 +28,24 @@ describe('version manifest', () => {
     expect(CHANGELOG[0]!.version).toBe('1.0.0');
   });
 
+  it('CHANGELOG enumerates the 10 expected MCP tools', () => {
+    const notes = CHANGELOG[0]!.notes.join('\n');
+    for (const tool of [
+      'search_keyword',
+      'get_video_detail',
+      'get_channel_overview',
+      'get_channel_all_videos',
+      'get_video_comments',
+      'fetch_hot_chart',
+      'fetch_trending_by_keyword',
+      'get_latest_version',
+      'get_latest_version_schema',
+      'get_bundle_manifest',
+    ]) {
+      expect(notes).toContain(tool);
+    }
+  });
+
   it('ships 11 Notion DB schemas with unique keys', () => {
     expect(ALL_SCHEMAS).toHaveLength(11);
     const keys = ALL_SCHEMAS.map((s) => s.key);

@@ -13,9 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { searchKeyword } from '@youpd/api/mcp/tools';
-import { getDbClient } from '@youpd/db';
-import { searchSessions } from '@youpd/db';
-import { desc } from 'drizzle-orm';
+import { desc, getDbClient, searchSessions } from '@youpd/db';
 
 function loadDotenv(filePath: string): void {
   if (!fs.existsSync(filePath)) return;
