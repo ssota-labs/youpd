@@ -26,6 +26,8 @@ yarn-error.log*
 # Test and coverage
 coverage/
 .nyc_output/
+test-results/
+playwright-report/
 
 # Vercel
 .vercel
