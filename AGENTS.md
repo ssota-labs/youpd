@@ -15,10 +15,10 @@ This file is the default entrypoint for coding agents. Use it to understand the 
 
 ## Source Of Truth
 
-- Rondi AI / YouPD operates under the SSOTA Labs operating system. Follow SSOTA Labs ontology workflows for project, meeting, document, action, entity, stakeholder, and business-unit operations.
+- YouPD operates under the SSOTA Labs operating system. Follow SSOTA Labs ontology workflows for project, meeting, document, action, entity, stakeholder, and business-unit operations.
 - Product and project planning SSOT: [https://www.notion.so/TV-35e2f1b57fc380e59f84e5ed02c788d1?v=35e2f1b57fc380afac17000cc9357cf7&source=copy_link](https://www.notion.so/TV-35e2f1b57fc380e59f84e5ed02c788d1?v=35e2f1b57fc380afac17000cc9357cf7&source=copy_link), [https://www.notion.so/35e2f1b57fc38072846fd0b29537ec76?v=35e2f1b57fc380afac17000cc9357cf7&source=copy_link](https://www.notion.so/35e2f1b57fc38072846fd0b29537ec76?v=35e2f1b57fc380afac17000cc9357cf7&source=copy_link).
 - Notion is the unified documentation SSOT. Repository docs should stay minimal and operational, acting only as tooling/setup mirrors where local files are required.
-- `.agents/docs/` and `ssota-`* skills define SSOTA Labs ontology workflows as applied to Rondi AI. Revise them only when they conflict with current project decisions or the SSOTA Labs operating system.
+- `.agents/docs/` and `ssota-`* skills define SSOTA Labs ontology workflows as applied to YouPD. Revise them only when they conflict with current project decisions or the SSOTA Labs operating system.
 - Before changing project definitions, specs, task ontology, meeting/action/document workflows, or Notion-linked metadata, read the relevant `ssota-*` skill and use Notion as the source of truth.
 
 ## Required Runtime And Versions
@@ -135,7 +135,7 @@ Use `.agents/skills/*/SKILL.md` descriptions as the full routing map. Always rea
 
 High-frequency routing:
 
-- Read `ssota-ontology-setup` before discovering or updating the Rondi AI Notion SSOT mapping, database IDs, templates, or business-unit/project anchors.
+- Read `ssota-ontology-setup` before discovering or updating the YouPD Notion SSOT mapping, database IDs, templates, or business-unit/project anchors.
 - Read the relevant `ssota-*` skill before changing project, meeting, document, action, digest, ontology-health, or ontology-extract workflows.
 - Read `mcp-builder` before designing or extending MCP servers, tools, and OAuth-aware remote deployments.
 - Read `vercel-react-best-practices`, `next-best-practices`, `shadcn`, `open-pencil`, or UI/design skills before Next.js, web UI, shared component, or design work.
@@ -161,9 +161,9 @@ pnpm run test:e2e
 Expected app-specific commands after scaffolding:
 
 ```bash
-pnpm --filter @rondi/web dev
-pnpm --filter @rondi/admin dev
-pnpm --filter @rondi/mcp dev
+pnpm --filter @youpd/web dev
+pnpm --filter @youpd/admin dev
+pnpm --filter @youpd/mcp dev
 ```
 
 Expected database commands after Supabase setup:
@@ -215,12 +215,12 @@ Core workflow:
 
 ## Documentation Rules
 
-- Notion is the unified documentation SSOT. The Rondi AI Notion page is the project SSOT inside the SSOTA Labs operating system.
-- PRDs, user flows, policy documents, technical decisions, design documents, architecture decisions, product specs, setup notes, package responsibilities, provider choices, database rules, deployment models, and tradeoffs must live in the Rondi AI Notion SSOT.
+- Notion is the unified documentation SSOT. The YouPD Notion page is the project SSOT inside the SSOTA Labs operating system.
+- PRDs, user flows, policy documents, technical decisions, design documents, architecture decisions, product specs, setup notes, package responsibilities, provider choices, database rules, deployment models, and tradeoffs must live in the YouPD Notion SSOT.
 - Agents must read these documents from Notion before using them as context, and must write or update them in Notion rather than creating parallel long-form repo docs.
 - Keep repository docs minimal and operational only when a file is required by tooling or local developer workflow. If a repo doc duplicates Notion, treat Notion as authoritative and update/migrate the Notion record first.
 - Keep setup instructions current in Notion when package versions, runtime versions, or required commands change. Mirror only the short commands that agents must execute directly in `AGENTS.md`.
-- When `.agents/docs` or `ssota-*` workflows conflict with this project, resolve the SSOTA Labs operating-system rule and Rondi AI project decision in Notion before copying assumptions into repository files.
+- When `.agents/docs` or `ssota-*` workflows conflict with this project, resolve the SSOTA Labs operating-system rule and YouPD project decision in Notion before copying assumptions into repository files.
 - Keep `AGENTS.md` focused on agent-operational guidance. Put long product specs and decision history in Notion.
 
 ## Build And Deployment

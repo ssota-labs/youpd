@@ -1,0 +1,28 @@
+{
+  "name": "@youpd/mcp",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node --import tsx src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo \"(mcp) no lint configured\"",
+    "test": "echo \"(mcp) no tests configured\""
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.18.0",
+    "@youpd/db": "workspace:*",
+    "@youpd/supabase": "workspace:*",
+    "@youpd/types": "workspace:*",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@youpd/config": "workspace:*",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
