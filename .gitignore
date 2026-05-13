@@ -43,6 +43,9 @@ Thumbs.db
 # IDE (keep shared .vscode settings if you add them later)
 .idea/
 
+# Claude / local worktrees
+.claude/worktrees/
+
 # Optional tooling caches
 .eslintcache
 .prettiercache
