@@ -1,0 +1,240 @@
+# AGENTS.md
+
+## Project
+
+**YouPD (유피디)** is a YouTube planning and production workflow product: Notion-backed operating pages and databases, YouTube Data API capture, and agent-facing **MCP** tools. Remote MCP runs with **OAuth**; a **Next.js** app hosts **API routes** (callbacks, metering, orchestration) and sits alongside **Supabase** for durable account data—profiles, plans, usage counters, and rate limits.
+
+Ground product and MCP behavior in these local specs (Notion SSOT remains authoritative for long-form history):
+
+- `docs/유피디 — 유튜브 기획 제작 커스텀 에이전트 기획안 c29d45781454451ea58ed4677b23e946.md`
+- `docs/뷰트랩 자체 구축 설계 — Notion DB + YouTube API + MCP c478864759b447d7aa2c2065f5547232.md`
+
+This file is the default entrypoint for coding agents. Use it to understand the stack, package boundaries, architectural rules, and which `.agents/skills/`* skill to read before work.
+
+**Out of scope for now:** native mobile apps (Expo), device voice runtimes, and ElevenLabs-specific voice agent hosting. Reintroduce only when the product explicitly needs them.
+
+## Source Of Truth
+
+- Rondi AI / YouPD operates under the SSOTA Labs operating system. Follow SSOTA Labs ontology workflows for project, meeting, document, action, entity, stakeholder, and business-unit operations.
+- Product and project planning SSOT: [https://www.notion.so/TV-35e2f1b57fc380e59f84e5ed02c788d1?v=35e2f1b57fc380afac17000cc9357cf7&source=copy_link](https://www.notion.so/TV-35e2f1b57fc380e59f84e5ed02c788d1?v=35e2f1b57fc380afac17000cc9357cf7&source=copy_link), [https://www.notion.so/35e2f1b57fc38072846fd0b29537ec76?v=35e2f1b57fc380afac17000cc9357cf7&source=copy_link](https://www.notion.so/35e2f1b57fc38072846fd0b29537ec76?v=35e2f1b57fc380afac17000cc9357cf7&source=copy_link).
+- Notion is the unified documentation SSOT. Repository docs should stay minimal and operational, acting only as tooling/setup mirrors where local files are required.
+- `.agents/docs/` and `ssota-`* skills define SSOTA Labs ontology workflows as applied to Rondi AI. Revise them only when they conflict with current project decisions or the SSOTA Labs operating system.
+- Before changing project definitions, specs, task ontology, meeting/action/document workflows, or Notion-linked metadata, read the relevant `ssota-*` skill and use Notion as the source of truth.
+
+## Required Runtime And Versions
+
+Use the current stable ecosystem unless a task explicitly requires otherwise.
+
+- Node.js: 24 via `nvm`.
+- Package manager: latest stable `pnpm`. Before significant dependency work, check the current pnpm release and run `corepack prepare pnpm@latest --activate` if needed.
+- Monorepo orchestration: Turborepo. Use Turbopack where Next.js supports it.
+- Language: TypeScript first. Use the latest stable TypeScript and pin the exact version in root `package.json` once the monorepo exists.
+- Runtime validation: Zod 4 at package and network boundaries.
+- Web and API: Next.js 16 App Router, deployed on Vercel.
+- Styling: Tailwind CSS 4. Use shadcn/ui for web primitives.
+- Auth, database, storage, realtime: Supabase, with Drizzle ORM as the schema/query SSOT.
+
+Before adding or upgrading dependencies, check package registries and product docs. Do not rely on memory for rapidly changing packages such as Next.js, Supabase, Drizzle, Tailwind, shadcn/ui, MCP-related SDKs, or Zod.
+
+## Target Monorepo Layout
+
+```text
+apps/
+  web/          # Next.js 16: web surface, OAuth flows, Vercel API routes
+  admin/        # Admin/operations console when it grows beyond apps/web
+  mcp/          # MCP server and tools (remote; OAuth-aware)
+packages/
+  agents/       # Optional: shared domain logic, tool policies, orchestration helpers (not voice-specific)
+  api/          # Shared API contracts, route handlers, DTO mappers, server orchestration
+  ui/           # Shared headless UI contracts, design tokens, web-focused adapters
+  db/           # Drizzle schema, query DSL, migration generation, createDbClient
+  supabase/     # Supabase adapters: repositories, auth/storage/realtime integrations
+  types/        # Shared TypeScript types and Zod schemas
+  config/       # Shared tsconfig, eslint, tailwind, testing config
+design/         # OpenPencil files, component lab assets, design tokens, UI specs
+docs/           # Architecture decisions, setup, product specs mirrored from SSOT
+supabase/       # Supabase CLI config, local Docker stack, runtime migrations
+```
+
+Create nested `AGENTS.md` files for subprojects once a package or app develops local rules that should override this root file.
+
+## Package Responsibilities
+
+- `apps/web`: Next.js surface, marketing or app UI, server components, **API routes** for MCP companion behavior (OAuth callbacks, entitlement checks, usage accounting), and integration with Supabase server-side.
+- `apps/admin`: operational admin UI. Keep it thin and use shared API/domain packages.
+- `apps/mcp`: MCP tools and resources (Notion/YouTube workflows, schema/version tools, fetchers). Treat MCP as a **capability layer** with typed contracts; remote transport assumes OAuth and server-side secrets.
+- `packages/agents` (when used): shared domain behavior for tools and policies—no voice-runtime coupling unless the product adds it later.
+- `packages/api`: HTTP/server contracts, route orchestration, request/response schemas, and server-only use cases shared by `apps/web`, `apps/admin`, and `apps/mcp`.
+- `packages/ui`: headless component contracts, shared state machines, design tokens, and web adapters. Do not put product business rules here.
+- `packages/db`: Drizzle ORM SSOT: schema definitions, relations, typed queries, generated SQL, and database client factory. Framework- and Supabase-agnostic.
+- `packages/supabase`: implements persistence/auth/storage/realtime ports using Supabase and Drizzle. Do not leak Supabase-specific APIs into domain packages.
+- `packages/types`: shared Zod schemas, DTOs, event types, and branded identifiers.
+- `packages/config`: shared build, lint, TypeScript, test, and formatting configuration.
+
+## Architecture Rules
+
+Follow an adapter-port, hexagonal architecture pattern.
+
+- Domain logic belongs in `packages/api`, `packages/agents` (if present), or another domain-focused package, not in React components or route files.
+- Frameworks live at the edges: Next.js in `apps/web` and `apps/admin`, MCP transport in `apps/mcp`, Supabase in `packages/supabase`.
+- Define ports/interfaces for persistence, auth, external APIs (YouTube, Notion), tool clients, telemetry, file storage, and optional LLM providers.
+- Implement adapters separately from orchestration. External provider responses must normalize into project-owned types before higher layers consume them.
+- Keep React components thin: render state, call hooks/actions, and delegate business decisions to packages.
+- Use Zod 4 schemas at network, storage, tool, and external provider boundaries.
+- Prefer explicit errors over silent fallback behavior. Avoid compatibility shims for unshipped branch-only behavior.
+- MCP is a capability layer, not a UI-only service. MCP tools should expose typed contracts and, where supported, UI resources attached to specific tools.
+
+## MCP, Tools, And Orchestration
+
+- MCP tools must have typed inputs/outputs, Zod validation, deterministic error shapes, and unit or integration tests where feasible.
+- Enforce **plans, rate limits, and usage** via Supabase (or server-side checks) before expensive YouTube API or Notion mutations; do not rely on the client alone.
+- OAuth tokens and provider secrets stay **server-side**; MCP and API routes use privileged adapters—never expose service keys in public env vars or untrusted bundles.
+- Optional LLM usage remains **adapter-based**; do not hard-code a single vendor in domain logic.
+
+## App, Web, And API Rules
+
+- Use Next.js 16 App Router in web/admin. Prefer server components by default; use client components only for interactivity, browser APIs, or stateful UI.
+- API routes deployed on Vercel should live close to `apps/web` while delegating orchestration to `packages/api` and domain packages.
+- Browsers and MCP clients call **project APIs** or typed MCP surfaces, not database clients directly.
+- Use standard `fetch` or typed HTTP wrappers. Avoid Axios unless a specific dependency requires it.
+- Never place secrets in `NEXT_PUBLIC_`*.
+- Use TanStack Query or an equivalent cache intentionally for client data. Define query keys and invalidation rules near API contracts.
+
+## UI And Design Rules
+
+- OpenPencil is both a design SSOT and a component lab. Use it to inspect, design, compare, and validate UI components before promoting patterns into code.
+- OpenPencil exports or JSX are starting points, not unreviewed production code. Human-readable component APIs and accessibility still matter.
+- Shared UI means shared headless contracts, state machines, tokens, copy patterns, and tests on the web surface.
+- Use shadcn/ui for web primitives and composition. Do not hand-roll common web primitives when an appropriate shadcn component exists.
+- Prefer composition over boolean prop proliferation. Use compound components, explicit variants, and provider boundaries for flexible UI APIs.
+- Keep design tokens centralized and portable. Tailwind 4 is the web styling default.
+- Business logic must not live in UI components, OpenPencil artifacts, or story/demo fixtures.
+- Components should be easy to test in isolation with mocked ports and predictable fixtures.
+
+## Supabase And Database Rules
+
+- Supabase Auth is the default auth system.
+- Drizzle ORM in `packages/db` is the schema and typed query SSOT. Do not introduce a parallel ORM.
+- `packages/supabase` consumes `packages/db` and implements repository-style adapters for domain ports.
+- Hybrid migration model: Drizzle generates SQL from schema changes, but Supabase migrations are the runtime artifact.
+- Use Supabase CLI local Docker for development: `pnpm db:up`, `pnpm db:down`, `pnpm db:reset`.
+- Use Supabase branching for isolated database changes when working against remote environments.
+- Do not run `drizzle-kit migrate` unless the project explicitly changes its migration model.
+- Keep generated Supabase types isolated from domain types. Map between them explicitly.
+- Do not expose service role keys, database URLs, or privileged Supabase clients to browsers or public client bundles.
+- Enable RLS for every table in exposed schemas.
+- Default policy shape is deny-all: create no permissive policies, or use explicit `using (false)` / `with check (false)` policies when a policy object is needed for clarity.
+- Add client-readable/client-writable policies only for intentional browser exposure, such as Supabase Realtime or a deliberately designed direct client feature.
+- Otherwise, all reads and writes go through server-side code, and repository/service code must enforce ownership and authorization invariants even when using privileged database connections.
+
+## Skill Routing
+
+Before doing work, check whether a skill applies. If it applies, read it first and follow it. For work spanning multiple areas, read all relevant skills before editing.
+
+Use `.agents/skills/*/SKILL.md` descriptions as the full routing map. Always read a named, attached, slash-invoked, or clearly matching skill before editing.
+
+High-frequency routing:
+
+- Read `ssota-ontology-setup` before discovering or updating the Rondi AI Notion SSOT mapping, database IDs, templates, or business-unit/project anchors.
+- Read the relevant `ssota-*` skill before changing project, meeting, document, action, digest, ontology-health, or ontology-extract workflows.
+- Read `mcp-builder` before designing or extending MCP servers, tools, and OAuth-aware remote deployments.
+- Read `vercel-react-best-practices`, `next-best-practices`, `shadcn`, `open-pencil`, or UI/design skills before Next.js, web UI, shared component, or design work.
+- Read `supabase` and, for schema/query performance, `supabase-postgres-best-practices` before Supabase, database, auth, RLS, migration, or storage work.
+- Read `agent-browser`, `browser-use`, or `playwright` before browser QA, screenshots, scraping, or end-to-end UI verification.
+- Read `create-agentsmd`, `create-skill`, `create-rule`, or other Cursor automation skills before changing agent instructions, skills, rules, hooks, or Cursor settings.
+
+## Setup And Development Commands
+
+The repository may start before the monorepo is scaffolded. Once scaffolded, keep these root commands available:
+
+```bash
+pnpm install
+pnpm run dev
+pnpm run build
+pnpm run lint
+pnpm run typecheck
+pnpm run test
+pnpm run test:integration
+pnpm run test:e2e
+```
+
+Expected app-specific commands after scaffolding:
+
+```bash
+pnpm --filter @rondi/web dev
+pnpm --filter @rondi/admin dev
+pnpm --filter @rondi/mcp dev
+```
+
+Expected database commands after Supabase setup:
+
+```bash
+pnpm db:up
+pnpm db:down
+pnpm db:reset
+pnpm db:generate
+pnpm db:push
+```
+
+If a command does not exist yet, add it as part of project setup rather than documenting a different workflow.
+
+## Testing Policy
+
+Testing must run in a closed loop for every meaningful change.
+
+- Unit tests for pure logic, schemas, mappers, policies, reducers, state machines, hooks, and adapters with mocks.
+- Integration tests for API contracts, package boundaries, MCP tools, and Supabase adapters.
+- E2E tests for critical user flows in `apps/web` and `apps/admin` where relevant.
+- Design/component tests for shared UI contracts on the web surface.
+- Lint, typecheck, and tests must pass before handoff unless the user explicitly accepts a known failing state.
+
+Do not claim verification success unless the relevant command actually ran and passed. If the repo is not scaffolded enough to run a check, say that clearly.
+
+## Browser And App Automation
+
+Use `agent-browser` or the browser automation skill for web QA.
+
+Core workflow:
+
+1. `agent-browser open <url>`
+2. `agent-browser snapshot -i`
+3. `agent-browser click @e1` or `agent-browser fill @e2 "text"`
+4. Re-snapshot after page changes
+
+## Quality Rules
+
+- Preserve user changes. Never revert unrelated work unless explicitly requested.
+- Do not comment out code to hide failures.
+- Do not skip, disable, or weaken tests to make a change pass unless the user explicitly approves and the reason is documented.
+- Do not leave dead code, unused exports, temporary debug code, or unused dependencies.
+- Avoid broad refactors while implementing a narrow request.
+- Prefer small, typed, testable modules.
+- Use structured parsers, schemas, and SDKs instead of ad hoc string manipulation when available.
+- Keep secrets out of source, logs, public env vars, public client bundles, and screenshots.
+- Public-facing advice in regulated domains must be conservative and avoid unsupported clinical, legal, or financial claims.
+
+## Documentation Rules
+
+- Notion is the unified documentation SSOT. The Rondi AI Notion page is the project SSOT inside the SSOTA Labs operating system.
+- PRDs, user flows, policy documents, technical decisions, design documents, architecture decisions, product specs, setup notes, package responsibilities, provider choices, database rules, deployment models, and tradeoffs must live in the Rondi AI Notion SSOT.
+- Agents must read these documents from Notion before using them as context, and must write or update them in Notion rather than creating parallel long-form repo docs.
+- Keep repository docs minimal and operational only when a file is required by tooling or local developer workflow. If a repo doc duplicates Notion, treat Notion as authoritative and update/migrate the Notion record first.
+- Keep setup instructions current in Notion when package versions, runtime versions, or required commands change. Mirror only the short commands that agents must execute directly in `AGENTS.md`.
+- When `.agents/docs` or `ssota-*` workflows conflict with this project, resolve the SSOTA Labs operating-system rule and Rondi AI project decision in Notion before copying assumptions into repository files.
+- Keep `AGENTS.md` focused on agent-operational guidance. Put long product specs and decision history in Notion.
+
+## Build And Deployment
+
+- Deploy Next.js web/admin/API routes through Vercel.
+- Use Vercel/GitHub checks for web/API CI.
+- Do not add deploy-affecting secrets to public environment variables.
+- Preview environments should point to matching Supabase branches or isolated local/preview resources.
+
+## Git And Collaboration
+
+- Do not create commits unless the user explicitly asks.
+- Do not change commit authors unless the user explicitly asks. The previous project-specific commit-author override is not required here.
+- Never run destructive git commands such as `git reset --hard` or force push without explicit approval.
+- When adding dependencies, use `pnpm add` with the proper workspace filter so lockfiles stay consistent.
+- Before final handoff, summarize changed files and verification results.
+

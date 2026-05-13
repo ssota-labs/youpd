@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-mcp.json",
+  "mcpServers": {
+    "open-pencil": {
+      "command": "./scripts/openpencil-mcp.sh"
+    }
+  }
+}

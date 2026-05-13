@@ -1,0 +1,125 @@
+{
+  "version": 1,
+  "skills": {
+    "agent-browser": {
+      "source": ".agents/skills",
+      "sourceType": "workspace",
+      "skillPath": "agent-browser/SKILL.md",
+      "computedHash": "b2e54fa784581734c689611860de39916364d4e4b9cf17472b8e2afdaaa9d320"
+    },
+    "agents": {
+      "source": ".agents/skills",
+      "sourceType": "workspace",
+      "skillPath": "agents/SKILL.md",
+      "computedHash": "72f2df615469acab84a27e3e5158330140934371d7daa6b36d0ecba4dc06ae5d"
+    },
+    "ai-sdk": {
+      "source": ".agents/skills",
+      "sourceType": "workspace",
+      "skillPath": "ai-sdk/SKILL.md",
+      "computedHash": "07e3ac5f423104015bb6e324d9840c61f9df52542ad6f3141de0a419d8aefd2f"
+    },
+    "browser-use": {
+      "source": ".agents/skills",
+      "sourceType": "workspace",
+      "skillPath": "browser-use/SKILL.md",
+      "computedHash": "a88994543fd428bd62eed2b53aa84b3143c4c8f805ebfdc158260cc4ce13c446"
+    },
+    "building-native-ui": {
+      "source": ".agents/skills",
+      "sourceType": "workspace",
+      "skillPath": "building-native-ui/SKILL.md",
+      "computedHash": "dc9c08d2601ea0f3df25656da2c6bff4f28fbc164901fabf7c8b504f5c833c19"
+    },
+    "create-agentsmd": {
+      "source": ".agents/skills",
+      "sourceType": "workspace",
+      "skillPath": "create-agentsmd/SKILL.md",
+      "computedHash": "97b71d3f7c5e30e9f1740fcd7a45d4bf107b7887947cfd3ab92ac99dee294855"
+    },
+    "find-skills": {
+      "source": ".agents/skills",
+      "sourceType": "workspace",
+      "skillPath": "find-skills/SKILL.md",
+      "computedHash": "1e85f6f9686e145aca4a124e3b704b9bbea9aa87e08515c1e352eee70f6e6e7a"
+    },
+    "mcp-builder": {
+      "source": ".agents/skills",
+      "sourceType": "workspace",
+      "skillPath": "mcp-builder/SKILL.md",
+      "computedHash": "0f4592dcb53cf2b5d6b7febee6b4152018b565551a1c29e3c612f57b218ab295"
+    },
+    "next-best-practices": {
+      "source": ".agents/skills",
+      "sourceType": "workspace",
+      "skillPath": "next-best-practices/SKILL.md",
+      "computedHash": "c78f952d4e98bf3694856dbf70c03a6037d4e258ff3701f2642bfdf108549a25"
+    },
+    "next-cache-components": {
+      "source": ".agents/skills",
+      "sourceType": "workspace",
+      "skillPath": "next-cache-components/SKILL.md",
+      "computedHash": "92fc6ac94c5cabdcd13c7dc7aabd6a4d04921e6295dfc00dd9888e375fd1ff4c"
+    },
+    "open-pencil": {
+      "source": ".agents/skills",
+      "sourceType": "workspace",
+      "skillPath": "open-pencil/SKILL.md",
+      "computedHash": "aea50d493ba3f311c0cea3123b409f098812b6f28abc9244c5b397efe0986b5e"
+    },
+    "prd": {
+      "source": ".agents/skills",
+      "sourceType": "workspace",
+      "skillPath": "prd/SKILL.md",
+      "computedHash": "6772e6f0fcc7110d625c7f4595e4990e1910007676c36d217eda4e779041d5e5"
+    },
+    "shadcn": {
+      "source": ".agents/skills",
+      "sourceType": "workspace",
+      "skillPath": "shadcn/SKILL.md",
+      "computedHash": "c5a5c3a8e380ab7d49369c68a715b2da6b1bcc449898cfdf787bbab8cb13a5d9"
+    },
+    "skill-creator": {
+      "source": ".agents/skills",
+      "sourceType": "workspace",
+      "skillPath": "skill-creator/SKILL.md",
+      "computedHash": "dcd4803e61e913e6fc27294184cd3a71f09f5e924ff20c8a9a20173e7b3c2bcf"
+    },
+    "supabase": {
+      "source": ".agents/skills",
+      "sourceType": "workspace",
+      "skillPath": "supabase/SKILL.md",
+      "computedHash": "41f4694e5e8114215fb2c4b1b72f373dddec52eb784ec92ed8d8a6885cb0f197"
+    },
+    "supabase-postgres-best-practices": {
+      "source": ".agents/skills",
+      "sourceType": "workspace",
+      "skillPath": "supabase-postgres-best-practices/SKILL.md",
+      "computedHash": "ccd6e4596bd51cf344fe76c464867c541ccc16b6d90ae7a9db449fb17588613b"
+    },
+    "vercel-composition-patterns": {
+      "source": ".agents/skills",
+      "sourceType": "workspace",
+      "skillPath": "vercel-composition-patterns/SKILL.md",
+      "computedHash": "e38e0eaa609316b10423a9a138ed95e35099accd3f735585295c8a8f165c28a3"
+    },
+    "vercel-react-best-practices": {
+      "source": ".agents/skills",
+      "sourceType": "workspace",
+      "skillPath": "vercel-react-best-practices/SKILL.md",
+      "computedHash": "71ed7794962fa6e803ee83030517b5b93a9f70fbfeb431ec4535c5480a8d8355"
+    },
+    "vercel-react-native-skills": {
+      "source": ".agents/skills",
+      "sourceType": "workspace",
+      "skillPath": "vercel-react-native-skills/SKILL.md",
+      "computedHash": "4012750a5ccbe064ca04af3835d5d1b011979d2d09d9b6df1c8128fac58e0a66"
+    },
+    "web-design-guidelines": {
+      "source": ".agents/skills",
+      "sourceType": "workspace",
+      "skillPath": "web-design-guidelines/SKILL.md",
+      "computedHash": "f4647ca866a3accf763777f83e7682954f0187cd6bea7eea0399796652414e8f"
+    }
+  }
+}
