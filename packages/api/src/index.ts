@@ -1,1 +1,1 @@
-export const __stub = true as const;
+export * as mcp from './mcp/index';

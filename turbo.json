@@ -1,6 +1,10 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalDependencies": [".env.example", "tsconfig.base.json"],
+  "globalDependencies": [
+    ".env.example",
+    "apps/*/.env.example",
+    "tsconfig.base.json"
+  ],
   "globalEnv": [
     "NODE_ENV",
     "CI",
@@ -12,6 +16,9 @@
     "NEXT_PUBLIC_SUPABASE_ANON_KEY",
     "MCP_OAUTH_ISSUER",
     "MCP_OAUTH_RESOURCE",
+    "YOUTUBE_API_KEY",
+    "QUOTA_DAILY_LIMIT",
+    "BUNDLE_TEMPLATE_URL",
     "PORT"
   ],
   "tasks": {

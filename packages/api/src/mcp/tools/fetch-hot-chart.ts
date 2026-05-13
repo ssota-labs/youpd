@@ -1,0 +1,63 @@
+import { z } from 'zod';
+import {
+  normaliseVideo,
+  UNIT_COST,
+  videosList,
+  type VideoSummary,
+  type YouTubeClient,
+} from '@youpd/youtube';
+import { getYouTubeClient } from '../youtube-client';
+import { runWithBudget } from '../quota';
+
+export const FetchHotChartInputSchema = z
+  .object({
+    region_code: z.string().length(2).default('KR'),
+    category_id: z.string().optional(),
+    limit: z.number().int().min(1).max(50).default(50),
+  })
+  .strict();
+export type FetchHotChartInput = z.infer<typeof FetchHotChartInputSchema>;
+
+export type FetchHotChartOutput = {
+  region_code: string;
+  category_id: string | null;
+  fetched_at: string;
+  source: 'chart=mostPopular';
+  videos: VideoSummary[];
+  units_consumed: number;
+};
+
+// videos.list?chart=mostPopular is 1 unit. The result is YouTube's "trending"
+// chart for the region (+ optional category). Agent decides whether each
+// entry seeds Hot Video Daily and/or which title patterns to extract.
+export async function fetchHotChart(
+  input: FetchHotChartInput,
+  client: YouTubeClient = getYouTubeClient(),
+): Promise<FetchHotChartOutput> {
+  const totalUnits = UNIT_COST.videos_list;
+
+  const { result } = await runWithBudget<FetchHotChartOutput>({
+    operation: 'hot-chart',
+    units: totalUnits,
+    call: async () => {
+      const res = await videosList(client, {
+        chart: 'mostPopular',
+        regionCode: input.region_code,
+        videoCategoryId: input.category_id,
+        maxResults: input.limit,
+      });
+      const videos = res.items.map(normaliseVideo);
+      const payload: FetchHotChartOutput = {
+        region_code: input.region_code,
+        category_id: input.category_id ?? null,
+        fetched_at: new Date().toISOString(),
+        source: 'chart=mostPopular',
+        videos,
+        units_consumed: totalUnits,
+      };
+      return { resultCount: videos.length, payload };
+    },
+  });
+
+  return result;
+}
