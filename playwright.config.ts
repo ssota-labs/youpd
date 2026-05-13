@@ -35,9 +35,9 @@ export default defineConfig({
     },
     {
       command: 'pnpm --filter @youpd/mcp dev',
-      url: `http://127.0.0.1:${MCP_PORT}/health`,
+      url: `http://127.0.0.1:${MCP_PORT}/api/health`,
       reuseExistingServer: !process.env.CI,
-      timeout: 60_000,
+      timeout: 120_000,
       stdout: 'pipe',
       stderr: 'pipe',
     },
