@@ -14,7 +14,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     released_at: BUNDLE_RELEASED_AT,
     notes: [
       'Initial public release of YouPD MCP server',
-      '10 MCP tools: search_keyword, get_video_detail, get_channel_overview, get_channel_all_videos, get_video_comments, fetch_hot_chart, fetch_trending_by_keyword, get_latest_version, get_latest_version_schema, get_bundle_manifest',
+      '14 MCP tools: search_keyword, get_video_detail, get_channel_overview, get_channel_all_videos, get_video_comments, fetch_hot_chart, fetch_trending_by_keyword, snapshot_now, compute_metrics, notion_create_key_candidate, notion_create_pull_candidate, get_latest_version, get_latest_version_schema, get_bundle_manifest',
       '11 Notion DB schemas (Keywords, Channels, Videos, Video Snapshots, Channel Snapshots, Comments, Key/Pull Content Candidates, Search Sessions, Hot Video Daily, Agent Meta)',
     ],
   },

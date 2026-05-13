@@ -28,7 +28,7 @@ describe('version manifest', () => {
     expect(CHANGELOG[0]!.version).toBe('1.0.0');
   });
 
-  it('CHANGELOG enumerates the 10 expected MCP tools', () => {
+  it('CHANGELOG enumerates the 14 expected MCP tools', () => {
     const notes = CHANGELOG[0]!.notes.join('\n');
     for (const tool of [
       'search_keyword',
@@ -38,6 +38,10 @@ describe('version manifest', () => {
       'get_video_comments',
       'fetch_hot_chart',
       'fetch_trending_by_keyword',
+      'snapshot_now',
+      'compute_metrics',
+      'notion_create_key_candidate',
+      'notion_create_pull_candidate',
       'get_latest_version',
       'get_latest_version_schema',
       'get_bundle_manifest',

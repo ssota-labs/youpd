@@ -2,20 +2,28 @@ import 'server-only';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import {
+  ComputeMetricsInputSchema,
   FetchHotChartInputSchema,
   FetchTrendingByKeywordInputSchema,
   GetChannelAllVideosInputSchema,
   GetChannelOverviewInputSchema,
   GetVideoCommentsInputSchema,
   GetVideoDetailInputSchema,
+  NotionCreateKeyCandidateInputSchema,
+  NotionCreatePullCandidateInputSchema,
   SearchKeywordInputSchema,
+  SnapshotNowInputSchema,
+  computeMetrics,
   fetchHotChart,
   fetchTrendingByKeyword,
   getChannelAllVideos,
   getChannelOverview,
   getVideoComments,
   getVideoDetail,
+  notionCreateKeyCandidate,
+  notionCreatePullCandidate,
   searchKeyword,
+  snapshotNow,
 } from '@youpd/api/mcp/tools';
 import {
   getBundleManifest,
@@ -39,6 +47,10 @@ export function registerTools(server: McpServer): void {
   registerGetVideoComments(server);
   registerFetchHotChart(server);
   registerFetchTrendingByKeyword(server);
+  registerSnapshotNow(server);
+  registerComputeMetrics(server);
+  registerNotionCreateKeyCandidate(server);
+  registerNotionCreatePullCandidate(server);
   registerVersionTools(server);
 }
 
@@ -246,6 +258,106 @@ function registerFetchTrendingByKeyword(server: McpServer): void {
     async (params) => {
       try {
         return jsonContent(await fetchTrendingByKeyword(params));
+      } catch (err) {
+        return errorContent(err);
+      }
+    },
+  );
+}
+
+function registerSnapshotNow(server: McpServer): void {
+  server.registerTool(
+    'snapshot_now',
+    {
+      title: 'Capture today\'s views/likes/comments for tracked videos',
+      description:
+        'videos.list batched 50 IDs/call → one snapshot row per video. ~ceil(N/50) quota units. Agent upserts each row into the Video Snapshots DB (snapshot_date is PT-calendar to match the YouTube quota window).',
+      inputSchema: SnapshotNowInputSchema.shape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async (params) => {
+      try {
+        return jsonContent(await snapshotNow(params));
+      } catch (err) {
+        return errorContent(err);
+      }
+    },
+  );
+}
+
+function registerComputeMetrics(server: McpServer): void {
+  server.registerTool(
+    'compute_metrics',
+    {
+      title: 'Compute 기여도 / 성과도 / 노출확률 from snapshot history',
+      description:
+        'Pure function — 0 YouTube units. Mirrors the Videos DB formulas: contribution = views / channel_avg_views, performance = views / channel_subs, exposure_probability = (7d delta/7) / (30d delta/30).',
+      inputSchema: ComputeMetricsInputSchema.shape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (params) => {
+      try {
+        return jsonContent(await computeMetrics(params));
+      } catch (err) {
+        return errorContent(err);
+      }
+    },
+  );
+}
+
+function registerNotionCreateKeyCandidate(server: McpServer): void {
+  server.registerTool(
+    'notion_create_key_candidate',
+    {
+      title: 'Build Notion properties payload for a Key Content Candidate',
+      description:
+        'Returns { properties, icon, database_ref="key_content_candidates" } shaped for Notion pages.create. The agent supplies parent.database_id from Agent Meta. 0 YouTube units.',
+      inputSchema: NotionCreateKeyCandidateInputSchema.shape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (params) => {
+      try {
+        return jsonContent(await notionCreateKeyCandidate(params));
+      } catch (err) {
+        return errorContent(err);
+      }
+    },
+  );
+}
+
+function registerNotionCreatePullCandidate(server: McpServer): void {
+  server.registerTool(
+    'notion_create_pull_candidate',
+    {
+      title: 'Build Notion properties payload for a Pull Content Candidate',
+      description:
+        'Returns { properties, icon, database_ref="pull_content_candidates" } shaped for Notion pages.create. The agent supplies parent.database_id from Agent Meta. 0 YouTube units.',
+      inputSchema: NotionCreatePullCandidateInputSchema.shape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (params) => {
+      try {
+        return jsonContent(await notionCreatePullCandidate(params));
       } catch (err) {
         return errorContent(err);
       }
