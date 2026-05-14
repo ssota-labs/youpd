@@ -12,6 +12,7 @@ import {
   NotionCreateKeyCandidateInputSchema,
   NotionCreatePullCandidateInputSchema,
   SearchKeywordInputSchema,
+  SearchSessionsSummaryInputSchema,
   SnapshotNowInputSchema,
   computeMetrics,
   fetchHotChart,
@@ -23,6 +24,7 @@ import {
   notionCreateKeyCandidate,
   notionCreatePullCandidate,
   searchKeyword,
+  searchSessionsSummary,
   snapshotNow,
 } from '@youpd/api/mcp/tools';
 import {
@@ -51,6 +53,7 @@ export function registerTools(server: McpServer): void {
   registerComputeMetrics(server);
   registerNotionCreateKeyCandidate(server);
   registerNotionCreatePullCandidate(server);
+  registerSearchSessionsSummary(server);
   registerVersionTools(server);
 }
 
@@ -358,6 +361,31 @@ function registerNotionCreatePullCandidate(server: McpServer): void {
     async (params) => {
       try {
         return jsonContent(await notionCreatePullCandidate(params));
+      } catch (err) {
+        return errorContent(err);
+      }
+    },
+  );
+}
+
+function registerSearchSessionsSummary(server: McpServer): void {
+  server.registerTool(
+    'search_sessions_summary',
+    {
+      title: 'Aggregate MCP search_sessions for an operator dashboard',
+      description:
+        'Server-wide aggregation over the MCP server\'s search_sessions audit log. PT-bucketed day window. 0 YouTube units. group_by: operation | status | day | operation+status.',
+      inputSchema: SearchSessionsSummaryInputSchema.shape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (params) => {
+      try {
+        return jsonContent(await searchSessionsSummary(params));
       } catch (err) {
         return errorContent(err);
       }

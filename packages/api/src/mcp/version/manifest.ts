@@ -5,13 +5,22 @@ import type { ChangelogEntry, NotionDatabaseSchema } from './types';
 // covers the agent template + MCP tool set; the schema version covers the
 // Notion DB structures. They are bumped in lockstep for v1.x.
 export const SCHEMA_VERSION = '1.0.0';
-export const BUNDLE_VERSION = '1.0.0';
-export const BUNDLE_RELEASED_AT = '2026-05-26T00:00:00Z';
+export const BUNDLE_VERSION = '1.1.0';
+export const BUNDLE_RELEASED_AT = '2026-06-01T00:00:00Z';
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    version: '1.0.0',
+    version: '1.1.0',
     released_at: BUNDLE_RELEASED_AT,
+    notes: [
+      'v0.2 — OAuth AS migrated to Supabase OAuth Server; verify-token now validates JWT via JWKS (issuer + audience RFC 8707 + mcp scope).',
+      'New MCP tool: search_sessions_summary (server-wide audit aggregation, 0 YouTube units).',
+      '15 MCP tools: search_keyword, get_video_detail, get_channel_overview, get_channel_all_videos, get_video_comments, fetch_hot_chart, fetch_trending_by_keyword, snapshot_now, compute_metrics, notion_create_key_candidate, notion_create_pull_candidate, search_sessions_summary, get_latest_version, get_latest_version_schema, get_bundle_manifest',
+    ],
+  },
+  {
+    version: '1.0.0',
+    released_at: '2026-05-26T00:00:00Z',
     notes: [
       'Initial public release of YouPD MCP server',
       '14 MCP tools: search_keyword, get_video_detail, get_channel_overview, get_channel_all_videos, get_video_comments, fetch_hot_chart, fetch_trending_by_keyword, snapshot_now, compute_metrics, notion_create_key_candidate, notion_create_pull_candidate, get_latest_version, get_latest_version_schema, get_bundle_manifest',
