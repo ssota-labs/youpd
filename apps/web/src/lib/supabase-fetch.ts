@@ -28,10 +28,19 @@ export class SupabaseAuthError extends Error {
   override readonly name = 'SupabaseAuthError';
   readonly status: number;
   readonly body: string;
+  readonly errorCode: string | null;
   constructor(status: number, body: string) {
     super(`Supabase Auth ${status}: ${body}`);
     this.status = status;
     this.body = body;
+    let code: string | null = null;
+    try {
+      const parsed = JSON.parse(body) as { error_code?: unknown };
+      if (typeof parsed.error_code === 'string') code = parsed.error_code;
+    } catch {
+      /* not JSON */
+    }
+    this.errorCode = code;
   }
 }
 
@@ -74,15 +83,30 @@ export type AuthorizationDetails = {
   scopes?: string[];
 };
 
+// Supabase auto-approves the authorization on this GET when the user already
+// has an existing consent that covers the requested scope. In that case the
+// response is the same { redirect_url } shape that POST /consent returns, and
+// the authorization status flips to Approved — subsequent GETs return 400
+// "authorization request cannot be processed". Callers must handle both.
+export type AuthorizationFetchResult =
+  | { kind: 'pending'; details: AuthorizationDetails }
+  | { kind: 'auto_approved'; redirectUrl: string };
+
 export async function getAuthorization(
   authorizationId: string,
   userBearer: string,
-): Promise<AuthorizationDetails> {
-  return supabaseAuthFetch<AuthorizationDetails>({
+): Promise<AuthorizationFetchResult> {
+  const raw = await supabaseAuthFetch<
+    AuthorizationDetails | { redirect_url: string }
+  >({
     method: 'GET',
     path: `/auth/v1/oauth/authorizations/${encodeURIComponent(authorizationId)}`,
     bearer: userBearer,
   });
+  if ('redirect_url' in raw && typeof raw.redirect_url === 'string') {
+    return { kind: 'auto_approved', redirectUrl: raw.redirect_url };
+  }
+  return { kind: 'pending', details: raw as AuthorizationDetails };
 }
 
 export type ConsentDecision = 'approve' | 'deny';
