@@ -10,26 +10,33 @@ import {
 } from './index';
 
 describe('version manifest', () => {
-  it('exposes BUNDLE_VERSION = SCHEMA_VERSION = 1.0.0', () => {
-    expect(BUNDLE_VERSION).toBe('1.0.0');
+  it('exposes BUNDLE_VERSION 1.1.0 with SCHEMA_VERSION 1.0.0', () => {
+    expect(BUNDLE_VERSION).toBe('1.1.0');
     expect(SCHEMA_VERSION).toBe('1.0.0');
   });
 
   it('getLatestVersion returns the same triplet every call', () => {
     expect(getLatestVersion()).toEqual(getLatestVersion());
     expect(getLatestVersion()).toMatchObject({
-      version: '1.0.0',
+      version: '1.1.0',
       schema_version: '1.0.0',
     });
   });
 
-  it('CHANGELOG has at least the 1.0.0 entry', () => {
-    expect(CHANGELOG.length).toBeGreaterThanOrEqual(1);
-    expect(CHANGELOG[0]!.version).toBe('1.0.0');
+  it('CHANGELOG includes both 1.1.0 (newest) and 1.0.0 entries', () => {
+    expect(CHANGELOG.length).toBeGreaterThanOrEqual(2);
+    expect(CHANGELOG[0]!.version).toBe('1.1.0');
+    expect(CHANGELOG[1]!.version).toBe('1.0.0');
   });
 
-  it('CHANGELOG enumerates the 14 expected MCP tools', () => {
+  it('CHANGELOG 1.1.0 entry mentions get_skill_group and 7 groups', () => {
     const notes = CHANGELOG[0]!.notes.join('\n');
+    expect(notes).toContain('get_skill_group');
+    expect(notes).toContain('Progressive MCP');
+  });
+
+  it('CHANGELOG enumerates the 14 expected v1.0 MCP tools', () => {
+    const notes = CHANGELOG[1]!.notes.join('\n');
     for (const tool of [
       'search_keyword',
       'get_video_detail',
@@ -118,7 +125,7 @@ describe('version manifest', () => {
       const manifest = getBundleManifest();
       expect(manifest.template_url).toBeNull();
       expect(manifest.healthcheck_url).toBeNull();
-      expect(manifest.bundle_version).toBe('1.0.0');
+      expect(manifest.bundle_version).toBe('1.1.0');
     });
 
     it('derives healthcheck_url from MCP_OAUTH_RESOURCE', () => {
