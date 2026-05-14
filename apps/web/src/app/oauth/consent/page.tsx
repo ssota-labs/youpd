@@ -1,6 +1,10 @@
 import { redirect } from 'next/navigation';
 import { createUserContextClient } from '@youpd/supabase';
-import { getAuthorization } from '@/lib/supabase-fetch';
+import {
+  getAuthorization,
+  SupabaseAuthError,
+  type AuthorizationDetails,
+} from '@/lib/supabase-fetch';
 import { approveAction, denyAction } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -9,14 +13,23 @@ type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-function pickScopes(
-  res: Awaited<ReturnType<typeof getAuthorization>>,
-): string[] {
+function pickScopes(res: AuthorizationDetails): string[] {
   if (Array.isArray(res.scopes)) return res.scopes;
   if (typeof res.scope === 'string') {
     return res.scope.split(' ').filter(Boolean);
   }
   return [];
+}
+
+function renderRecovery(title: string, body: string) {
+  return (
+    <main className="mx-auto max-w-md p-6 font-sans">
+      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+        <h1 className="text-xl font-semibold">{title}</h1>
+        <p className="mt-3 text-sm text-gray-700">{body}</p>
+      </div>
+    </main>
+  );
 }
 
 export default async function ConsentPage({ searchParams }: PageProps) {
@@ -44,7 +57,37 @@ export default async function ConsentPage({ searchParams }: PageProps) {
   }
 
   // session is defined here — redirect above terminates otherwise.
-  const auth = await getAuthorization(authorizationId, session!.access_token);
+  let result: Awaited<ReturnType<typeof getAuthorization>>;
+  try {
+    result = await getAuthorization(authorizationId, session!.access_token);
+  } catch (err) {
+    // Surface a friendly recovery page for known terminal states instead of
+    // letting the error bubble to Next.js's 500 page.
+    if (err instanceof SupabaseAuthError) {
+      if (err.status === 404 || err.errorCode === 'oauth_authorization_not_found') {
+        return renderRecovery(
+          'Authorization expired',
+          'This authorization request is no longer valid. Please restart the connection from the application that initiated it.',
+        );
+      }
+      if (err.status === 400 && err.errorCode === 'validation_failed') {
+        return renderRecovery(
+          'Authorization already processed',
+          'This authorization has already been approved or denied. Please restart the connection from the application that initiated it.',
+        );
+      }
+    }
+    throw err;
+  }
+
+  // Auto-approve case: Supabase already flipped the authorization to Approved
+  // because the user has a prior consent that covers the requested scope.
+  // Skip the UI and forward straight to the OAuth client's redirect_uri.
+  if (result.kind === 'auto_approved') {
+    redirect(result.redirectUrl);
+  }
+
+  const auth = result.details;
   const scopes = pickScopes(auth);
   const userLabel =
     auth.user?.email ?? session!.user.email ?? session!.user.id;
