@@ -10,33 +10,57 @@ import {
 } from './index';
 
 describe('version manifest', () => {
-  it('exposes BUNDLE_VERSION 1.1.0 with SCHEMA_VERSION 1.0.0', () => {
-    expect(BUNDLE_VERSION).toBe('1.1.0');
+  it('exposes BUNDLE_VERSION 1.2.0 with SCHEMA_VERSION 1.0.0', () => {
+    expect(BUNDLE_VERSION).toBe('1.2.0');
     expect(SCHEMA_VERSION).toBe('1.0.0');
   });
 
   it('getLatestVersion returns the same triplet every call', () => {
     expect(getLatestVersion()).toEqual(getLatestVersion());
     expect(getLatestVersion()).toMatchObject({
-      version: '1.1.0',
+      version: '1.2.0',
       schema_version: '1.0.0',
     });
   });
 
-  it('CHANGELOG includes both 1.1.0 (newest) and 1.0.0 entries', () => {
-    expect(CHANGELOG.length).toBeGreaterThanOrEqual(2);
-    expect(CHANGELOG[0]!.version).toBe('1.1.0');
-    expect(CHANGELOG[1]!.version).toBe('1.0.0');
+  it('CHANGELOG includes 1.2.0 (newest), 1.1.0 and 1.0.0 entries in order', () => {
+    expect(CHANGELOG.length).toBeGreaterThanOrEqual(3);
+    expect(CHANGELOG[0]!.version).toBe('1.2.0');
+    expect(CHANGELOG[1]!.version).toBe('1.1.0');
+    expect(CHANGELOG.at(-1)!.version).toBe('1.0.0');
   });
 
-  it('CHANGELOG 1.1.0 entry mentions get_skill_group and 7 groups', () => {
+  it('CHANGELOG 1.2.0 entry mentions get_skill_group and Progressive MCP', () => {
     const notes = CHANGELOG[0]!.notes.join('\n');
     expect(notes).toContain('get_skill_group');
     expect(notes).toContain('Progressive MCP');
   });
 
-  it('CHANGELOG enumerates the 14 expected v1.0 MCP tools', () => {
+  it('CHANGELOG 1.1.0 entry enumerates the 15 expected MCP tools', () => {
     const notes = CHANGELOG[1]!.notes.join('\n');
+    for (const tool of [
+      'search_keyword',
+      'get_video_detail',
+      'get_channel_overview',
+      'get_channel_all_videos',
+      'get_video_comments',
+      'fetch_hot_chart',
+      'fetch_trending_by_keyword',
+      'snapshot_now',
+      'compute_metrics',
+      'notion_create_key_candidate',
+      'notion_create_pull_candidate',
+      'search_sessions_summary',
+      'get_latest_version',
+      'get_latest_version_schema',
+      'get_bundle_manifest',
+    ]) {
+      expect(notes).toContain(tool);
+    }
+  });
+
+  it('CHANGELOG 1.0.0 entry enumerates the original 14 MCP tools', () => {
+    const notes = CHANGELOG.at(-1)!.notes.join('\n');
     for (const tool of [
       'search_keyword',
       'get_video_detail',
@@ -125,7 +149,7 @@ describe('version manifest', () => {
       const manifest = getBundleManifest();
       expect(manifest.template_url).toBeNull();
       expect(manifest.healthcheck_url).toBeNull();
-      expect(manifest.bundle_version).toBe('1.1.0');
+      expect(manifest.bundle_version).toBe('1.2.0');
     });
 
     it('derives healthcheck_url from MCP_OAUTH_RESOURCE', () => {

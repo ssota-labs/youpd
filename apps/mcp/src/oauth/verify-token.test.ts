@@ -1,78 +1,104 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { hashToken } from './tokens';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { generateKeyPair, SignJWT, exportJWK, type CryptoKey } from 'jose';
+import { __setJwksForTests, verifyAccessToken } from './verify-token';
 
-// Mock the repository module before importing the verifier so the verifier
-// picks up our spy. The verifier only calls findActiveAccessToken; we control
-// what it returns per test.
-const findActiveAccessToken = vi.fn();
-vi.mock('@youpd/supabase', () => ({
-  findActiveAccessToken: (...args: unknown[]) =>
-    findActiveAccessToken(...(args as [string])),
-}));
-
+const ISSUER = 'https://test.supabase.co/auth/v1';
 const RESOURCE = 'http://localhost:3002/api/mcp';
+const KID = 'test-kid-1';
 
-async function loadVerifier() {
-  process.env.MCP_OAUTH_RESOURCE = RESOURCE;
-  vi.resetModules();
-  return import('./verify-token');
+type SignArgs = {
+  privateKey: CryptoKey;
+  iss?: string;
+  aud?: string | string[];
+  sub?: string;
+  scope?: string;
+  client_id?: string;
+  expSecondsFromNow?: number;
+};
+
+async function sign(opts: SignArgs): Promise<string> {
+  const exp =
+    Math.floor(Date.now() / 1000) + (opts.expSecondsFromNow ?? 60);
+  return new SignJWT({
+    scope: opts.scope ?? 'mcp',
+    client_id: opts.client_id ?? 'client-1',
+  })
+    .setProtectedHeader({ alg: 'RS256', kid: KID })
+    .setIssuer(opts.iss ?? ISSUER)
+    .setAudience(opts.aud ?? RESOURCE)
+    .setSubject(opts.sub ?? 'user-1')
+    .setIssuedAt()
+    .setExpirationTime(exp)
+    .sign(opts.privateKey);
 }
 
+let publicKey: CryptoKey;
+let privateKey: CryptoKey;
+
+beforeEach(async () => {
+  process.env.MCP_OAUTH_ISSUER = ISSUER;
+  process.env.MCP_OAUTH_RESOURCE = RESOURCE;
+  ({ publicKey, privateKey } = await generateKeyPair('RS256'));
+  const jwk = { ...(await exportJWK(publicKey)), kid: KID, alg: 'RS256' };
+  // Stand-in JWTVerifyGetKey resolver — returns our deterministic key for any
+  // header asking for KID, ignoring HTTP entirely.
+  __setJwksForTests(async () => publicKey);
+  // Touch jwk so the import isn't flagged unused — exportJWK is exercised to
+  // mirror the production setup even though jose accepts the CryptoKey directly.
+  void jwk;
+});
+
+afterEach(() => {
+  __setJwksForTests(null);
+});
+
 describe('verifyAccessToken', () => {
-  beforeEach(() => {
-    findActiveAccessToken.mockReset();
-  });
-
   it('returns undefined when no bearer is provided', async () => {
-    const { verifyAccessToken } = await loadVerifier();
-    expect(await verifyAccessToken(new Request('http://x'), undefined)).toBeUndefined();
-    expect(findActiveAccessToken).not.toHaveBeenCalled();
+    const result = await verifyAccessToken(new Request('http://x'), undefined);
+    expect(result).toBeUndefined();
   });
 
-  it('returns undefined when the token is unknown / revoked / expired', async () => {
-    findActiveAccessToken.mockResolvedValue(null);
-    const { verifyAccessToken } = await loadVerifier();
+  it('returns undefined when the token is malformed / unsigned', async () => {
     const result = await verifyAccessToken(new Request('http://x'), 'bogus');
     expect(result).toBeUndefined();
-    expect(findActiveAccessToken).toHaveBeenCalledWith(hashToken('bogus'));
   });
 
-  it('rejects tokens issued for a different MCP resource (RFC 8707)', async () => {
-    findActiveAccessToken.mockResolvedValue({
-      id: 'tok-1',
-      tokenHash: hashToken('valid'),
-      clientId: 'client-1',
-      userId: 'user-1',
-      scope: 'mcp',
-      resource: 'https://different-mcp.example.com/api/mcp',
-      expiresAt: new Date(Date.now() + 60_000),
-      revokedAt: null,
-      createdAt: new Date(),
-    });
-    const { verifyAccessToken } = await loadVerifier();
-    const result = await verifyAccessToken(new Request('http://x'), 'valid');
-    expect(result).toBeUndefined();
+  it('rejects tokens with a wrong issuer', async () => {
+    const token = await sign({ privateKey, iss: 'https://evil.example/auth/v1' });
+    expect(await verifyAccessToken(new Request('http://x'), token)).toBeUndefined();
   });
 
-  it('returns AuthInfo with userId in extra when the token is valid', async () => {
-    findActiveAccessToken.mockResolvedValue({
-      id: 'tok-1',
-      tokenHash: hashToken('valid'),
-      clientId: 'client-1',
-      userId: 'user-1',
-      scope: 'mcp other-scope',
-      resource: RESOURCE,
-      expiresAt: new Date(Date.now() + 60_000),
-      revokedAt: null,
-      createdAt: new Date(),
+  it('rejects tokens with a wrong audience (RFC 8707)', async () => {
+    const token = await sign({
+      privateKey,
+      aud: 'https://different-mcp.example.com/api/mcp',
     });
-    const { verifyAccessToken } = await loadVerifier();
-    const result = await verifyAccessToken(new Request('http://x'), 'valid');
+    expect(await verifyAccessToken(new Request('http://x'), token)).toBeUndefined();
+  });
+
+  it('rejects tokens missing the mcp scope', async () => {
+    const token = await sign({ privateKey, scope: 'openid email' });
+    expect(await verifyAccessToken(new Request('http://x'), token)).toBeUndefined();
+  });
+
+  it('rejects expired tokens', async () => {
+    const token = await sign({ privateKey, expSecondsFromNow: -10 });
+    expect(await verifyAccessToken(new Request('http://x'), token)).toBeUndefined();
+  });
+
+  it('returns AuthInfo with userId in extra on a valid token', async () => {
+    const token = await sign({
+      privateKey,
+      sub: 'user-42',
+      client_id: 'client-7',
+      scope: 'mcp openid',
+    });
+    const result = await verifyAccessToken(new Request('http://x'), token);
     expect(result).toEqual({
-      token: 'valid',
-      scopes: ['mcp', 'other-scope'],
-      clientId: 'client-1',
-      extra: { userId: 'user-1', tokenId: 'tok-1' },
+      token,
+      scopes: ['mcp', 'openid'],
+      clientId: 'client-7',
+      extra: { userId: 'user-42' },
     });
   });
 });

@@ -92,16 +92,17 @@ const SCENARIOS: Scenario[] = [
   {
     title: 'S2 — 채널 진단 (지표 계산)',
     userMessage:
-      '이 영상 기여도/성과도/노출확률 계산해줘. 채널 평균 조회수 20000, 구독자 500000, 영상 조회수 100000, 7d delta 12000, 30d delta 38000.',
+      '이 영상 기여도/성과도/노출확률 계산해줘. 채널 평균 조회수 20000, 구독자 500000, 최근 조회수 100000, 7일·30일 스냅샷 가져옴.',
     pickGroup: 'METRIC',
     act: async () =>
       await computeMetrics({
-        video_id: 'demo-vid-2',
-        views: 100000,
+        latest_views: 100000,
         channel_avg_views: 20000,
         channel_subs: 500000,
-        delta_7d: 12000,
-        delta_30d: 38000,
+        snapshots: [
+          { snapshot_date: '2026-05-07', views: 88000 },
+          { snapshot_date: '2026-04-14', views: 62000 },
+        ],
       }),
   },
   {
@@ -112,11 +113,15 @@ const SCENARIOS: Scenario[] = [
     act: async () =>
       await notionCreateKeyCandidate({
         title: '시니어 케어 음성 쇼핑 — 초기 후보',
-        priority: 'High',
-        themes: ['시니어 케어', '음성 쇼핑'],
-        reasoning:
-          '댓글에서 부모님 대신 주문해주는 시청자가 다수 발견됨. 음성 인터랙션 친화 콘텐츠.',
-        source_video_id: 'demo-vid-1',
+        stage: '1.수집',
+        production_priority: 'High',
+        feature_text: '음성으로 부모님 대신 주문해주는 시청자 다수 — 음성 인터랙션 친화 콘텐츠.',
+        problem_text: '시니어 사용자가 직접 주문 흐름을 따라가기 어려움.',
+        sales_logic_draft: '대신 주문 → 후기 → 추천의 3단 구조로 풀어볼 만한 키 콘텐츠.',
+        keyword_page_ids: [],
+        reference_video_page_ids: [],
+        pull_candidate_page_ids: [],
+        owner_user_ids: [],
       }),
   },
   {

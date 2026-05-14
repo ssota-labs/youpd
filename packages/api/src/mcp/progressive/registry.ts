@@ -198,6 +198,22 @@ export const TOOL_DOCS: readonly ToolDoc[] = [
     tags: ['plan', 'notion', 'candidate', 'pull'],
   },
   {
+    name: 'search_sessions_summary',
+    group_code: 'SYS',
+    short_description:
+      'MCP search_sessions 감사 로그 집계 (server-wide). 0 quota. 먼저 `get_skill_group("SYS")` 권장.',
+    long_description:
+      'MCP 서버의 search_sessions audit 로그를 PT 캘린더 day 단위로 집계해 운영자 대시보드 입력으로 반환한다. group_by: operation | status | day | operation+status. server-wide (per-user 필터 없음).',
+    when_to_use:
+      '오퍼레이터가 일별·작업별·상태별 호출 추이를 점검하거나 quota 사용 패턴을 분석할 때.',
+    example_calls: [
+      'search_sessions_summary({ days: 7, group_by: "operation" })',
+      'search_sessions_summary({ days: 30, group_by: "operation+status" })',
+    ],
+    quota_cost: '0',
+    tags: ['sys', 'audit', 'session', 'admin'],
+  },
+  {
     name: 'get_bundle_manifest',
     group_code: 'SYS',
     short_description:

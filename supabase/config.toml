@@ -155,7 +155,12 @@ site_url = "http://127.0.0.1:3000"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+additional_redirect_urls = [
+  "https://127.0.0.1:3000",
+  # v0.2.1 — allow apps/web auth callback for OAuth consent flow + magic links.
+  "http://localhost:3000/**",
+  "http://127.0.0.1:3000/**",
+]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -276,9 +281,12 @@ max_frequency = "5s"
 # uri = "pg-functions://postgres/auth/before-user-created-hook"
 
 # This hook runs before a token is issued and allows you to add additional claims based on the authentication method used.
-# [auth.hook.custom_access_token]
-# enabled = true
-# uri = "pg-functions://<database>/<schema>/<hook_name>"
+# v0.2: stamp aud=MCP_OAUTH_RESOURCE + scope=mcp on OAuth-issued access tokens
+# so our remote MCP (apps/mcp/src/oauth/verify-token) can enforce RFC 8707
+# audience binding and a `mcp` scope check. Non-OAuth flows pass through.
+[auth.hook.custom_access_token]
+enabled = true
+uri = "pg-functions://postgres/public/mcp_access_token_hook"
 
 # Configure one of the supported SMS providers: `twilio`, `twilio_verify`, `messagebird`, `textlocal`, `vonage`.
 [auth.sms.twilio]
@@ -357,14 +365,14 @@ enabled = false
 # Obtain from https://clerk.com/setup/supabase
 # domain = "example.clerk.accounts.dev"
 
-# OAuth server configuration
+# OAuth server configuration — v0.2: Supabase OAuth Server replaces the
+# self-hosted AS in apps/mcp/src/oauth/. Notion AI Marketplace can register
+# itself via the dynamic registration endpoint; verify-token validates the
+# resulting JWT via JWKS (issuer + audience + mcp scope).
 [auth.oauth_server]
-# Enable OAuth server functionality
-enabled = false
-# Path for OAuth consent flow UI
+enabled = true
 authorization_url_path = "/oauth/consent"
-# Allow dynamic client registration
-allow_dynamic_registration = false
+allow_dynamic_registration = true
 
 [edge_runtime]
 enabled = true

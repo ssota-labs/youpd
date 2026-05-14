@@ -12,6 +12,7 @@ import {
   NotionCreateKeyCandidateInputSchema,
   NotionCreatePullCandidateInputSchema,
   SearchKeywordInputSchema,
+  SearchSessionsSummaryInputSchema,
   SnapshotNowInputSchema,
   computeMetrics,
   fetchHotChart,
@@ -23,6 +24,7 @@ import {
   notionCreateKeyCandidate,
   notionCreatePullCandidate,
   searchKeyword,
+  searchSessionsSummary,
   snapshotNow,
 } from '@youpd/api/mcp/tools';
 import {
@@ -63,6 +65,7 @@ export function registerTools(server: McpServer): void {
   registerComputeMetrics(server);
   registerNotionCreateKeyCandidate(server);
   registerNotionCreatePullCandidate(server);
+  registerSearchSessionsSummary(server);
   registerVersionTools(server);
 }
 
@@ -416,6 +419,33 @@ function registerNotionCreatePullCandidate(server: McpServer): void {
     async (params) => {
       try {
         return jsonContent(await notionCreatePullCandidate(params));
+      } catch (err) {
+        return errorContent(err);
+      }
+    },
+  );
+}
+
+function registerSearchSessionsSummary(server: McpServer): void {
+  server.registerTool(
+    'search_sessions_summary',
+    {
+      title: 'Aggregate MCP search_sessions for an operator dashboard',
+      description: shortDescription(
+        'search_sessions_summary',
+        'MCP search_sessions 감사 로그 집계 (server-wide). 0 quota.',
+      ),
+      inputSchema: SearchSessionsSummaryInputSchema.shape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (params) => {
+      try {
+        return jsonContent(await searchSessionsSummary(params));
       } catch (err) {
         return errorContent(err);
       }

@@ -70,10 +70,15 @@ describe('progressive tool registry', () => {
     }
   });
 
-  it('SYS group includes the version + manifest tools', () => {
+  it('SYS group includes the version + manifest + audit tools', () => {
     const names = getToolsForGroup('SYS').map((t) => t.name).sort();
     expect(names).toEqual(
-      ['get_bundle_manifest', 'get_latest_version', 'get_latest_version_schema'].sort(),
+      [
+        'get_bundle_manifest',
+        'get_latest_version',
+        'get_latest_version_schema',
+        'search_sessions_summary',
+      ].sort(),
     );
   });
 

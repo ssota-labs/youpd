@@ -63,3 +63,9 @@ export {
   NotionCreatePullCandidateInputSchema,
   type NotionCreatePullCandidateInput,
 } from './notion-create-pull-candidate';
+export {
+  searchSessionsSummary,
+  SearchSessionsSummaryInputSchema,
+  type SearchSessionsSummaryInput,
+  type SearchSessionsSummaryOutput,
+} from './search-sessions-summary';
