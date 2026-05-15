@@ -162,20 +162,38 @@ export function ComposerCanvas(props: ComposerCanvasProps) {
   // this, KText nodes mounted while a custom family (e.g. Black Han Sans)
   // is still loading get sized against the system fallback (much narrower),
   // and the bounding box is too small until the user touches a property.
+  //
+  // fonts.ready resolves when the FontFace promises settle, but canvas
+  // measureText sometimes still returns fallback metrics on the same tick.
+  // Toggle once immediately, then again over the next two animation frames
+  // so we catch whichever frame the new font becomes paintable. The
+  // getSelfRect override propagates the new width to Transformer +
+  // hover rect automatically.
   const fontManifestUrl = useComposerFontManifestUrl();
   useEffect(() => {
     let cancelled = false;
-    void fontsReady(fontManifestUrl).then(() => {
-      if (cancelled) return;
+    const toggleAndDraw = () => {
       const stage = stageRef.current;
       if (!stage) return;
       stage.find('Text').forEach((t) => {
         const fam = (t as Konva.Text).fontFamily();
-        // Toggle the family to invalidate Konva's cached metrics.
         (t as Konva.Text).fontFamily(fam + ' ');
         (t as Konva.Text).fontFamily(fam);
       });
+      transformerRef.current?.forceUpdate();
       stage.batchDraw();
+    };
+    void fontsReady(fontManifestUrl).then(() => {
+      if (cancelled) return;
+      toggleAndDraw();
+      requestAnimationFrame(() => {
+        if (cancelled) return;
+        toggleAndDraw();
+        requestAnimationFrame(() => {
+          if (cancelled) return;
+          toggleAndDraw();
+        });
+      });
     });
     return () => {
       cancelled = true;
