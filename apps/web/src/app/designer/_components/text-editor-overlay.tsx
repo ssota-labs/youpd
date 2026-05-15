@@ -57,15 +57,15 @@ export function TextEditorOverlay({
       }}
       style={{
         position: 'absolute',
-        // Match the Konva node's drawn rect exactly.
-        left: rect.x,
-        top: rect.y,
+        // content-box so `width`/`height` represent the text-drawing area,
+        // matching the Konva node's rect. The 1px dashed border then sits
+        // *outside* the rect, shifted by -1px so it visually frames the
+        // text instead of clipping it.
+        boxSizing: 'content-box',
+        left: rect.x - 1,
+        top: rect.y - 1,
         width: rect.width,
         height: rect.height,
-        // border-box so the dashed border is inside the rect rather than
-        // adding 2px outside on every edge (which used to overflow the
-        // bounding box on every double-click).
-        boxSizing: 'border-box',
         fontSize: (layer.fontSize ?? 64) * stageScale,
         fontFamily: layer.fontFamily ?? 'Pretendard, sans-serif',
         fontWeight,
@@ -79,10 +79,10 @@ export function TextEditorOverlay({
         padding: 0,
         margin: 0,
         resize: 'none',
-        // Clip overflow to the original bounding box; if the user types
-        // more text than fits, they'll see scroll. After commit, Konva
+        // Allow vertical scroll if user types more text than fits, but no
+        // horizontal scroll — long lines wrap. After commit, Konva
         // re-renders the layer at the actual size needed.
-        overflow: 'auto',
+        overflow: 'hidden auto',
         whiteSpace: 'pre-wrap',
         wordBreak: 'break-word',
         zIndex: 10,
