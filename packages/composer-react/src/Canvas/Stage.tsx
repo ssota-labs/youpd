@@ -165,33 +165,32 @@ export function ComposerCanvas(props: ComposerCanvasProps) {
   //
   // fonts.ready resolves when the FontFace promises settle, but canvas
   // measureText sometimes still returns fallback metrics on the same tick.
-  // Toggle once immediately, then again over the next two animation frames
-  // so we catch whichever frame the new font becomes paintable. The
-  // getSelfRect override propagates the new width to Transformer +
-  // hover rect automatically.
+  // We call Konva.Text._setTextData() — its internal re-measurement entry —
+  // immediately + over the next two animation frames so we catch whichever
+  // frame the new font becomes paintable. Cached textWidth on the node is
+  // refreshed, and the getSelfRect override picks it up automatically.
   const fontManifestUrl = useComposerFontManifestUrl();
   useEffect(() => {
     let cancelled = false;
-    const toggleAndDraw = () => {
+    const remeasureAndDraw = () => {
       const stage = stageRef.current;
       if (!stage) return;
       stage.find('Text').forEach((t) => {
-        const fam = (t as Konva.Text).fontFamily();
-        (t as Konva.Text).fontFamily(fam + ' ');
-        (t as Konva.Text).fontFamily(fam);
+        const node = t as Konva.Text & { _setTextData?: () => void };
+        node._setTextData?.();
       });
       transformerRef.current?.forceUpdate();
       stage.batchDraw();
     };
     void fontsReady(fontManifestUrl).then(() => {
       if (cancelled) return;
-      toggleAndDraw();
+      remeasureAndDraw();
       requestAnimationFrame(() => {
         if (cancelled) return;
-        toggleAndDraw();
+        remeasureAndDraw();
         requestAnimationFrame(() => {
           if (cancelled) return;
-          toggleAndDraw();
+          remeasureAndDraw();
         });
       });
     });
