@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import {
   Stage,
@@ -13,34 +13,56 @@ import {
   Line as KLine,
 } from 'react-konva';
 import type Konva from 'konva';
-import type { Layer, LayerPatch, ThumbnailDocument } from '@youpd/types';
 import {
-  useDesignerStore,
-  patchLayerOnServer,
-} from './designer-store';
-import { TextEditorOverlay } from './text-editor-overlay';
-import { snapDrag, type GuideLine } from './snap';
-import { fontsReady } from './font-loader';
+  snapDrag,
+  type Composition,
+  type GuideLine,
+  type Layer,
+  type LayerPatch,
+} from '@youpd/composer-core';
+import {
+  useComposerActions,
+  useComposerStore,
+  useComposerStoreApi,
+} from '../store';
+import { fontsReady, useFontManifest } from '../fonts';
+import { TextEditorOverlay } from '../overlay/text-editor-overlay';
 
-type Props = {
-  thumbnailId: string;
+export type ComposerCanvasProps = {
+  documentId: string;
   initialVersion: number;
-  initialDocument: ThumbnailDocument;
-  supabaseUrl: string;
-  supabaseAnonKey: string;
+  initialDocument: Composition;
+  // Optional Supabase Realtime credentials. When present the canvas
+  // subscribes to a `composer:{documentId}` broadcast channel and refetches
+  // authoritative state on every patched event.
+  realtime?: {
+    url: string;
+    anonKey: string;
+    channelPrefix?: string;
+  };
+  // Reserved horizontal pixels for any sibling chrome (panels, etc.) so the
+  // canvas can fit within the host layout.
+  reservedHorizontalPx?: number;
 };
 
-export function DesignerCanvas(props: Props) {
-  const init = useDesignerStore((s) => s.init);
-  const doc = useDesignerStore((s) => s.doc);
-  const selectedId = useDesignerStore((s) => s.selectedId);
-  const hoveredId = useDesignerStore((s) => s.hoveredId);
-  const setSelected = useDesignerStore((s) => s.setSelected);
-  const setHovered = useDesignerStore((s) => s.setHovered);
-  const setIsDragging = useDesignerStore((s) => s.setIsDragging);
-  const applyLocalPatch = useDesignerStore((s) => s.applyLocalPatch);
-  const replaceDoc = useDesignerStore((s) => s.replaceDoc);
-  const setStatus = useDesignerStore((s) => s.setStatus);
+export function ComposerCanvas(props: ComposerCanvasProps) {
+  const actions = useComposerActions();
+  const storeApi = useComposerStoreApi();
+  const init = useComposerStore((s) => s.init);
+  const doc = useComposerStore((s) => s.doc);
+  const selectedId = useComposerStore((s) => s.selectedId);
+  const hoveredId = useComposerStore((s) => s.hoveredId);
+  const setSelected = useComposerStore((s) => s.setSelected);
+  const setHovered = useComposerStore((s) => s.setHovered);
+  const setIsDragging = useComposerStore((s) => s.setIsDragging);
+  const applyLocalPatch = useComposerStore((s) => s.applyLocalPatch);
+  const replaceDoc = useComposerStore((s) => s.replaceDoc);
+  const setStatus = useComposerStore((s) => s.setStatus);
+
+  // Subscribing here keeps the font manifest fetch + injection mounted; the
+  // returned families aren't used directly but the side effect is what we
+  // care about.
+  useFontManifest();
 
   const stageRef = useRef<Konva.Stage | null>(null);
   const transformerRef = useRef<Konva.Transformer | null>(null);
@@ -53,20 +75,16 @@ export function DesignerCanvas(props: Props) {
 
   useEffect(() => {
     init({
-      thumbnailId: props.thumbnailId,
+      documentId: props.documentId,
       doc: props.initialDocument,
       version: props.initialVersion,
     });
-  }, [init, props.thumbnailId, props.initialDocument, props.initialVersion]);
+  }, [init, props.documentId, props.initialDocument, props.initialVersion]);
 
-  // Fit the stage to viewport without rescaling the source coords.
   useEffect(() => {
+    const reserved = props.reservedHorizontalPx ?? 64;
     const compute = () => {
       if (typeof window === 'undefined') return;
-      // Account for left layer panel (240) + right properties panel (288) +
-      // padding so the canvas fits the center column. Clamp to 320 minimum
-      // so the preview is usable on narrow viewports.
-      const reserved = 560;
       const available = Math.max(320, window.innerWidth - reserved);
       const maxW = Math.min(available, 1100);
       setStageScale(Math.min(1, maxW / width));
@@ -74,35 +92,38 @@ export function DesignerCanvas(props: Props) {
     compute();
     window.addEventListener('resize', compute);
     return () => window.removeEventListener('resize', compute);
-  }, [width]);
+  }, [width, props.reservedHorizontalPx]);
 
-  // Realtime subscription — refetch authoritative state via API on each
-  // broadcast so the iframe doesn't trust an unvalidated payload.
   useEffect(() => {
-    if (!props.supabaseUrl || !props.supabaseAnonKey) return;
-    const supabase = createBrowserClient(props.supabaseUrl, props.supabaseAnonKey);
-    const channel = supabase.channel(`thumbnail:${props.thumbnailId}`, {
+    if (!props.realtime?.url || !props.realtime?.anonKey) return;
+    const supabase = createBrowserClient(
+      props.realtime.url,
+      props.realtime.anonKey,
+    );
+    const prefix = props.realtime.channelPrefix ?? 'thumbnail';
+    const channel = supabase.channel(`${prefix}:${props.documentId}`, {
       config: { broadcast: { self: false } },
     });
     channel.on('broadcast', { event: 'patched' }, async () => {
-      if (useDesignerStore.getState().isDragging) return;
-      const res = await fetch(
-        `/api/mcp/thumbnail/state?thumbnailId=${props.thumbnailId}`,
-      );
-      if (!res.ok) return;
-      const data = (await res.json()) as {
-        version: number;
-        document: ThumbnailDocument;
-      };
+      if (storeApi.getState().isDragging) return;
+      const data = await actions.refetchState(props.documentId);
+      if (!data) return;
       replaceDoc(data.document, data.version);
     });
     channel.subscribe();
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [props.thumbnailId, props.supabaseUrl, props.supabaseAnonKey, replaceDoc]);
+  }, [
+    props.documentId,
+    props.realtime?.url,
+    props.realtime?.anonKey,
+    props.realtime?.channelPrefix,
+    actions,
+    replaceDoc,
+    storeApi,
+  ]);
 
-  // Attach the Transformer to the currently selected node.
   useEffect(() => {
     const tr = transformerRef.current;
     if (!tr) return;
@@ -114,11 +135,8 @@ export function DesignerCanvas(props: Props) {
     tr.getLayer()?.batchDraw();
   }, [selectedId, doc.layers.length]);
 
-  // Konva.Text.getSelfRect() returns the wrap-width box, which inflates the
-  // Transformer (and any client-rect consumer) for short text inside a wide
-  // wrap width. Override to return the tight glyph rect with align applied.
-  // We re-apply on every layer change so newly mounted text nodes get the
-  // override too.
+  // Tight getSelfRect for Konva.Text so Transformer + getClientRect track the
+  // actual glyph rect rather than the wrap-width box.
   useEffect(() => {
     shapeRefs.current.forEach((node, id) => {
       const layer = doc.layers.find((l) => l.id === id);
@@ -139,19 +157,19 @@ export function DesignerCanvas(props: Props) {
     transformerRef.current?.getLayer()?.batchDraw();
   }, [doc.layers]);
 
-  // Konva measures fonts via canvas measureText at first draw and caches the
-  // metrics. If our @font-face fonts loaded after the initial mount, all
-  // text nodes are stuck on system fallback. Wait until fonts.ready, then
-  // force every text node to re-measure by re-applying fontFamily.
+  // Force Konva to re-measure once @font-face fonts finish loading.
   useEffect(() => {
+    const manifestUrl =
+      // Manifest URL is fetched indirectly via context; re-measuring just
+      // needs the document fonts.ready promise to be resolved.
+      '';
     let cancelled = false;
-    void fontsReady().then(() => {
+    void fontsReady(manifestUrl).then(() => {
       if (cancelled) return;
       const stage = stageRef.current;
       if (!stage) return;
       stage.find('Text').forEach((t) => {
         const fam = (t as Konva.Text).fontFamily();
-        // Toggle to force Konva to invalidate cached metrics.
         (t as Konva.Text).fontFamily(fam + ' ');
         (t as Konva.Text).fontFamily(fam);
       });
@@ -165,37 +183,29 @@ export function DesignerCanvas(props: Props) {
   const handleStageMouseDown = (
     e: Konva.KonvaEventObject<MouseEvent | TouchEvent>,
   ) => {
-    // Click on empty area → deselect.
     if (e.target === e.target.getStage()) setSelected(null);
   };
 
   const commitPatch = async (layerId: string, patch: LayerPatch) => {
     applyLocalPatch(layerId, patch);
     setStatus('pending');
-    const baseline = useDesignerStore.getState().version;
-    const res = await patchLayerOnServer({
-      thumbnailId: props.thumbnailId,
+    const baseline = storeApi.getState().version;
+    const res = await actions.setLayer({
+      documentId: props.documentId,
       layerId,
       patch,
       expectedVersion: baseline,
     });
     if ('conflict' in res) {
       setStatus('conflict');
-      // Re-pull authoritative state.
-      const stateRes = await fetch(
-        `/api/mcp/thumbnail/state?thumbnailId=${props.thumbnailId}`,
-      );
-      if (stateRes.ok) {
-        const data = (await stateRes.json()) as {
-          version: number;
-          document: ThumbnailDocument;
-        };
-        replaceDoc(data.document, data.version);
+      const state = await actions.refetchState(props.documentId);
+      if (state) {
+        replaceDoc(state.document, state.version);
         setStatus('idle');
       }
       return;
     }
-    useDesignerStore.setState({ version: res.version });
+    storeApi.setState({ version: res.version });
     setStatus('idle');
   };
 
@@ -294,22 +304,15 @@ export function DesignerCanvas(props: Props) {
           />
         </Layer_>
         <Layer_ listening={false}>
-          {/* Hover bounding box (skipped when selected — Transformer takes over).
-              getClientRect({ relativeTo: stage }) returns source-space coords
-              that match what the KRect will draw inside the same scaled
-              stage, so we use it verbatim. Multi-line text + auto-width
-              wrap is reflected correctly because the rect comes from the
-              actual measured Konva node. */}
           {hoveredId && hoveredId !== selectedId
             ? (() => {
                 const layer = doc.layers.find((l) => l.id === hoveredId);
                 if (!layer) return null;
                 const node = shapeRefs.current.get(hoveredId);
-                const stage = stageRef.current;
                 const box =
-                  node && stage
+                  node && stageRef.current
                     ? hoverRectForNode(node, layer)
-                    : boundingBox(layer);
+                    : declaredBox(layer);
                 return (
                   <KRect
                     x={box.x}
@@ -347,10 +350,6 @@ export function DesignerCanvas(props: Props) {
       </Stage>
       {editingLayer && editingLayer.type === 'text'
         ? (() => {
-            // Mirror the hover box: use getTextWidth + align so the textarea
-            // hugs the visible glyphs instead of the wrap width. Then convert
-            // source-space coords to screen pixels for the absolute-positioned
-            // <textarea>.
             const node = shapeRefs.current.get(editingLayer.id);
             const tight = node
               ? hoverRectForNode(node, editingLayer)
@@ -403,16 +402,10 @@ type LayerHandlers = {
   registerNode: (node: Konva.Node | null) => void;
 };
 
-// For text layers, Konva's getClientRect returns the wrap-width box even if
-// the actual text is much shorter. Use getTextWidth() and account for align
-// so the hover indicator hugs the visible glyphs. Non-text nodes always have
-// width/height equal to what's drawn.
-function hoverRectForNode(node: Konva.Node, layer: Layer): {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-} {
+function hoverRectForNode(
+  node: Konva.Node,
+  layer: Layer,
+): { x: number; y: number; width: number; height: number } {
   if (layer.type === 'text') {
     const textNode = node as Konva.Text;
     const wrapWidth = textNode.width();
@@ -429,15 +422,8 @@ function hoverRectForNode(node: Konva.Node, layer: Layer): {
       height: textNode.height(),
     };
   }
-  // Shapes / images: use the declared rect directly so rotation doesn't
-  // inflate the hover box.
   if (layer.type === 'shape' && layer.shape === 'circle') {
-    return {
-      x: layer.x,
-      y: layer.y,
-      width: layer.width,
-      height: layer.height,
-    };
+    return { x: layer.x, y: layer.y, width: layer.width, height: layer.height };
   }
   return {
     x: node.x(),
@@ -447,7 +433,7 @@ function hoverRectForNode(node: Konva.Node, layer: Layer): {
   };
 }
 
-function boundingBox(layer: Layer): {
+function declaredBox(layer: Layer): {
   x: number;
   y: number;
   width: number;
@@ -484,7 +470,6 @@ function renderLayer(layer: Layer, h: LayerHandlers): React.ReactNode {
     if (layer.type === 'text' && layer.fontSize) {
       patch.fontSize = Math.max(8, layer.fontSize * scaleY);
     }
-    // Reset scale so future transforms aren't compounded.
     node.scaleX(1);
     node.scaleY(1);
     h.onTransformEnd(patch);
@@ -590,7 +575,7 @@ function renderLayer(layer: Layer, h: LayerHandlers): React.ReactNode {
       rotation={layer.rotation ?? 0}
       draggable
       onDragStart={h.onDragStart}
-        onDragMove={(e) => h.onDragMove(e.target)}
+      onDragMove={(e) => h.onDragMove(e.target)}
       onDragEnd={(e) => h.onDragEnd(e.target.x(), e.target.y())}
       onTransformEnd={(e) => onTransformEndFor(e.target)}
       onClick={h.onSelect}

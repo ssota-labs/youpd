@@ -3,6 +3,8 @@ import type { NextConfig } from 'next';
 const nextConfig: NextConfig = {
   transpilePackages: [
     '@youpd/api',
+    '@youpd/composer-core',
+    '@youpd/composer-react',
     '@youpd/db',
     '@youpd/supabase',
     '@youpd/types',

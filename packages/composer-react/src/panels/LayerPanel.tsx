@@ -1,36 +1,30 @@
 'use client';
 
 import { useState } from 'react';
-import type { Layer } from '@youpd/types';
-import { useDesignerStore } from './designer-store';
-import {
-  deleteLayer,
-  refetchState,
-  reorderLayers,
-  setLayer,
-} from './designer-actions';
+import type { Layer } from '@youpd/composer-core';
+import { useComposerActions, useComposerStore } from '../store';
 
 export function LayerPanel() {
-  const thumbnailId = useDesignerStore((s) => s.thumbnailId);
-  const version = useDesignerStore((s) => s.version);
-  const doc = useDesignerStore((s) => s.doc);
-  const selectedId = useDesignerStore((s) => s.selectedId);
-  const setSelected = useDesignerStore((s) => s.setSelected);
-  const replaceDoc = useDesignerStore((s) => s.replaceDoc);
+  const actions = useComposerActions();
+  const documentId = useComposerStore((s) => s.documentId);
+  const version = useComposerStore((s) => s.version);
+  const doc = useComposerStore((s) => s.doc);
+  const selectedId = useComposerStore((s) => s.selectedId);
+  const setSelected = useComposerStore((s) => s.setSelected);
+  const replaceDoc = useComposerStore((s) => s.replaceDoc);
   const [dragId, setDragId] = useState<string | null>(null);
 
   // Render newest-on-top: index 0 is back, last is front. UI shows front first.
   const ordered = [...doc.layers].reverse();
 
   const reorderRemote = async (next: string[]) => {
-    const res = await reorderLayers({
-      thumbnailId,
+    await actions.reorderLayers({
+      documentId,
       layerIds: next,
       expectedVersion: version,
     });
-    const state = await refetchState(thumbnailId);
-    if (state) replaceDoc(state.document as never, state.version);
-    return res;
+    const state = await actions.refetchState(documentId);
+    if (state) replaceDoc(state.document, state.version);
   };
 
   const moveTo = (sourceId: string, targetId: string) => {
@@ -46,8 +40,8 @@ export function LayerPanel() {
   };
 
   const toggleVisible = (layer: Layer) => {
-    void setLayer({
-      thumbnailId,
+    void actions.setLayer({
+      documentId,
       layerId: layer.id,
       patch: { visible: !(layer.visible !== false) },
       expectedVersion: version,
@@ -55,13 +49,13 @@ export function LayerPanel() {
   };
 
   const remove = async (layer: Layer) => {
-    await deleteLayer({
-      thumbnailId,
+    await actions.deleteLayer({
+      documentId,
       layerId: layer.id,
       expectedVersion: version,
     });
-    const state = await refetchState(thumbnailId);
-    if (state) replaceDoc(state.document as never, state.version);
+    const state = await actions.refetchState(documentId);
+    if (state) replaceDoc(state.document, state.version);
     if (selectedId === layer.id) setSelected(null);
   };
 

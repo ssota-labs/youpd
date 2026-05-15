@@ -169,6 +169,12 @@ importers:
       '@youpd/api':
         specifier: workspace:*
         version: link:../../packages/api
+      '@youpd/composer-core':
+        specifier: workspace:*
+        version: link:../../packages/composer-core
+      '@youpd/composer-react':
+        specifier: workspace:*
+        version: link:../../packages/composer-react
       '@youpd/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -304,6 +310,46 @@ importers:
       vitest:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.19.19)(lightningcss@1.32.0)
+
+  packages/composer-react:
+    dependencies:
+      '@supabase/ssr':
+        specifier: ^0.10.3
+        version: 0.10.3(@supabase/supabase-js@2.105.4)
+      '@supabase/supabase-js':
+        specifier: ^2.47.10
+        version: 2.105.4
+      '@youpd/composer-core':
+        specifier: workspace:*
+        version: link:../composer-core
+      konva:
+        specifier: ^9.3.18
+        version: 9.3.22
+      react:
+        specifier: '>=19'
+        version: 19.2.4
+      react-dom:
+        specifier: '>=19'
+        version: 19.2.4(react@19.2.4)
+      react-konva:
+        specifier: ^19.2.4
+        version: 19.2.4(@types/react@19.2.14)(konva@9.3.22)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      zustand:
+        specifier: ^5.0.2
+        version: 5.0.13(@types/react@19.2.14)(react@19.2.4)
+    devDependencies:
+      '@types/react':
+        specifier: ^19
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19
+        version: 19.2.3(@types/react@19.2.14)
+      '@youpd/config':
+        specifier: workspace:*
+        version: link:../config
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
 
   packages/composer-render-satori:
     dependencies:

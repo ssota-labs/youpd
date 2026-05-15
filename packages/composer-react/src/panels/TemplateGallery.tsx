@@ -1,15 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { fetchTemplates } from './designer-actions';
-
-type Template = {
-  code: string;
-  title: string;
-  aspect: '16:9' | '9:16';
-  previewUrl: string | null;
-  tags: string[];
-};
+import { useEffect, useMemo, useState } from 'react';
+import type { Template } from '@youpd/composer-core';
+import { useComposerActions } from '../store';
 
 type Props = {
   open: boolean;
@@ -17,27 +10,33 @@ type Props = {
   onPick: (template: Template) => void;
 };
 
-// Modal showing the 16-row template catalog. Cards render the seeded preview
-// URL when present; otherwise show a code label + aspect tag placeholder so
-// the gallery is still usable before the preview-seed job has run.
+// Generic gallery: pulls Template[] from the host's serverActions and groups
+// by aspect ratio (landscape / portrait / square) derived from canvas dims.
+// Doesn't assume YouPD's 16:9/9:16 vocabulary.
 export function TemplateGallery({ open, onClose, onPick }: Props) {
+  const actions = useComposerActions();
   const [templates, setTemplates] = useState<Template[]>([]);
-  const [filter, setFilter] = useState<'all' | '16:9' | '9:16'>('all');
+  const [filter, setFilter] = useState<'all' | 'landscape' | 'portrait' | 'square'>(
+    'all',
+  );
 
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    void fetchTemplates().then((rows) => {
-      if (!cancelled) setTemplates(rows as Template[]);
+    void actions.fetchTemplates().then((rows) => {
+      if (!cancelled) setTemplates(rows);
     });
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, actions]);
+
+  const filtered = useMemo(() => {
+    if (filter === 'all') return templates;
+    return templates.filter((t) => orient(t) === filter);
+  }, [templates, filter]);
 
   if (!open) return null;
-  const filtered =
-    filter === 'all' ? templates : templates.filter((t) => t.aspect === filter);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6">
@@ -49,7 +48,7 @@ export function TemplateGallery({ open, onClose, onPick }: Props) {
         <header className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
           <h2 className="text-sm font-semibold">템플릿 갤러리</h2>
           <div className="flex gap-1">
-            {(['all', '16:9', '9:16'] as const).map((f) => (
+            {(['all', 'landscape', 'portrait', 'square'] as const).map((f) => (
               <button
                 key={f}
                 type="button"
@@ -95,7 +94,9 @@ export function TemplateGallery({ open, onClose, onPick }: Props) {
                 </div>
                 <div className="p-2 flex items-center justify-between">
                   <span className="text-xs truncate">{t.title}</span>
-                  <span className="text-[10px] text-zinc-500">{t.aspect}</span>
+                  <span className="text-[10px] text-zinc-500">
+                    {t.canvas.width}×{t.canvas.height}
+                  </span>
                 </div>
               </button>
             </li>
@@ -109,4 +110,10 @@ export function TemplateGallery({ open, onClose, onPick }: Props) {
       </div>
     </div>
   );
+}
+
+function orient(t: Template): 'landscape' | 'portrait' | 'square' {
+  const { width, height } = t.canvas;
+  if (width === height) return 'square';
+  return width > height ? 'landscape' : 'portrait';
 }

@@ -6,7 +6,7 @@ import {
   type Composition,
 } from '@youpd/types';
 import { getThumbnail } from '@youpd/supabase/repositories/thumbnails';
-import { DesignerShell } from './_components/designer-shell';
+import { ComposerShell } from './_components/composer-shell';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,13 +37,13 @@ export default async function DesignerPage({
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
   return (
-    <DesignerShell
-      thumbnailId={row!.id}
-      initialVersion={row!.version}
-      initialDocument={document}
+    <ComposerShell
+      documentId={row!.id}
+      version={row!.version}
+      document={document}
+      name={row!.name}
       supabaseUrl={supabaseUrl}
       supabaseAnonKey={supabaseAnonKey}
-      name={row!.name}
     />
   );
 }

@@ -1,18 +1,23 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import type { Layer, LayerPatch } from '@youpd/types';
-import { useDesignerStore } from './designer-store';
-import { setLayer, refetchState } from './designer-actions';
-import { useFontManifest } from './font-loader';
+import type { Layer, LayerPatch } from '@youpd/composer-core';
+import {
+  useComposerActions,
+  useComposerStore,
+  useComposerStoreApi,
+} from '../store';
+import { useFontManifest } from '../fonts';
 
 export function PropertiesPanel() {
-  const thumbnailId = useDesignerStore((s) => s.thumbnailId);
-  const version = useDesignerStore((s) => s.version);
-  const doc = useDesignerStore((s) => s.doc);
-  const selectedId = useDesignerStore((s) => s.selectedId);
-  const applyLocalPatch = useDesignerStore((s) => s.applyLocalPatch);
-  const replaceDoc = useDesignerStore((s) => s.replaceDoc);
+  const actions = useComposerActions();
+  const storeApi = useComposerStoreApi();
+  const documentId = useComposerStore((s) => s.documentId);
+  const version = useComposerStore((s) => s.version);
+  const doc = useComposerStore((s) => s.doc);
+  const selectedId = useComposerStore((s) => s.selectedId);
+  const applyLocalPatch = useComposerStore((s) => s.applyLocalPatch);
+  const replaceDoc = useComposerStore((s) => s.replaceDoc);
 
   const layer = doc.layers.find((l) => l.id === selectedId) ?? null;
 
@@ -54,18 +59,18 @@ export function PropertiesPanel() {
   async function commit(patch: LayerPatch) {
     if (!layer) return;
     applyLocalPatch(layer.id, patch);
-    const res = await setLayer({
-      thumbnailId,
+    const res = await actions.setLayer({
+      documentId,
       layerId: layer.id,
       patch,
       expectedVersion: version,
     });
     if ('conflict' in res) {
-      const state = await refetchState(thumbnailId);
-      if (state) replaceDoc(state.document as never, state.version);
+      const state = await actions.refetchState(documentId);
+      if (state) replaceDoc(state.document, state.version);
       return;
     }
-    useDesignerStore.setState({ version: res.version });
+    storeApi.setState({ version: res.version });
   }
 }
 
@@ -303,6 +308,5 @@ function normalizeHex(c: string): string {
         .join('')
     );
   }
-  // Fallback for named colors / rgba — color input requires #rrggbb.
   return '#ffffff';
 }
