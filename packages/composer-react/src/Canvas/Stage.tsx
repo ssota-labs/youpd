@@ -166,44 +166,41 @@ export function ComposerCanvas(props: ComposerCanvasProps) {
         const wrap = this.width();
         const sw = this.strokeWidth() ?? 0;
         const align = this.align();
+        const advance = this.getTextWidth();
+        const emHeight = this.height();
 
-        // Use canvas TextMetrics.actualBoundingBox* so the rect hugs the
-        // rendered ink (not the em-box) — important for digits/uppercase
-        // glyphs that leave the descender area empty. Falls back to the
-        // em-box measurement if the browser doesn't expose those metrics.
+        // Width uses advance (= getTextWidth) so we never clip the glyph's
+        // right side-bearing. Height uses the canvas TextMetrics ink box
+        // when available so digits / uppercase glyphs don't leave a huge
+        // empty band below (em-box descender area).
+        let inkTop = 0;
+        let inkHeight = emHeight;
         const cvs = document.createElement('canvas');
         const ctx = cvs.getContext('2d');
-        let inkLeft = 0;
-        let inkRight = this.getTextWidth();
-        let inkAscent = 0;
-        let inkDescent = this.height();
         if (ctx) {
           ctx.font = `${this.fontStyle()} ${this.fontSize()}px "${this.fontFamily()}"`;
           ctx.textBaseline = 'alphabetic';
           const m = ctx.measureText(this.text());
-          if (typeof m.actualBoundingBoxLeft === 'number') {
-            inkLeft = -m.actualBoundingBoxLeft;
-            inkRight = m.actualBoundingBoxRight;
-            inkAscent = m.actualBoundingBoxAscent;
-            inkDescent = m.actualBoundingBoxDescent;
+          if (typeof m.actualBoundingBoxAscent === 'number') {
+            const ascent = m.actualBoundingBoxAscent;
+            const descent = m.actualBoundingBoxDescent;
+            // Konva draws with textBaseline='top'; the alphabetic baseline
+            // sits at the font's "ascent" below the top edge. Approximate
+            // the font ascent as fontSize * 0.8 to position the ink box.
+            const fontAscent = this.fontSize() * 0.8;
+            inkTop = Math.max(0, fontAscent - ascent);
+            inkHeight = ascent + descent;
           }
         }
-        const inkWidth = inkRight - inkLeft;
-        // Konva renders text with textBaseline='top', so the alphabetic
-        // baseline sits at ascent below the top. The actual ink starts at
-        // (ascent - actualBoundingBoxAscent) below the top edge.
-        const fontAscent = this.fontSize() * 0.8; // approximate ascent
-        const inkTop = Math.max(0, fontAscent - inkAscent);
-        const inkHeight = inkAscent + inkDescent;
 
-        let xOffset = inkLeft;
-        if (align === 'center') xOffset = (wrap - inkWidth) / 2 + inkLeft;
-        else if (align === 'right') xOffset = wrap - inkWidth + inkLeft;
+        let xOffset = 0;
+        if (align === 'center') xOffset = (wrap - advance) / 2;
+        else if (align === 'right') xOffset = wrap - advance;
 
         return {
           x: xOffset - sw,
           y: inkTop - sw,
-          width: inkWidth + sw * 2,
+          width: advance + sw * 2,
           height: inkHeight + sw * 2,
         };
       };
