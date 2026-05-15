@@ -5,6 +5,55 @@
    names; @source tells Tailwind to generate the matching utilities. */
 @source "../../../../packages/composer-react/src/**/*.{ts,tsx}";
 
+/* Designer fonts. Declaring @font-face statically in globals.css means the
+   browser starts downloading these on document parse, so by the time Konva
+   text nodes mount the families are already in the font registry — no
+   measure/paint fallback. The JS-side font-loader in composer-react still
+   runs to expose the family list in the font picker, but it no longer races
+   the canvas paint. */
+@font-face {
+  font-family: "Pretendard";
+  src: url("/fonts/Pretendard-Regular.otf") format("opentype");
+  font-weight: 400;
+  font-display: block;
+}
+@font-face {
+  font-family: "Pretendard";
+  src: url("/fonts/Pretendard-Bold.otf") format("opentype");
+  font-weight: 700;
+  font-display: block;
+}
+@font-face {
+  font-family: "Noto Sans KR";
+  src: url("/fonts/NotoSansKR-Regular.otf") format("opentype");
+  font-weight: 400;
+  font-display: block;
+}
+@font-face {
+  font-family: "Noto Sans KR";
+  src: url("/fonts/NotoSansKR-Bold.otf") format("opentype");
+  font-weight: 700;
+  font-display: block;
+}
+@font-face {
+  font-family: "Black Han Sans";
+  src: url("/fonts/BlackHanSans-Regular.ttf") format("truetype");
+  font-weight: 900;
+  font-display: block;
+}
+@font-face {
+  font-family: "Jua";
+  src: url("/fonts/Jua-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-display: block;
+}
+@font-face {
+  font-family: "Do Hyeon";
+  src: url("/fonts/DoHyeon-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-display: block;
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
