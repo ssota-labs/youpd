@@ -214,6 +214,177 @@ export const TOOL_DOCS: readonly ToolDoc[] = [
     tags: ['sys', 'audit', 'session', 'admin'],
   },
   {
+    name: 'thumbnail_create',
+    group_code: 'THUMB',
+    short_description:
+      '신규 썸네일 시안 생성 (템플릿 또는 document 직접). 0 quota. 먼저 `get_skill_group("THUMB")` 권장.',
+    long_description:
+      '템플릿 코드 + fillers 또는 명시적 document로 thumbnails row를 만든다. embedUrl을 반환해 노션 본문에 iframe 으로 삽입할 수 있다.',
+    when_to_use:
+      '후보 row에 새 시안을 생성할 때 (템플릿 우선; 자유 편집은 document 직접 입력).',
+    example_calls: [
+      'thumbnail_create({ orgId, notionCandidateUrl, templateCode: "shock-red-number-16x9", fillers: { headline: "무릎통증 90%", accent: "90%", number: "3" } })',
+    ],
+    quota_cost: '0',
+    tags: ['thumb', 'create'],
+  },
+  {
+    name: 'thumbnail_list',
+    group_code: 'THUMB',
+    short_description:
+      '한 후보의 모든 시안 목록. 0 quota. 먼저 `get_skill_group("THUMB")` 권장.',
+    long_description:
+      'notionCandidateUrl 기준으로 thumbnails row 를 updatedAt desc 순으로 반환.',
+    when_to_use: '후보 row의 시안 갯수·최신 상태 확인.',
+    example_calls: [
+      'thumbnail_list({ orgId, notionCandidateUrl })',
+    ],
+    quota_cost: '0',
+    tags: ['thumb', 'list'],
+  },
+  {
+    name: 'thumbnail_set_layer',
+    group_code: 'THUMB',
+    short_description:
+      '시안 한 레이어를 부분 수정 (optimistic version lock). 0 quota.',
+    long_description:
+      'layerId 기준 partial patch를 적용. version mismatch 시 VERSION_CONFLICT, 잘못된 patch는 INVALID_LAYER_PATCH. Realtime broadcast 동봉.',
+    when_to_use: '에이전트가 자연어로 카피·색·위치를 바꿀 때.',
+    example_calls: [
+      'thumbnail_set_layer({ thumbnailId, layerId: "headline", patch: { text: "이 운동, 무릎에 독입니다", fontSize: 72 } })',
+    ],
+    quota_cost: '0',
+    tags: ['thumb', 'edit'],
+  },
+  {
+    name: 'thumbnail_add_layer',
+    group_code: 'THUMB',
+    short_description: '시안에 새 레이어 추가. 0 quota.',
+    long_description:
+      'text/image/shape 레이어를 layers 배열 끝에 추가. id 중복은 INVALID_LAYER_PATCH.',
+    when_to_use: '서브카피·강조 박스·이미지 오버레이를 더할 때.',
+    example_calls: [
+      'thumbnail_add_layer({ thumbnailId, layer: { type: "text", id: "subcopy", text: "전문의가 알려주는 체크포인트", x: 120, y: 580 } })',
+    ],
+    quota_cost: '0',
+    tags: ['thumb', 'edit'],
+  },
+  {
+    name: 'thumbnail_apply_template',
+    group_code: 'THUMB',
+    short_description: '템플릿+fillers로 신규 시안 생성. 0 quota.',
+    long_description:
+      'thumbnail_create의 템플릿 전용 alias — fillers placeholder ({headline}, {accent}, {number}, {quote}, {face_image})를 치환해 row를 만든다.',
+    when_to_use: '동일 후보에 여러 패턴 시안을 비교 생성할 때.',
+    example_calls: [
+      'thumbnail_apply_template({ orgId, notionCandidateUrl, templateCode: "face-quote-16x9", fillers: { headline: "걷기 운동, 이렇게 하면 역효과", quote: "댓글에서 가장 많이 묻는 질문" } })',
+    ],
+    quota_cost: '0',
+    tags: ['thumb', 'template'],
+  },
+  {
+    name: 'thumbnail_suggest_titles_from_comments',
+    group_code: 'THUMB',
+    short_description:
+      '댓글 텍스트에서 썸네일 카피 후보 제안 (v0.4 MVP: deterministic stub). 0 quota.',
+    long_description:
+      'commentTexts 배열을 받아 headline/accent/reason 객체를 count 개 반환. LLM 어댑터는 v0.5에 본 구현 — 현재는 결정론적 stub.',
+    when_to_use: '댓글 인사이트에서 카피 후보를 빠르게 뽑고 싶을 때.',
+    example_calls: [
+      'thumbnail_suggest_titles_from_comments({ notionCandidateUrl, commentTexts: ["..."], count: 5 })',
+    ],
+    quota_cost: '0',
+    tags: ['thumb', 'copy', 'comment'],
+  },
+  {
+    name: 'thumbnail_export_png',
+    group_code: 'THUMB',
+    short_description:
+      '시안을 PNG로 렌더해 Storage에 업로드. 0 quota (server compute only).',
+    long_description:
+      'satori + resvg로 16:9 (옵션: 9:16) PNG를 렌더링하고 export 버킷에 업로드해 long-lived 공개 URL을 반환. 호출자는 이 URL을 Notion files 속성에 첨부.',
+    when_to_use: '시안 확정 후 Notion 후보 row에 첨부할 PNG 가 필요할 때.',
+    example_calls: [
+      'thumbnail_export_png({ thumbnailId, formats: ["16:9"] })',
+    ],
+    quota_cost: '0',
+    tags: ['thumb', 'export', 'png'],
+  },
+  {
+    name: 'thumbnail_get_embed_url',
+    group_code: 'THUMB',
+    short_description:
+      '시안의 iframe embedUrl + publicPreviewUrl. 0 quota.',
+    long_description:
+      'YOUPD_APP_URL 기준 디자이너 iframe URL과 공개 미리보기 URL을 반환.',
+    when_to_use: '노션 본문에 iframe block을 다시 박을 때.',
+    example_calls: [
+      'thumbnail_get_embed_url({ thumbnailId })',
+    ],
+    quota_cost: '0',
+    tags: ['thumb', 'embed'],
+  },
+  {
+    name: 'thumbnail_reorder_layers',
+    group_code: 'THUMB',
+    short_description:
+      '시안 layers의 z-order 재배열. 0 quota.',
+    long_description:
+      'layerIds 배열 순서대로 thumbnails.layers를 다시 정렬. 모든 기존 layer id를 정확히 1번씩 포함해야 하며, 불일치 시 INVALID_LAYER_ORDER. version 충돌은 VERSION_CONFLICT.',
+    when_to_use: '레이어 패널에서 z-order를 바꾸거나 텍스트를 이미지 위로 올릴 때.',
+    example_calls: [
+      'thumbnail_reorder_layers({ thumbnailId, layerIds: ["bg", "number", "headline", "accent"] })',
+    ],
+    quota_cost: '0',
+    tags: ['thumb', 'edit'],
+  },
+  {
+    name: 'thumbnail_delete_layer',
+    group_code: 'THUMB',
+    short_description: '시안에서 단일 layer 제거. 0 quota.',
+    long_description:
+      'layerId에 해당하는 layer를 layers 배열에서 제거. 존재하지 않으면 LAYER_NOT_FOUND. version 충돌은 VERSION_CONFLICT.',
+    when_to_use: '불필요한 레이어를 정리하거나 잘못 추가한 레이어를 되돌릴 때.',
+    example_calls: [
+      'thumbnail_delete_layer({ thumbnailId, layerId: "subcopy" })',
+    ],
+    quota_cost: '0',
+    tags: ['thumb', 'edit'],
+  },
+  {
+    name: 'thumbnail_undo',
+    group_code: 'THUMB',
+    short_description: '최근 편집 1회 되돌리기. 0 quota.',
+    long_description:
+      'thumbnail_versions 스냅샷에서 가장 최근 prior layers를 복원. 더 이상 되돌릴 게 없으면 HISTORY_BOUNDARY. 동일 thumbnail은 redo 가능 상태로 들어간다.',
+    when_to_use: '방금 수정한 레이어를 되돌리거나 ⌘Z 호출.',
+    example_calls: ['thumbnail_undo({ thumbnailId })'],
+    quota_cost: '0',
+    tags: ['thumb', 'history'],
+  },
+  {
+    name: 'thumbnail_redo',
+    group_code: 'THUMB',
+    short_description: '이전에 되돌린 편집 1회 다시 적용. 0 quota.',
+    long_description:
+      'thumbnail_undo로 만들어진 redo 스냅샷을 소비. cursor가 0이면 HISTORY_BOUNDARY.',
+    when_to_use: 'undo 후 다시 적용하고 싶을 때.',
+    example_calls: ['thumbnail_redo({ thumbnailId })'],
+    quota_cost: '0',
+    tags: ['thumb', 'history'],
+  },
+  {
+    name: 'thumbnail_history_state',
+    group_code: 'THUMB',
+    short_description: 'undo/redo 가능 여부 조회 (read-only). 0 quota.',
+    long_description:
+      'UI 버튼 활성/비활성 상태에 사용. { canUndo, canRedo } 반환.',
+    when_to_use: '디자이너 iframe에서 Toolbar 버튼 상태 표시.',
+    example_calls: ['thumbnail_history_state({ thumbnailId })'],
+    quota_cost: '0',
+    tags: ['thumb', 'history'],
+  },
+  {
     name: 'get_bundle_manifest',
     group_code: 'SYS',
     short_description:

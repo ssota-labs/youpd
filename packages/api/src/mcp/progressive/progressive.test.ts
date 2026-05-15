@@ -30,9 +30,9 @@ describe('progressive skill groups', () => {
     }
   });
 
-  it('REPORT is trigger_only and THUMB is reserved', () => {
+  it('REPORT is trigger_only and THUMB is available (v0.4)', () => {
     expect(GROUP_DOCS.REPORT.status).toBe('trigger_only');
-    expect(GROUP_DOCS.THUMB.status).toBe('reserved');
+    expect(GROUP_DOCS.THUMB.status).toBe('available');
   });
 });
 
@@ -115,9 +115,28 @@ describe('progressive tool registry', () => {
     );
   });
 
-  it('REPORT and THUMB groups have no tools in v0.3', () => {
+  it('REPORT has no tools and THUMB exposes the v0.4 thumbnail tools', () => {
     expect(getToolsForGroup('REPORT')).toEqual([]);
-    expect(getToolsForGroup('THUMB')).toEqual([]);
+    const thumb = getToolsForGroup('THUMB')
+      .map((t) => t.name)
+      .sort();
+    expect(thumb).toEqual(
+      [
+        'thumbnail_add_layer',
+        'thumbnail_apply_template',
+        'thumbnail_create',
+        'thumbnail_delete_layer',
+        'thumbnail_export_png',
+        'thumbnail_get_embed_url',
+        'thumbnail_history_state',
+        'thumbnail_list',
+        'thumbnail_redo',
+        'thumbnail_reorder_layers',
+        'thumbnail_set_layer',
+        'thumbnail_suggest_titles_from_comments',
+        'thumbnail_undo',
+      ].sort(),
+    );
   });
 });
 
@@ -129,10 +148,10 @@ describe('buildSkillGroupRoutingDescription', () => {
     }
   });
 
-  it('marks REPORT as trigger-only and THUMB as v0.4 reserved', () => {
+  it('marks REPORT as trigger-only and includes THUMB', () => {
     const desc = buildSkillGroupRoutingDescription();
     expect(desc).toMatch(/REPORT[\s\S]*트리거 전용/);
-    expect(desc).toMatch(/THUMB[\s\S]*v0\.4/);
+    expect(desc).toContain('THUMB');
   });
 });
 
@@ -145,11 +164,10 @@ describe('buildSkillGroupResponse', () => {
     expect(out.tools[0]!.when_to_use.length).toBeGreaterThan(0);
   });
 
-  it('returns reserved status with empty tools for THUMB', () => {
+  it('returns available status with 13 tools for THUMB', () => {
     const out = buildSkillGroupResponse('THUMB');
-    expect(out.status).toBe('reserved');
-    expect(out.tools).toEqual([]);
-    expect(out.notes).toMatch(/v0\.4/);
+    expect(out.status).toBe('available');
+    expect(out.tools).toHaveLength(13);
   });
 
   it('returns trigger_only status with empty tools for REPORT', () => {

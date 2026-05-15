@@ -92,18 +92,18 @@ export const GROUP_DOCS: Record<SkillGroupCode, GroupDoc> = {
   },
   THUMB: {
     code: 'THUMB',
-    name: '썸네일 디자이너 (v0.4 예정)',
+    name: '썸네일 디자이너',
     description:
-      '댓글·타이틀 패턴 기반 썸네일 카피 제안과 디자이너 iframe 연동. v0.4에서 도구 제공 예정.',
+      '8 패턴 템플릿 + Konva 캔버스 + Realtime 동기화 기반 썸네일 시안 생성·편집·export. Notion 후보 row 첨부까지 한 흐름.',
     when_to_use:
-      '썸네일 카피 후보 생성·디자이너 미리보기. v0.4 출시 후 사용 가능.',
+      '풀/키 후보 row에서 썸네일 시안을 만들거나, 기존 시안의 레이어를 자연어로 수정하거나, 16:9/9:16 PNG export가 필요할 때.',
     example_intents: [
-      '(v0.4 예정) 댓글 기반 썸네일 카피 3개 만들어줘',
-      '(v0.4 예정) 이 영상 썸네일 시안 만들어줘',
+      '이 후보에 쇼크 빨간 숫자 패턴으로 시안 만들어줘',
+      '시안 A의 헤드라인 더 짧게 바꿔줘',
+      '댓글 기반 썸네일 카피 5개 제안해줘',
+      '시안 PNG 내려서 노션에 첨부해줘',
     ],
-    status: 'reserved',
-    notes:
-      'THUMB 그룹은 v0.4에서 활성화 예정입니다. 현재 사용 가능한 도구가 없습니다.',
+    status: 'available',
   },
 };
 
