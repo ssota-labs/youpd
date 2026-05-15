@@ -181,15 +181,21 @@ export function ComposerCanvas(props: ComposerCanvasProps) {
           ctx.font = `${this.fontStyle()} ${this.fontSize()}px "${this.fontFamily()}"`;
           ctx.textBaseline = 'alphabetic';
           const m = ctx.measureText(this.text());
-          if (typeof m.actualBoundingBoxAscent === 'number') {
-            const ascent = m.actualBoundingBoxAscent;
-            const descent = m.actualBoundingBoxDescent;
-            // Konva draws with textBaseline='top'; the alphabetic baseline
-            // sits at the font's "ascent" below the top edge. Approximate
-            // the font ascent as fontSize * 0.8 to position the ink box.
-            const fontAscent = this.fontSize() * 0.8;
-            inkTop = Math.max(0, fontAscent - ascent);
-            inkHeight = ascent + descent;
+          if (
+            typeof m.actualBoundingBoxAscent === 'number' &&
+            typeof m.fontBoundingBoxAscent === 'number'
+          ) {
+            const inkAscent = m.actualBoundingBoxAscent;
+            const inkDescent = m.actualBoundingBoxDescent;
+            // Konva renders text with textBaseline='top'. The alphabetic
+            // baseline sits `fontBoundingBoxAscent` below the em-box top
+            // (this is the canonical font ascent for the current size),
+            // and the ink starts (ascent - actualBoundingBoxAscent) below
+            // the em-box top. Using the real font ascent — not an 0.8
+            // guess — keeps the rect aligned with what Konva draws.
+            const fontAscent = m.fontBoundingBoxAscent;
+            inkTop = Math.max(0, fontAscent - inkAscent);
+            inkHeight = inkAscent + inkDescent;
           }
         }
 
