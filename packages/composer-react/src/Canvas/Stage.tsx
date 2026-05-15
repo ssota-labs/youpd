@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import {
   Stage,
@@ -13,34 +13,57 @@ import {
   Line as KLine,
 } from 'react-konva';
 import type Konva from 'konva';
-import type { Layer, LayerPatch, ThumbnailDocument } from '@youpd/types';
 import {
-  useDesignerStore,
-  patchLayerOnServer,
-} from './designer-store';
-import { TextEditorOverlay } from './text-editor-overlay';
-import { snapDrag, type GuideLine } from './snap';
-import { fontsReady } from './font-loader';
+  snapDrag,
+  type Composition,
+  type GuideLine,
+  type Layer,
+  type LayerPatch,
+} from '@youpd/composer-core';
+import {
+  useComposerActions,
+  useComposerFontManifestUrl,
+  useComposerStore,
+  useComposerStoreApi,
+} from '../store';
+import { fontsReady, useFontManifest } from '../fonts';
+import { TextEditorOverlay } from '../overlay/text-editor-overlay';
 
-type Props = {
-  thumbnailId: string;
+export type ComposerCanvasProps = {
+  documentId: string;
   initialVersion: number;
-  initialDocument: ThumbnailDocument;
-  supabaseUrl: string;
-  supabaseAnonKey: string;
+  initialDocument: Composition;
+  // Optional Supabase Realtime credentials. When present the canvas
+  // subscribes to a `composer:{documentId}` broadcast channel and refetches
+  // authoritative state on every patched event.
+  realtime?: {
+    url: string;
+    anonKey: string;
+    channelPrefix?: string;
+  };
+  // Reserved horizontal pixels for any sibling chrome (panels, etc.) so the
+  // canvas can fit within the host layout.
+  reservedHorizontalPx?: number;
 };
 
-export function DesignerCanvas(props: Props) {
-  const init = useDesignerStore((s) => s.init);
-  const doc = useDesignerStore((s) => s.doc);
-  const selectedId = useDesignerStore((s) => s.selectedId);
-  const hoveredId = useDesignerStore((s) => s.hoveredId);
-  const setSelected = useDesignerStore((s) => s.setSelected);
-  const setHovered = useDesignerStore((s) => s.setHovered);
-  const setIsDragging = useDesignerStore((s) => s.setIsDragging);
-  const applyLocalPatch = useDesignerStore((s) => s.applyLocalPatch);
-  const replaceDoc = useDesignerStore((s) => s.replaceDoc);
-  const setStatus = useDesignerStore((s) => s.setStatus);
+export function ComposerCanvas(props: ComposerCanvasProps) {
+  const actions = useComposerActions();
+  const storeApi = useComposerStoreApi();
+  const init = useComposerStore((s) => s.init);
+  const doc = useComposerStore((s) => s.doc);
+  const selectedId = useComposerStore((s) => s.selectedId);
+  const hoveredId = useComposerStore((s) => s.hoveredId);
+  const setSelected = useComposerStore((s) => s.setSelected);
+  const setHovered = useComposerStore((s) => s.setHovered);
+  const setIsDragging = useComposerStore((s) => s.setIsDragging);
+  const applyLocalPatch = useComposerStore((s) => s.applyLocalPatch);
+  const replaceDoc = useComposerStore((s) => s.replaceDoc);
+  const setStatus = useComposerStore((s) => s.setStatus);
+
+  // Subscribing here keeps the font manifest fetch + injection mounted; the
+  // returned families aren't used directly but the side effect is what we
+  // care about.
+  useFontManifest();
 
   const stageRef = useRef<Konva.Stage | null>(null);
   const transformerRef = useRef<Konva.Transformer | null>(null);
@@ -53,20 +76,16 @@ export function DesignerCanvas(props: Props) {
 
   useEffect(() => {
     init({
-      thumbnailId: props.thumbnailId,
+      documentId: props.documentId,
       doc: props.initialDocument,
       version: props.initialVersion,
     });
-  }, [init, props.thumbnailId, props.initialDocument, props.initialVersion]);
+  }, [init, props.documentId, props.initialDocument, props.initialVersion]);
 
-  // Fit the stage to viewport without rescaling the source coords.
   useEffect(() => {
+    const reserved = props.reservedHorizontalPx ?? 64;
     const compute = () => {
       if (typeof window === 'undefined') return;
-      // Account for left layer panel (240) + right properties panel (288) +
-      // padding so the canvas fits the center column. Clamp to 320 minimum
-      // so the preview is usable on narrow viewports.
-      const reserved = 560;
       const available = Math.max(320, window.innerWidth - reserved);
       const maxW = Math.min(available, 1100);
       setStageScale(Math.min(1, maxW / width));
@@ -74,35 +93,38 @@ export function DesignerCanvas(props: Props) {
     compute();
     window.addEventListener('resize', compute);
     return () => window.removeEventListener('resize', compute);
-  }, [width]);
+  }, [width, props.reservedHorizontalPx]);
 
-  // Realtime subscription — refetch authoritative state via API on each
-  // broadcast so the iframe doesn't trust an unvalidated payload.
   useEffect(() => {
-    if (!props.supabaseUrl || !props.supabaseAnonKey) return;
-    const supabase = createBrowserClient(props.supabaseUrl, props.supabaseAnonKey);
-    const channel = supabase.channel(`thumbnail:${props.thumbnailId}`, {
+    if (!props.realtime?.url || !props.realtime?.anonKey) return;
+    const supabase = createBrowserClient(
+      props.realtime.url,
+      props.realtime.anonKey,
+    );
+    const prefix = props.realtime.channelPrefix ?? 'thumbnail';
+    const channel = supabase.channel(`${prefix}:${props.documentId}`, {
       config: { broadcast: { self: false } },
     });
     channel.on('broadcast', { event: 'patched' }, async () => {
-      if (useDesignerStore.getState().isDragging) return;
-      const res = await fetch(
-        `/api/mcp/thumbnail/state?thumbnailId=${props.thumbnailId}`,
-      );
-      if (!res.ok) return;
-      const data = (await res.json()) as {
-        version: number;
-        document: ThumbnailDocument;
-      };
+      if (storeApi.getState().isDragging) return;
+      const data = await actions.refetchState(props.documentId);
+      if (!data) return;
       replaceDoc(data.document, data.version);
     });
     channel.subscribe();
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [props.thumbnailId, props.supabaseUrl, props.supabaseAnonKey, replaceDoc]);
+  }, [
+    props.documentId,
+    props.realtime?.url,
+    props.realtime?.anonKey,
+    props.realtime?.channelPrefix,
+    actions,
+    replaceDoc,
+    storeApi,
+  ]);
 
-  // Attach the Transformer to the currently selected node.
   useEffect(() => {
     const tr = transformerRef.current;
     if (!tr) return;
@@ -114,88 +136,195 @@ export function DesignerCanvas(props: Props) {
     tr.getLayer()?.batchDraw();
   }, [selectedId, doc.layers.length]);
 
-  // Konva.Text.getSelfRect() returns the wrap-width box, which inflates the
-  // Transformer (and any client-rect consumer) for short text inside a wide
-  // wrap width. Override to return the tight glyph rect with align applied.
-  // We re-apply on every layer change so newly mounted text nodes get the
-  // override too.
+  // Tight getSelfRect for Konva.Text so Transformer + getClientRect track the
+  // actual glyph rect rather than the wrap-width box. Also override
+  // _getTextWidth to use a fresh canvas — Konva's cached dummy 2D context
+  // sometimes loses non-Latin glyph coverage for newly-loaded web fonts
+  // (returns Latin width only), and a fresh context picks up the full
+  // measurement reliably.
   useEffect(() => {
     shapeRefs.current.forEach((node, id) => {
       const layer = doc.layers.find((l) => l.id === id);
       if (!layer || layer.type !== 'text') return;
-      const text = node as Konva.Text;
+      const text = node as Konva.Text & {
+        _getTextWidth?: (s: string) => number;
+        _setTextData?: () => void;
+      };
+      text._getTextWidth = function freshGetTextWidth(s: string) {
+        const cvs = document.createElement('canvas');
+        const ctx = cvs.getContext('2d');
+        if (!ctx) return 0;
+        ctx.font = `${this.fontStyle()} ${this.fontSize()}px "${this.fontFamily()}"`;
+        const w = ctx.measureText(s).width;
+        const ls = this.letterSpacing();
+        return w + (s.length ? ls * (s.length - 1) : 0);
+      };
+      // Trigger a re-measure with the override active so cached textWidth
+      // reflects the correct value on first mount.
+      text._setTextData?.();
       text.getSelfRect = function getTightSelfRect() {
         const wrap = this.width();
-        const w = this.getTextWidth();
-        const h = this.height();
-        let x = 0;
+        const sw = this.strokeWidth() ?? 0;
         const align = this.align();
-        if (align === 'center') x = (wrap - w) / 2;
-        else if (align === 'right') x = wrap - w;
-        return { x, y: 0, width: w, height: h };
+        const advance = this.getTextWidth();
+        const emHeight = this.height();
+
+        // Width uses advance (= getTextWidth) so we never clip the glyph's
+        // right side-bearing. Height uses the canvas TextMetrics ink box
+        // when available so digits / uppercase glyphs don't leave a huge
+        // empty band below (em-box descender area).
+        let inkTop = 0;
+        let inkHeight = emHeight;
+        const cvs = document.createElement('canvas');
+        const ctx = cvs.getContext('2d');
+        if (ctx) {
+          ctx.font = `${this.fontStyle()} ${this.fontSize()}px "${this.fontFamily()}"`;
+          ctx.textBaseline = 'alphabetic';
+          const m = ctx.measureText(this.text());
+          if (
+            typeof m.actualBoundingBoxAscent === 'number' &&
+            typeof m.fontBoundingBoxAscent === 'number'
+          ) {
+            const inkAscent = m.actualBoundingBoxAscent;
+            const inkDescent = m.actualBoundingBoxDescent;
+            // Konva renders text with textBaseline='top'. The alphabetic
+            // baseline sits `fontBoundingBoxAscent` below the em-box top
+            // (this is the canonical font ascent for the current size),
+            // and the ink starts (ascent - actualBoundingBoxAscent) below
+            // the em-box top. Using the real font ascent — not an 0.8
+            // guess — keeps the rect aligned with what Konva draws.
+            const fontAscent = m.fontBoundingBoxAscent;
+            inkTop = Math.max(0, fontAscent - inkAscent);
+            inkHeight = inkAscent + inkDescent;
+          }
+        }
+
+        let xOffset = 0;
+        if (align === 'center') xOffset = (wrap - advance) / 2;
+        else if (align === 'right') xOffset = wrap - advance;
+
+        return {
+          x: xOffset - sw,
+          y: inkTop - sw,
+          width: advance + sw * 2,
+          height: inkHeight + sw * 2,
+        };
       };
     });
     transformerRef.current?.forceUpdate();
     transformerRef.current?.getLayer()?.batchDraw();
   }, [doc.layers]);
 
-  // Konva measures fonts via canvas measureText at first draw and caches the
-  // metrics. If our @font-face fonts loaded after the initial mount, all
-  // text nodes are stuck on system fallback. Wait until fonts.ready, then
-  // force every text node to re-measure by re-applying fontFamily.
+  // Force Konva to re-measure once @font-face fonts finish loading. Without
+  // this, KText nodes mounted while a custom family (e.g. Black Han Sans)
+  // is still loading get sized against the system fallback (much narrower),
+  // and the bounding box is too small until the user touches a property.
+  //
+  // Subtlety: even after document.fonts.ready resolves, the OffscreenCanvas
+  // 2D context Konva uses for measureText sometimes still falls back. We
+  // call document.fonts.load with the *exact* font spec Konva uses for each
+  // text node (matching fontStyle + size + family), wait a paint frame, then
+  // invoke Konva.Text._setTextData() — its internal re-measurement entry —
+  // to refresh the cached textWidth. The getSelfRect override picks up the
+  // new width so Transformer + hover rect resize automatically.
+  const fontManifestUrl = useComposerFontManifestUrl();
   useEffect(() => {
     let cancelled = false;
-    void fontsReady().then(() => {
-      if (cancelled) return;
+    const fontSpec = (n: Konva.Text): string =>
+      `${n.fontStyle()} ${n.fontSize()}px "${n.fontFamily()}"`;
+    const remeasureAndDraw = () => {
       const stage = stageRef.current;
       if (!stage) return;
       stage.find('Text').forEach((t) => {
-        const fam = (t as Konva.Text).fontFamily();
-        // Toggle to force Konva to invalidate cached metrics.
-        (t as Konva.Text).fontFamily(fam + ' ');
-        (t as Konva.Text).fontFamily(fam);
+        const node = t as Konva.Text & { _setTextData?: () => void };
+        node._setTextData?.();
       });
+      transformerRef.current?.forceUpdate();
       stage.batchDraw();
+    };
+    void fontsReady(fontManifestUrl).then(async () => {
+      if (cancelled) return;
+      const stage = stageRef.current;
+      if (stage) {
+        const textNodes = stage.find('Text') as unknown as Konva.Text[];
+        if ('fonts' in document) {
+          const docFonts = (document as Document & { fonts: FontFaceSet })
+            .fonts;
+          await Promise.all(
+            textNodes.map((t) =>
+              docFonts.load(fontSpec(t)).catch(() => undefined),
+            ),
+          );
+        }
+        // The DocumentFontFaceSet promise can resolve before the canvas
+        // implementation has actually picked up the new font face. Painting
+        // the same string into a hidden DOM element forces the browser's
+        // rendering pipeline to fully load the glyphs so the next canvas
+        // measureText returns the loaded-font metrics.
+        const probe = document.createElement('div');
+        probe.setAttribute('aria-hidden', 'true');
+        probe.style.cssText =
+          'position:fixed; top:-9999px; left:-9999px; visibility:hidden; white-space:nowrap;';
+        for (const t of textNodes) {
+          const s = document.createElement('span');
+          s.style.font = fontSpec(t);
+          s.textContent = t.text();
+          probe.appendChild(s);
+        }
+        document.body.appendChild(probe);
+        // Force layout + a paint frame so the font is actually rasterized
+        // somewhere before we ask Konva's canvas to measure.
+        void probe.offsetWidth;
+        await new Promise((r) => requestAnimationFrame(() => r(undefined)));
+        document.body.removeChild(probe);
+      }
+      if (cancelled) return;
+      remeasureAndDraw();
+      requestAnimationFrame(() => {
+        if (cancelled) return;
+        remeasureAndDraw();
+        requestAnimationFrame(() => {
+          if (cancelled) return;
+          remeasureAndDraw();
+        });
+      });
     });
     return () => {
       cancelled = true;
     };
-  }, [doc.layers.length]);
+    // Only depend on the manifest URL: re-running on every doc.layers change
+    // would cancel the in-flight font load before remeasure completes (each
+    // edit replaces the layers array reference). New layers added after
+    // fonts are loaded already see the correct metrics at mount time, so a
+    // single mount-load-remeasure cycle is enough.
+  }, [fontManifestUrl]);
 
   const handleStageMouseDown = (
     e: Konva.KonvaEventObject<MouseEvent | TouchEvent>,
   ) => {
-    // Click on empty area → deselect.
     if (e.target === e.target.getStage()) setSelected(null);
   };
 
   const commitPatch = async (layerId: string, patch: LayerPatch) => {
     applyLocalPatch(layerId, patch);
     setStatus('pending');
-    const baseline = useDesignerStore.getState().version;
-    const res = await patchLayerOnServer({
-      thumbnailId: props.thumbnailId,
+    const baseline = storeApi.getState().version;
+    const res = await actions.setLayer({
+      documentId: props.documentId,
       layerId,
       patch,
       expectedVersion: baseline,
     });
     if ('conflict' in res) {
       setStatus('conflict');
-      // Re-pull authoritative state.
-      const stateRes = await fetch(
-        `/api/mcp/thumbnail/state?thumbnailId=${props.thumbnailId}`,
-      );
-      if (stateRes.ok) {
-        const data = (await stateRes.json()) as {
-          version: number;
-          document: ThumbnailDocument;
-        };
-        replaceDoc(data.document, data.version);
+      const state = await actions.refetchState(props.documentId);
+      if (state) {
+        replaceDoc(state.document, state.version);
         setStatus('idle');
       }
       return;
     }
-    useDesignerStore.setState({ version: res.version });
+    storeApi.setState({ version: res.version });
     setStatus('idle');
   };
 
@@ -294,22 +423,15 @@ export function DesignerCanvas(props: Props) {
           />
         </Layer_>
         <Layer_ listening={false}>
-          {/* Hover bounding box (skipped when selected — Transformer takes over).
-              getClientRect({ relativeTo: stage }) returns source-space coords
-              that match what the KRect will draw inside the same scaled
-              stage, so we use it verbatim. Multi-line text + auto-width
-              wrap is reflected correctly because the rect comes from the
-              actual measured Konva node. */}
           {hoveredId && hoveredId !== selectedId
             ? (() => {
                 const layer = doc.layers.find((l) => l.id === hoveredId);
                 if (!layer) return null;
                 const node = shapeRefs.current.get(hoveredId);
-                const stage = stageRef.current;
                 const box =
-                  node && stage
+                  node && stageRef.current
                     ? hoverRectForNode(node, layer)
-                    : boundingBox(layer);
+                    : declaredBox(layer);
                 return (
                   <KRect
                     x={box.x}
@@ -347,10 +469,6 @@ export function DesignerCanvas(props: Props) {
       </Stage>
       {editingLayer && editingLayer.type === 'text'
         ? (() => {
-            // Mirror the hover box: use getTextWidth + align so the textarea
-            // hugs the visible glyphs instead of the wrap width. Then convert
-            // source-space coords to screen pixels for the absolute-positioned
-            // <textarea>.
             const node = shapeRefs.current.get(editingLayer.id);
             const tight = node
               ? hoverRectForNode(node, editingLayer)
@@ -403,16 +521,10 @@ type LayerHandlers = {
   registerNode: (node: Konva.Node | null) => void;
 };
 
-// For text layers, Konva's getClientRect returns the wrap-width box even if
-// the actual text is much shorter. Use getTextWidth() and account for align
-// so the hover indicator hugs the visible glyphs. Non-text nodes always have
-// width/height equal to what's drawn.
-function hoverRectForNode(node: Konva.Node, layer: Layer): {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-} {
+function hoverRectForNode(
+  node: Konva.Node,
+  layer: Layer,
+): { x: number; y: number; width: number; height: number } {
   if (layer.type === 'text') {
     const textNode = node as Konva.Text;
     const wrapWidth = textNode.width();
@@ -429,15 +541,8 @@ function hoverRectForNode(node: Konva.Node, layer: Layer): {
       height: textNode.height(),
     };
   }
-  // Shapes / images: use the declared rect directly so rotation doesn't
-  // inflate the hover box.
   if (layer.type === 'shape' && layer.shape === 'circle') {
-    return {
-      x: layer.x,
-      y: layer.y,
-      width: layer.width,
-      height: layer.height,
-    };
+    return { x: layer.x, y: layer.y, width: layer.width, height: layer.height };
   }
   return {
     x: node.x(),
@@ -447,7 +552,7 @@ function hoverRectForNode(node: Konva.Node, layer: Layer): {
   };
 }
 
-function boundingBox(layer: Layer): {
+function declaredBox(layer: Layer): {
   x: number;
   y: number;
   width: number;
@@ -484,7 +589,6 @@ function renderLayer(layer: Layer, h: LayerHandlers): React.ReactNode {
     if (layer.type === 'text' && layer.fontSize) {
       patch.fontSize = Math.max(8, layer.fontSize * scaleY);
     }
-    // Reset scale so future transforms aren't compounded.
     node.scaleX(1);
     node.scaleY(1);
     h.onTransformEnd(patch);
@@ -590,7 +694,7 @@ function renderLayer(layer: Layer, h: LayerHandlers): React.ReactNode {
       rotation={layer.rotation ?? 0}
       draggable
       onDragStart={h.onDragStart}
-        onDragMove={(e) => h.onDragMove(e.target)}
+      onDragMove={(e) => h.onDragMove(e.target)}
       onDragEnd={(e) => h.onDragEnd(e.target.x(), e.target.y())}
       onTransformEnd={(e) => onTransformEndFor(e.target)}
       onClick={h.onSelect}

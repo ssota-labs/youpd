@@ -1,42 +1,35 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import type { Layer } from '@youpd/types';
-import { useDesignerStore } from './designer-store';
+import type { Layer } from '@youpd/composer-core';
 import {
-  addLayer,
-  fetchHistoryState,
-  redo,
-  refetchState,
-  undo,
-  uploadAsset,
-} from './designer-actions';
-import { TemplateGallery } from './template-gallery';
-
-const ORG_ID =
-  process.env.NEXT_PUBLIC_DEFAULT_ORG_ID ||
-  '00000000-0000-0000-0000-000000000001';
+  useComposerActions,
+  useComposerOrgId,
+  useComposerStore,
+} from '../store';
+import { TemplateGallery } from './TemplateGallery';
 
 export function Toolbar() {
-  const thumbnailId = useDesignerStore((s) => s.thumbnailId);
-  const version = useDesignerStore((s) => s.version);
-  const canUndo = useDesignerStore((s) => s.canUndo);
-  const canRedo = useDesignerStore((s) => s.canRedo);
-  const replaceDoc = useDesignerStore((s) => s.replaceDoc);
-  const setHistoryState = useDesignerStore((s) => s.setHistoryState);
-  const status = useDesignerStore((s) => s.status);
+  const actions = useComposerActions();
+  const orgId = useComposerOrgId();
+  const documentId = useComposerStore((s) => s.documentId);
+  const version = useComposerStore((s) => s.version);
+  const canUndo = useComposerStore((s) => s.canUndo);
+  const canRedo = useComposerStore((s) => s.canRedo);
+  const replaceDoc = useComposerStore((s) => s.replaceDoc);
+  const setHistoryState = useComposerStore((s) => s.setHistoryState);
+  const status = useComposerStore((s) => s.status);
   const [busy, setBusy] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   // Initial + polling history-state fetch keeps the buttons honest after
-  // out-of-band edits (AI agent, other tabs). Once Realtime fires we
-  // re-pull, and we also pull on a 5s interval as a safety net.
+  // out-of-band edits (AI agent, other tabs).
   useEffect(() => {
-    if (!thumbnailId) return;
+    if (!documentId) return;
     let cancelled = false;
     const pull = async () => {
-      const s = await fetchHistoryState(thumbnailId);
+      const s = await actions.fetchHistoryState(documentId);
       if (!cancelled && s) setHistoryState(s);
     };
     void pull();
@@ -45,12 +38,12 @@ export function Toolbar() {
       cancelled = true;
       window.clearInterval(t);
     };
-  }, [thumbnailId, version, setHistoryState]);
+  }, [documentId, version, actions, setHistoryState]);
 
   const refresh = async () => {
-    const state = await refetchState(thumbnailId);
-    if (state) replaceDoc(state.document as never, state.version);
-    const hist = await fetchHistoryState(thumbnailId);
+    const state = await actions.refetchState(documentId);
+    if (state) replaceDoc(state.document, state.version);
+    const hist = await actions.fetchHistoryState(documentId);
     if (hist) setHistoryState(hist);
   };
 
@@ -58,7 +51,7 @@ export function Toolbar() {
     if (busy) return;
     setBusy(true);
     try {
-      await addLayer({ thumbnailId, layer, expectedVersion: version });
+      await actions.addLayer({ documentId, layer, expectedVersion: version });
       await refresh();
     } finally {
       setBusy(false);
@@ -110,7 +103,7 @@ export function Toolbar() {
     e.target.value = '';
     setBusy(true);
     try {
-      const uploaded = await uploadAsset({ orgId: ORG_ID, file });
+      const uploaded = await actions.uploadAsset({ orgId, file });
       if (!uploaded) return;
       await addNew({
         type: 'image',
@@ -130,7 +123,7 @@ export function Toolbar() {
     if (!canUndo || busy) return;
     setBusy(true);
     try {
-      await undo(thumbnailId);
+      await actions.undo(documentId);
       await refresh();
     } finally {
       setBusy(false);
@@ -141,14 +134,14 @@ export function Toolbar() {
     if (!canRedo || busy) return;
     setBusy(true);
     try {
-      await redo(thumbnailId);
+      await actions.redo(documentId);
       await refresh();
     } finally {
       setBusy(false);
     }
   };
 
-  // Keyboard shortcuts: ⌘Z / ⌘⇧Z (mac) and Ctrl+Z / Ctrl+Y (others).
+  // ⌘Z / ⌘⇧Z / ⌘Y bindings.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const meta = e.metaKey || e.ctrlKey;
@@ -167,7 +160,7 @@ export function Toolbar() {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canUndo, canRedo, busy, thumbnailId]);
+  }, [canUndo, canRedo, busy, documentId]);
 
   return (
     <div className="flex items-center gap-1 px-3 py-2 bg-zinc-900 border-b border-zinc-800">
@@ -216,26 +209,13 @@ export function Toolbar() {
         onClose={() => setGalleryOpen(false)}
         onPick={(t) => {
           setGalleryOpen(false);
-          // Note: current thumbnail keeps its identity; we only swap layers.
-          // For MVP we redirect to a new thumbnail since apply_template creates
-          // a new row. v0.5 will add "overwrite current" semantics.
           void (async () => {
-            const res = await fetch('/api/mcp/thumbnail/apply-template', {
-              method: 'POST',
-              headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({
-                orgId: ORG_ID,
-                templateCode: t.code,
-                fillers: {},
-                source: 'iframe',
-              }),
+            const res = await actions.applyTemplate({
+              orgId,
+              templateCode: t.code,
             });
-            if (res.ok) {
-              const data = (await res.json()) as {
-                thumbnailId: string;
-                embedUrl: string;
-              };
-              window.location.href = data.embedUrl;
+            if (res?.embedUrl) {
+              window.location.href = res.embedUrl;
             }
           })();
         }}

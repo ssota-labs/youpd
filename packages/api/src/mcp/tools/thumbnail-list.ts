@@ -30,7 +30,7 @@ export async function thumbnailList(
     items: rows.map((r) => ({
       thumbnailId: r.id,
       name: r.name,
-      aspect: r.aspect,
+      aspect: r.aspect ?? '16:9',
       updatedAt: r.updatedAt.toISOString(),
       exportPngUrl: r.exportPngUrl,
     })),

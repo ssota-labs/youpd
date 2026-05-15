@@ -40,10 +40,12 @@ export async function createThumbnail(
     .insert(thumbnails)
     .values({
       orgId: input.orgId,
+      kind: 'thumbnail',
       notionCandidateUrl: input.notionCandidateUrl ?? null,
       channelId: input.channelId ?? null,
       name: input.name ?? null,
       aspect: input.aspect,
+      canvas: input.document.canvas as never,
       background: input.document.background ?? null,
       layers: input.document.layers,
       version: 1,
@@ -117,7 +119,7 @@ export async function updateThumbnailLayers(
 
   // Push prior layers into history.
   await db.insert(thumbnailVersions).values({
-    thumbnailId: prev.id,
+    documentId: prev.id,
     version: prev.version,
     layers: prev.layers as never,
     createdBy: input.updatedBy ?? null,
@@ -130,7 +132,7 @@ export async function updateThumbnailLayers(
       .delete(thumbnailVersions)
       .where(
         and(
-          eq(thumbnailVersions.thumbnailId, prev.id),
+          eq(thumbnailVersions.documentId, prev.id),
           gt(thumbnailVersions.version, prev.version),
         ),
       );
@@ -191,7 +193,7 @@ export async function navigateHistory(
     const [snap] = await db
       .select()
       .from(thumbnailVersions)
-      .where(eq(thumbnailVersions.thumbnailId, id))
+      .where(eq(thumbnailVersions.documentId, id))
       .orderBy(desc(thumbnailVersions.version))
       .limit(1);
     if (!snap || snap.version >= current.version) {
@@ -201,7 +203,7 @@ export async function navigateHistory(
     // bring it back. Insert with a higher version so descending order keeps
     // it on top of the redo stack.
     await db.insert(thumbnailVersions).values({
-      thumbnailId: id,
+      documentId: id,
       version: current.version,
       layers: current.layers as never,
       createdBy: 'undo',
@@ -229,7 +231,7 @@ export async function navigateHistory(
   const [snap] = await db
     .select()
     .from(thumbnailVersions)
-    .where(eq(thumbnailVersions.thumbnailId, id))
+    .where(eq(thumbnailVersions.documentId, id))
     .orderBy(desc(thumbnailVersions.version), desc(thumbnailVersions.createdAt))
     .limit(1);
   if (!snap) throw new HistoryBoundaryError('redo');
@@ -262,7 +264,7 @@ export async function getHistoryCounts(
     .from(thumbnailVersions)
     .where(
       and(
-        eq(thumbnailVersions.thumbnailId, id),
+        eq(thumbnailVersions.documentId, id),
         sql`${thumbnailVersions.version} < ${current.version}`,
       ),
     );

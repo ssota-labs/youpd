@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import type { TextLayer } from '@youpd/types';
+import type { TextLayer } from '@youpd/composer-core';
 
 type Rect = { x: number; y: number; width: number; height: number };
 
@@ -16,8 +16,6 @@ type Props = {
   onCancel: () => void;
 };
 
-// Renders a <textarea> overlaid exactly on top of the Konva text node.
-// Positions assume the parent <div> wraps the Stage and has the same origin.
 export function TextEditorOverlay({
   layer,
   rect,
@@ -57,10 +55,6 @@ export function TextEditorOverlay({
       }}
       style={{
         position: 'absolute',
-        // content-box so `width`/`height` represent the text-drawing area,
-        // matching the Konva node's rect. The 1px dashed border then sits
-        // *outside* the rect, shifted by -1px so it visually frames the
-        // text instead of clipping it.
         boxSizing: 'content-box',
         left: rect.x - 1,
         top: rect.y - 1,
@@ -79,9 +73,6 @@ export function TextEditorOverlay({
         padding: 0,
         margin: 0,
         resize: 'none',
-        // Allow vertical scroll if user types more text than fits, but no
-        // horizontal scroll — long lines wrap. After commit, Konva
-        // re-renders the layer at the actual size needed.
         overflow: 'hidden auto',
         whiteSpace: 'pre-wrap',
         wordBreak: 'break-word',
