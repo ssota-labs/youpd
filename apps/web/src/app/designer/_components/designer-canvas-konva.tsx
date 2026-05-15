@@ -21,6 +21,7 @@ import {
 } from './designer-store';
 import { TextEditorOverlay } from './text-editor-overlay';
 import { snapDrag, type GuideLine } from './snap';
+import { fontsReady } from './font-loader';
 
 type Props = {
   thumbnailId: string;
@@ -113,6 +114,29 @@ export function DesignerCanvas(props: Props) {
     }
     tr.getLayer()?.batchDraw();
   }, [selectedId, doc.layers.length]);
+
+  // Konva measures fonts via canvas measureText at first draw and caches the
+  // metrics. If our @font-face fonts loaded after the initial mount, all
+  // text nodes are stuck on system fallback. Wait until fonts.ready, then
+  // force every text node to re-measure by re-applying fontFamily.
+  useEffect(() => {
+    let cancelled = false;
+    void fontsReady().then(() => {
+      if (cancelled) return;
+      const stage = stageRef.current;
+      if (!stage) return;
+      stage.find('Text').forEach((t) => {
+        const fam = (t as Konva.Text).fontFamily();
+        // Toggle to force Konva to invalidate cached metrics.
+        (t as Konva.Text).fontFamily(fam + ' ');
+        (t as Konva.Text).fontFamily(fam);
+      });
+      stage.batchDraw();
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [doc.layers.length]);
 
   const handleStageMouseDown = (
     e: Konva.KonvaEventObject<MouseEvent | TouchEvent>,
@@ -246,6 +270,26 @@ export function DesignerCanvas(props: Props) {
           />
         </Layer_>
         <Layer_ listening={false}>
+          {/* Hover bounding box (skipped when selected — Transformer takes over). */}
+          {hoveredId && hoveredId !== selectedId
+            ? (() => {
+                const layer = doc.layers.find((l) => l.id === hoveredId);
+                const box = layer ? boundingBox(layer) : null;
+                if (!box) return null;
+                return (
+                  <KRect
+                    x={box.x}
+                    y={box.y}
+                    width={box.width}
+                    height={box.height}
+                    stroke="#60a5fa"
+                    strokeWidth={1 / stageScale}
+                    dash={[6 / stageScale, 4 / stageScale]}
+                    listening={false}
+                  />
+                );
+              })()
+            : null}
           {guides.map((g, i) =>
             g.axis === 'v' ? (
               <KLine
@@ -299,14 +343,25 @@ type LayerHandlers = {
   registerNode: (node: Konva.Node | null) => void;
 };
 
+function boundingBox(layer: Layer): {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+} {
+  if (layer.type === 'text') {
+    return {
+      x: layer.x,
+      y: layer.y,
+      width: layer.width ?? 400,
+      height: (layer.fontSize ?? 64) * (layer.lineHeight ?? 1.1),
+    };
+  }
+  return { x: layer.x, y: layer.y, width: layer.width, height: layer.height };
+}
+
 function renderLayer(layer: Layer, h: LayerHandlers): React.ReactNode {
   if (layer.visible === false) return null;
-  const outlineStroke = h.isSelected
-    ? '#60a5fa'
-    : h.isHovered
-      ? '#3f3f46'
-      : undefined;
-  const outlineWidth = h.isSelected ? 2 : h.isHovered ? 1 : 0;
 
   const onTransformEndFor = (node: Konva.Node) => {
     const scaleX = node.scaleX();
@@ -353,8 +408,8 @@ function renderLayer(layer: Layer, h: LayerHandlers): React.ReactNode {
         letterSpacing={layer.letterSpacing}
         opacity={h.isEditing ? 0 : (layer.opacity ?? 1)}
         rotation={layer.rotation ?? 0}
-        stroke={outlineStroke ?? layer.stroke}
-        strokeWidth={outlineWidth || (layer.strokeWidth ?? 0)}
+        stroke={layer.stroke}
+        strokeWidth={layer.strokeWidth ?? 0}
         draggable
         onDragStart={h.onDragStart}
         onDragMove={(e) => h.onDragMove(e.target)}
@@ -382,8 +437,6 @@ function renderLayer(layer: Layer, h: LayerHandlers): React.ReactNode {
         onDragMove={h.onDragMove}
         onDragEnd={h.onDragEnd}
         onTransformEnd={(node) => onTransformEndFor(node)}
-        outlineStroke={outlineStroke}
-        outlineWidth={outlineWidth}
       />
     );
   }
@@ -396,8 +449,8 @@ function renderLayer(layer: Layer, h: LayerHandlers): React.ReactNode {
         y={layer.y + layer.height / 2}
         radius={Math.min(layer.width, layer.height) / 2}
         fill={layer.fill}
-        stroke={outlineStroke ?? layer.stroke}
-        strokeWidth={outlineWidth || (layer.strokeWidth ?? 0)}
+        stroke={layer.stroke}
+        strokeWidth={layer.strokeWidth ?? 0}
         opacity={layer.opacity ?? 1}
         rotation={layer.rotation ?? 0}
         draggable
@@ -426,8 +479,8 @@ function renderLayer(layer: Layer, h: LayerHandlers): React.ReactNode {
       width={layer.width}
       height={layer.height}
       fill={layer.fill}
-      stroke={outlineStroke ?? layer.stroke}
-      strokeWidth={outlineWidth || (layer.strokeWidth ?? 0)}
+      stroke={layer.stroke}
+      strokeWidth={layer.strokeWidth ?? 0}
       cornerRadius={layer.cornerRadius ?? 0}
       opacity={layer.opacity ?? 1}
       rotation={layer.rotation ?? 0}
@@ -454,8 +507,6 @@ function KonvaImageLoader(props: {
   onDragMove: (node: Konva.Node) => void;
   onDragEnd: (x: number, y: number) => void;
   onTransformEnd: (node: Konva.Node) => void;
-  outlineStroke: string | undefined;
-  outlineWidth: number;
 }) {
   const { layer } = props;
   const [img, setImg] = useState<HTMLImageElement | null>(null);
@@ -476,8 +527,6 @@ function KonvaImageLoader(props: {
       height={layer.height}
       opacity={layer.opacity ?? 1}
       rotation={layer.rotation ?? 0}
-      stroke={props.outlineStroke}
-      strokeWidth={props.outlineWidth}
       draggable
       onDragStart={props.onDragStart}
       onDragMove={(e) => props.onDragMove(e.target)}
