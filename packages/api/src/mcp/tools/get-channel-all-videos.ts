@@ -11,7 +11,7 @@ import {
   type YouTubeClient,
 } from '@youpd/youtube';
 import { getYouTubeClient } from '../youtube-client';
-import { runWithBudget } from '../quota';
+import { attachQuotaSession, runWithBudget } from '../quota';
 
 export const GetChannelAllVideosInputSchema = z
   .object({
@@ -26,6 +26,7 @@ export type GetChannelAllVideosOutput = {
   videos: VideoSummary[];
   pages_fetched: number;
   units_consumed: number;
+  quota_session_id?: string;
 };
 
 // channels.list(1u) + playlistItems.list × ceil(N/50)(1u each) +
@@ -43,7 +44,7 @@ export async function getChannelAllVideos(
     expectedPages * UNIT_COST.playlist_items_list +
     expectedPages * UNIT_COST.videos_list;
 
-  const { result } = await runWithBudget<GetChannelAllVideosOutput>({
+  const { result, sessionId } = await runWithBudget<GetChannelAllVideosOutput>({
     operation: 'channel-all-videos',
     units: upperBoundUnits,
     channelId: input.channel_id,
@@ -99,5 +100,5 @@ export async function getChannelAllVideos(
     },
   });
 
-  return result;
+  return attachQuotaSession(result, sessionId);
 }

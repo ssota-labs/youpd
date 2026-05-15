@@ -8,7 +8,7 @@ import {
   type YouTubeClient,
 } from '@youpd/youtube';
 import { getYouTubeClient } from '../youtube-client';
-import { runWithBudget } from '../quota';
+import { attachQuotaSession, runWithBudget } from '../quota';
 
 export const GetVideoCommentsInputSchema = z
   .object({
@@ -24,6 +24,7 @@ export type GetVideoCommentsOutput = {
   comments_disabled: boolean;
   language_hint: string | null;
   units_consumed: number;
+  quota_session_id?: string;
 };
 
 // Per-spec policy: order=relevance + maxResults=100 (API max), sort locally
@@ -38,7 +39,7 @@ export async function getVideoComments(
 ): Promise<GetVideoCommentsOutput> {
   const totalUnits = UNIT_COST.comment_threads_list;
 
-  const { result } = await runWithBudget<GetVideoCommentsOutput>({
+  const { result, sessionId } = await runWithBudget<GetVideoCommentsOutput>({
     operation: 'video-comments',
     units: totalUnits,
     videoIds: [input.video_id],
@@ -78,7 +79,7 @@ export async function getVideoComments(
     },
   });
 
-  return result;
+  return attachQuotaSession(result, sessionId);
 }
 
 const HANGUL = /[가-힯ᄀ-ᇿ㄰-㆏]/;

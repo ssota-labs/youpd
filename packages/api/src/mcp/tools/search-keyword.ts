@@ -11,7 +11,7 @@ import {
   type YouTubeClient,
 } from '@youpd/youtube';
 import { getYouTubeClient } from '../youtube-client';
-import { runWithBudget } from '../quota';
+import { runWithBudget, attachQuotaSession } from '../quota';
 
 export const SearchKeywordInputSchema = z
   .object({
@@ -30,6 +30,7 @@ export const SearchKeywordOutputSchema = z.object({
   videos: z.array(z.unknown()),
   channels: z.array(z.unknown()),
   units_consumed: z.number().int().nonnegative(),
+  quota_session_id: z.string().optional(),
 });
 
 export type SearchKeywordOutput = {
@@ -37,6 +38,7 @@ export type SearchKeywordOutput = {
   videos: VideoSummary[];
   channels: ChannelSummary[];
   units_consumed: number;
+  quota_session_id?: string;
 };
 
 const SEARCH_UNITS = UNIT_COST.search_list;
@@ -51,7 +53,7 @@ export async function searchKeyword(
   // = 102u worst case for max_results <= 50.
   const totalUnits = SEARCH_UNITS + VIDEOS_UNITS + CHANNELS_UNITS;
 
-  const { result } = await runWithBudget<SearchKeywordOutput>({
+  const { result, sessionId } = await runWithBudget<SearchKeywordOutput>({
     operation: 'video-search',
     units: totalUnits,
     keyword: input.keyword,
@@ -99,5 +101,5 @@ export async function searchKeyword(
     },
   });
 
-  return result;
+  return attachQuotaSession(result, sessionId);
 }

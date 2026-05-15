@@ -1,4 +1,5 @@
 import {
+  eq,
   getDbClient,
   searchSessions,
   type SearchSessionRow,
@@ -16,6 +17,18 @@ export type RecordSessionInput = {
   status: SessionStatus;
   errorReason?: string | null;
 };
+
+export async function getSearchSessionById(
+  id: string,
+): Promise<SearchSessionRow | undefined> {
+  const db = getDbClient();
+  const rows = await db
+    .select()
+    .from(searchSessions)
+    .where(eq(searchSessions.id, id))
+    .limit(1);
+  return rows[0];
+}
 
 export async function recordSession(
   input: RecordSessionInput,

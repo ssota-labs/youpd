@@ -11,7 +11,7 @@ import {
   type YouTubeClient,
 } from '@youpd/youtube';
 import { getYouTubeClient } from '../youtube-client';
-import { runWithBudget } from '../quota';
+import { attachQuotaSession, runWithBudget } from '../quota';
 
 export const FetchTrendingByKeywordInputSchema = z
   .object({
@@ -32,6 +32,7 @@ export type FetchTrendingByKeywordOutput = {
   videos: VideoSummary[];
   channels: ChannelSummary[];
   units_consumed: number;
+  quota_session_id?: string;
 };
 
 // search.list?publishedAfter=<now-Nh>&order=viewCount captures fast-rising
@@ -48,7 +49,7 @@ export async function fetchTrendingByKeyword(
     Date.now() - input.hours * 60 * 60 * 1000,
   ).toISOString();
 
-  const { result } = await runWithBudget<FetchTrendingByKeywordOutput>({
+  const { result, sessionId } = await runWithBudget<FetchTrendingByKeywordOutput>({
     operation: 'trending-keyword',
     units: totalUnits,
     keyword: input.keyword,
@@ -101,5 +102,5 @@ export async function fetchTrendingByKeyword(
     },
   });
 
-  return result;
+  return attachQuotaSession(result, sessionId);
 }

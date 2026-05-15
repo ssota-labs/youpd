@@ -14,7 +14,7 @@ import {
   type YouTubeClient,
 } from '@youpd/youtube';
 import { getYouTubeClient } from '../youtube-client';
-import { runWithBudget } from '../quota';
+import { attachQuotaSession, runWithBudget } from '../quota';
 
 export const GetVideoDetailInputSchema = z
   .object({
@@ -31,6 +31,7 @@ export type GetVideoDetailOutput = {
   top_comments: CommentSummary[];
   comments_disabled: boolean;
   units_consumed: number;
+  quota_session_id?: string;
 };
 
 const VIDEOS_UNITS = UNIT_COST.videos_list;
@@ -44,7 +45,7 @@ export async function getVideoDetail(
   const wantComments = input.include_comments && input.comments_top_n > 0;
   const totalUnits = VIDEOS_UNITS + CHANNELS_UNITS + (wantComments ? COMMENTS_UNITS : 0);
 
-  const { result } = await runWithBudget<GetVideoDetailOutput>({
+  const { result, sessionId } = await runWithBudget<GetVideoDetailOutput>({
     operation: 'video-detail',
     units: totalUnits,
     videoIds: [input.video_id],
@@ -101,5 +102,5 @@ export async function getVideoDetail(
     },
   });
 
-  return result;
+  return attachQuotaSession(result, sessionId);
 }

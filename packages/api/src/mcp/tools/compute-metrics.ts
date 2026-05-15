@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { runWithBudget } from '../quota';
+import { attachQuotaSession, runWithBudget } from '../quota';
 
 // Pure-function MCP tool — zero YouTube units. Mirrors the Videos DB formulas
 // defined in the v1.0.0 schema. The agent passes the snapshot history and
@@ -31,6 +31,7 @@ export type ComputeMetricsOutput = {
   window_30d_delta: number | null;
   snapshots_used: number;
   units_consumed: number;
+  quota_session_id?: string;
 };
 
 // Sum of (today - earliest within window) across the daily snapshots that
@@ -61,7 +62,7 @@ function deltaWithinWindow(
 export async function computeMetrics(
   input: ComputeMetricsInput,
 ): Promise<ComputeMetricsOutput> {
-  const { result } = await runWithBudget<ComputeMetricsOutput>({
+  const { result, sessionId } = await runWithBudget<ComputeMetricsOutput>({
     operation: 'compute-metrics',
     units: 0,
     call: async () => {
@@ -100,5 +101,5 @@ export async function computeMetrics(
     },
   });
 
-  return result;
+  return attachQuotaSession(result, sessionId);
 }

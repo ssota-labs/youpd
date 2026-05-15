@@ -4,7 +4,7 @@ import {
   type FileEntry,
   type NotionPagePayload,
 } from '../notion-payload';
-import { runWithBudget } from '../quota';
+import { attachQuotaSession, runWithBudget } from '../quota';
 
 const Stage = z.enum([
   '1.주제리서치',
@@ -49,8 +49,8 @@ export type NotionCreatePullCandidateInput = z.infer<
 
 export async function notionCreatePullCandidate(
   input: NotionCreatePullCandidateInput,
-): Promise<NotionPagePayload> {
-  const { result } = await runWithBudget<NotionPagePayload>({
+): Promise<NotionPagePayload & { quota_session_id?: string }> {
+  const { result, sessionId } = await runWithBudget<NotionPagePayload>({
     operation: 'compose-pull-candidate',
     units: 0,
     call: async () => {
@@ -88,5 +88,5 @@ export async function notionCreatePullCandidate(
     },
   });
 
-  return result;
+  return attachQuotaSession(result, sessionId);
 }

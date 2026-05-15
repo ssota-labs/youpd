@@ -5,7 +5,7 @@ import {
   summarizeSearchSessions,
   type SummaryRow,
 } from '@youpd/supabase/repositories/quota';
-import { getDailyLimit, runWithBudget } from '../quota';
+import { getDailyLimit, attachQuotaSession, runWithBudget } from '../quota';
 
 const DateOnly = z
   .string()
@@ -29,6 +29,7 @@ export type SearchSessionsSummaryOutput = {
   daily_remaining_units: number;
   query_window: { from: string; to: string };
   units_consumed: 0;
+  quota_session_id?: string;
 };
 
 // Read-only aggregation over search_sessions. Server-wide (no per-user filter,
@@ -41,7 +42,7 @@ export async function searchSessionsSummary(
   const from = input.from_date ?? currentUsageDay();
   const to = input.to_date ?? from;
 
-  const { result } = await runWithBudget<SearchSessionsSummaryOutput>({
+  const { result, sessionId } = await runWithBudget<SearchSessionsSummaryOutput>({
     operation: 'sessions-summary',
     units: 0,
     call: async () => {
@@ -61,5 +62,5 @@ export async function searchSessionsSummary(
     },
   });
 
-  return result;
+  return attachQuotaSession(result, sessionId);
 }

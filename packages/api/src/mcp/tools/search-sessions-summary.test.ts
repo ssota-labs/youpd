@@ -13,13 +13,17 @@ vi.mock('@youpd/supabase/repositories/quota', () => ({
 }));
 
 vi.mock('../quota', () => ({
+  attachQuotaSession: (result: unknown, sid: string | null) =>
+    sid == null
+      ? result
+      : { ...(result as Record<string, unknown>), quota_session_id: sid },
   runWithBudget: async <T>(input: {
     operation: string;
     units: number;
     call: () => Promise<{ resultCount: number; payload: T }>;
   }) => {
     const { payload } = await input.call();
-    return { result: payload, unitsConsumed: input.units };
+    return { result: payload, unitsConsumed: input.units, sessionId: null };
   },
   getDailyLimit: () => 9000,
   QuotaExceededAtBudgetError: class extends Error {},

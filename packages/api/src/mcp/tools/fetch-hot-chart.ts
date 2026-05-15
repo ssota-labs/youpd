@@ -7,7 +7,7 @@ import {
   type YouTubeClient,
 } from '@youpd/youtube';
 import { getYouTubeClient } from '../youtube-client';
-import { runWithBudget } from '../quota';
+import { attachQuotaSession, runWithBudget } from '../quota';
 
 export const FetchHotChartInputSchema = z
   .object({
@@ -25,6 +25,7 @@ export type FetchHotChartOutput = {
   source: 'chart=mostPopular';
   videos: VideoSummary[];
   units_consumed: number;
+  quota_session_id?: string;
 };
 
 // videos.list?chart=mostPopular is 1 unit. The result is YouTube's "trending"
@@ -36,7 +37,7 @@ export async function fetchHotChart(
 ): Promise<FetchHotChartOutput> {
   const totalUnits = UNIT_COST.videos_list;
 
-  const { result } = await runWithBudget<FetchHotChartOutput>({
+  const { result, sessionId } = await runWithBudget<FetchHotChartOutput>({
     operation: 'hot-chart',
     units: totalUnits,
     call: async () => {
@@ -59,5 +60,5 @@ export async function fetchHotChart(
     },
   });
 
-  return result;
+  return attachQuotaSession(result, sessionId);
 }
