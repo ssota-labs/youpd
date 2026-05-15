@@ -10,14 +10,32 @@ type Family = { family: string; variants: Variant[]; hasBold: boolean };
 // share fetched bytes, but two pages (or two host apps) don't bleed into
 // each other.
 const FONTS_CACHE = new Map<string, Family[]>();
+// FONTS_READY entries are populated synchronously on the first call to
+// useFontManifest / fontsReady for a given url, so any concurrent
+// fontsReady(url) call gets the same in-flight promise to await rather than
+// resolving immediately with no fonts loaded.
 const FONTS_READY = new Map<string, Promise<void>>();
+const FONTS_READY_RESOLVERS = new Map<string, () => void>();
+
+function ensureReadyPromise(manifestUrl: string): Promise<void> {
+  const existing = FONTS_READY.get(manifestUrl);
+  if (existing) return existing;
+  let resolveFn: () => void = () => undefined;
+  const p = new Promise<void>((resolve) => {
+    resolveFn = resolve;
+  });
+  FONTS_READY.set(manifestUrl, p);
+  FONTS_READY_RESOLVERS.set(manifestUrl, resolveFn);
+  return p;
+}
 
 // Resolve once every variant is actually loaded by the browser. Konva caches
 // font metrics from canvas measureText at first render, so any text drawn
 // before fonts.load(...) resolves uses the system fallback and never
-// re-measures. Callers use this promise to gate the initial Konva draw.
+// re-measures. Callers use this promise to gate Konva re-measures.
 export function fontsReady(manifestUrl: string): Promise<void> {
-  return FONTS_READY.get(manifestUrl) ?? Promise.resolve();
+  if (!manifestUrl) return Promise.resolve();
+  return ensureReadyPromise(manifestUrl);
 }
 
 // Pulls the host-supplied manifest URL (via ComposerProvider), injects
@@ -36,13 +54,22 @@ export function useFontManifest(): Family[] {
       setFonts(cached);
       return;
     }
+    // Ensure a pending promise exists synchronously so concurrent
+    // fontsReady(url) callers wait for the actual fetch + load.
+    ensureReadyPromise(manifestUrl);
     let cancelled = false;
     void (async () => {
       const res = await fetch(manifestUrl);
-      if (!res.ok) return;
+      if (!res.ok) {
+        FONTS_READY_RESOLVERS.get(manifestUrl)?.();
+        return;
+      }
       const data = (await res.json()) as { families: Family[] };
       FONTS_CACHE.set(manifestUrl, data.families);
-      if (cancelled) return;
+      if (cancelled) {
+        FONTS_READY_RESOLVERS.get(manifestUrl)?.();
+        return;
+      }
 
       const styleId = `composer-font-faces-${hash(manifestUrl)}`;
       if (!document.getElementById(styleId)) {
@@ -63,8 +90,7 @@ export function useFontManifest(): Family[] {
         document.head.appendChild(style);
       }
 
-      const readyPromise = (async () => {
-        if (!('fonts' in document)) return;
+      if ('fonts' in document) {
         await Promise.all(
           data.families.flatMap((f) =>
             f.variants.map((v) =>
@@ -77,9 +103,8 @@ export function useFontManifest(): Family[] {
           ),
         );
         await (document as Document & { fonts: FontFaceSet }).fonts.ready;
-      })();
-      FONTS_READY.set(manifestUrl, readyPromise);
-      await readyPromise;
+      }
+      FONTS_READY_RESOLVERS.get(manifestUrl)?.();
       if (cancelled) return;
       setFonts(data.families);
     })();

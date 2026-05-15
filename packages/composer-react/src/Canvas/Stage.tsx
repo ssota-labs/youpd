@@ -22,6 +22,7 @@ import {
 } from '@youpd/composer-core';
 import {
   useComposerActions,
+  useComposerFontManifestUrl,
   useComposerStore,
   useComposerStoreApi,
 } from '../store';
@@ -157,19 +158,20 @@ export function ComposerCanvas(props: ComposerCanvasProps) {
     transformerRef.current?.getLayer()?.batchDraw();
   }, [doc.layers]);
 
-  // Force Konva to re-measure once @font-face fonts finish loading.
+  // Force Konva to re-measure once @font-face fonts finish loading. Without
+  // this, KText nodes mounted while a custom family (e.g. Black Han Sans)
+  // is still loading get sized against the system fallback (much narrower),
+  // and the bounding box is too small until the user touches a property.
+  const fontManifestUrl = useComposerFontManifestUrl();
   useEffect(() => {
-    const manifestUrl =
-      // Manifest URL is fetched indirectly via context; re-measuring just
-      // needs the document fonts.ready promise to be resolved.
-      '';
     let cancelled = false;
-    void fontsReady(manifestUrl).then(() => {
+    void fontsReady(fontManifestUrl).then(() => {
       if (cancelled) return;
       const stage = stageRef.current;
       if (!stage) return;
       stage.find('Text').forEach((t) => {
         const fam = (t as Konva.Text).fontFamily();
+        // Toggle the family to invalidate Konva's cached metrics.
         (t as Konva.Text).fontFamily(fam + ' ');
         (t as Konva.Text).fontFamily(fam);
       });
@@ -178,7 +180,7 @@ export function ComposerCanvas(props: ComposerCanvasProps) {
     return () => {
       cancelled = true;
     };
-  }, [doc.layers.length]);
+  }, [doc.layers, fontManifestUrl]);
 
   const handleStageMouseDown = (
     e: Konva.KonvaEventObject<MouseEvent | TouchEvent>,
