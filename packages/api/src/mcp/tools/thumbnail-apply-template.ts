@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { AspectSchema, FillersSchema, TemplateDocumentSchema } from '@youpd/types';
+import {
+  AspectSchema,
+  FillersSchema,
+  TemplateDocumentSchema,
+  aspectToCanvas,
+  canvasToAspect,
+} from '@youpd/types';
 import { applyTemplate } from '../../thumbnail/apply-template';
 import { createThumbnail } from '@youpd/supabase/repositories/thumbnails';
 import { getTemplateByCode } from '@youpd/supabase/repositories/templates';
@@ -31,13 +37,14 @@ export async function thumbnailApplyTemplate(
   const tpl = await getTemplateByCode(input.templateCode);
   const parsed = TemplateDocumentSchema.parse(tpl.document);
   const document = applyTemplate(parsed, input.fillers);
-  const aspect = input.aspect ?? document.aspect;
+  const canvas = input.aspect ? aspectToCanvas(input.aspect) : document.canvas;
+  const aspect = canvasToAspect(canvas);
   const row = await createThumbnail({
     orgId: input.orgId,
     notionCandidateUrl: input.notionCandidateUrl ?? null,
     name: input.name ?? tpl.title,
     aspect,
-    document: { ...document, aspect },
+    document: { ...document, canvas },
     updatedBy: input.updatedBy ?? null,
   });
   return {

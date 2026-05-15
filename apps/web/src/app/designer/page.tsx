@@ -1,6 +1,10 @@
 import 'server-only';
 import { notFound } from 'next/navigation';
-import { ThumbnailDocumentSchema, type ThumbnailDocument } from '@youpd/types';
+import {
+  CompositionSchema,
+  aspectToCanvas,
+  type Composition,
+} from '@youpd/types';
 import { getThumbnail } from '@youpd/supabase/repositories/thumbnails';
 import { DesignerShell } from './_components/designer-shell';
 
@@ -23,8 +27,8 @@ export default async function DesignerPage({
     notFound();
   }
 
-  const document: ThumbnailDocument = ThumbnailDocumentSchema.parse({
-    aspect: row!.aspect,
+  const document: Composition = CompositionSchema.parse({
+    canvas: aspectToCanvas(row!.aspect as '16:9' | '9:16'),
     background: row!.background ?? undefined,
     layers: row!.layers,
   });

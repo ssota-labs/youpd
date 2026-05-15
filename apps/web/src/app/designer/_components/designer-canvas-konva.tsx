@@ -14,7 +14,6 @@ import {
 } from 'react-konva';
 import type Konva from 'konva';
 import type { Layer, LayerPatch, ThumbnailDocument } from '@youpd/types';
-import { ASPECT_DIMENSIONS } from '@youpd/types';
 import {
   useDesignerStore,
   patchLayerOnServer,
@@ -50,7 +49,7 @@ export function DesignerCanvas(props: Props) {
   const [stageScale, setStageScale] = useState(1);
   const [guides, setGuides] = useState<GuideLine[]>([]);
 
-  const { width, height } = ASPECT_DIMENSIONS[doc.aspect];
+  const { width, height } = doc.canvas;
 
   useEffect(() => {
     init({

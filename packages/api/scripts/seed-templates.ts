@@ -2,6 +2,7 @@
 // Requires DATABASE_URL to point at a Supabase Postgres with the v0.4
 // migration applied.
 import { upsertTemplate } from '@youpd/supabase/repositories/templates';
+import { canvasToAspect } from '@youpd/types';
 import { TEMPLATE_SEEDS } from '../src/thumbnail/template-seeds';
 
 async function main(): Promise<void> {
@@ -9,7 +10,7 @@ async function main(): Promise<void> {
     await upsertTemplate({
       code: tpl.code,
       title: tpl.title,
-      aspect: tpl.aspect,
+      aspect: canvasToAspect(tpl.canvas),
       document: tpl.document,
       previewUrl: tpl.previewUrl ?? null,
       tags: tpl.tags,

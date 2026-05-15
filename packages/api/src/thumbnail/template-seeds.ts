@@ -42,11 +42,11 @@ function buildShockRedNumber(aspect: '16:9' | '9:16'): Template {
   return {
     code: `shock-red-number-${aspect === '16:9' ? '16x9' : '9x16'}`,
     title: '쇼크 빨간 숫자',
-    aspect,
+    canvas: { width, height },
     isPublic: true,
     tags: ['shock', 'number', 'red'],
     document: {
-      aspect,
+      canvas: { width, height },
       background: { color: '#0B0B0B' },
       layers: [
         {
@@ -93,11 +93,11 @@ function buildFaceQuote(aspect: '16:9' | '9:16'): Template {
   return {
     code: `face-quote-${aspect === '16:9' ? '16x9' : '9x16'}`,
     title: '인물 + 인용',
-    aspect,
+    canvas: { width, height },
     isPublic: true,
     tags: ['face', 'quote'],
     document: {
-      aspect,
+      canvas: { width, height },
       background: { color: '#1A1A1A' },
       layers: [
         {
@@ -142,11 +142,11 @@ function buildBoldHeadline(aspect: '16:9' | '9:16'): Template {
   return {
     code: `bold-headline-${aspect === '16:9' ? '16x9' : '9x16'}`,
     title: '굵은 헤드라인',
-    aspect,
+    canvas: { width, height },
     isPublic: true,
     tags: ['bold', 'headline'],
     document: {
-      aspect,
+      canvas: { width, height },
       background: { color: '#101820' },
       layers: [
         {
@@ -181,11 +181,11 @@ function buildWarningYellow(aspect: '16:9' | '9:16'): Template {
   return {
     code: `warning-yellow-${aspect === '16:9' ? '16x9' : '9x16'}`,
     title: '경고 옐로우',
-    aspect,
+    canvas: { width, height },
     isPublic: true,
     tags: ['warning', 'yellow'],
     document: {
-      aspect,
+      canvas: { width, height },
       background: { color: '#FFD600' },
       layers: [
         {
@@ -229,11 +229,11 @@ function buildBeforeAfter(aspect: '16:9' | '9:16'): Template {
   return {
     code: `before-after-${aspect === '16:9' ? '16x9' : '9x16'}`,
     title: 'Before / After',
-    aspect,
+    canvas: { width, height },
     isPublic: true,
     tags: ['before', 'after'],
     document: {
-      aspect,
+      canvas: { width, height },
       background: { color: '#0B0B0B' },
       layers: [
         {
@@ -278,11 +278,11 @@ function buildListicle3(aspect: '16:9' | '9:16'): Template {
   return {
     code: `listicle-3-${aspect === '16:9' ? '16x9' : '9x16'}`,
     title: '3가지 리스티클',
-    aspect,
+    canvas: { width, height },
     isPublic: true,
     tags: ['list', 'number'],
     document: {
-      aspect,
+      canvas: { width, height },
       background: { color: '#1B1F3B' },
       layers: [
         {
@@ -316,11 +316,11 @@ function buildCommentQuote(aspect: '16:9' | '9:16'): Template {
   return {
     code: `comment-quote-${aspect === '16:9' ? '16x9' : '9x16'}`,
     title: '댓글 인용',
-    aspect,
+    canvas: { width, height },
     isPublic: true,
     tags: ['comment', 'quote'],
     document: {
-      aspect,
+      canvas: { width, height },
       background: { color: '#0B0B0B' },
       layers: [
         {
@@ -366,11 +366,11 @@ function buildInterviewStrip(aspect: '16:9' | '9:16'): Template {
   return {
     code: `interview-strip-${aspect === '16:9' ? '16x9' : '9x16'}`,
     title: '인터뷰 자막 스트립',
-    aspect,
+    canvas: { width, height },
     isPublic: true,
     tags: ['interview', 'strip'],
     document: {
-      aspect,
+      canvas: { width, height },
       background: { color: '#000000' },
       layers: [
         {

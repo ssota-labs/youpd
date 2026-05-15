@@ -37,7 +37,7 @@ type Actions = {
 
 export const useDesignerStore = create<State & Actions>((set) => ({
   thumbnailId: '',
-  doc: { aspect: '16:9', layers: [] },
+  doc: { canvas: { width: 1280, height: 720 }, layers: [] },
   version: 0,
   selectedId: null,
   hoveredId: null,

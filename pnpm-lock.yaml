@@ -245,6 +245,12 @@ importers:
       '@resvg/resvg-js':
         specifier: ^2.6.2
         version: 2.6.2
+      '@youpd/composer-core':
+        specifier: workspace:*
+        version: link:../composer-core
+      '@youpd/composer-render-satori':
+        specifier: workspace:*
+        version: link:../composer-render-satori
       '@youpd/db':
         specifier: workspace:*
         version: link:../db
@@ -282,6 +288,44 @@ importers:
       vitest:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.19.19)(lightningcss@1.32.0)
+
+  packages/composer-core:
+    dependencies:
+      zod:
+        specifier: ^4.0.0
+        version: 4.4.3
+    devDependencies:
+      '@youpd/config':
+        specifier: workspace:*
+        version: link:../config
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.19.19)(lightningcss@1.32.0)
+
+  packages/composer-render-satori:
+    dependencies:
+      '@resvg/resvg-js':
+        specifier: ^2.6.2
+        version: 2.6.2
+      '@youpd/composer-core':
+        specifier: workspace:*
+        version: link:../composer-core
+      satori:
+        specifier: ^0.12.0
+        version: 0.12.2
+      server-only:
+        specifier: ^0.0.1
+        version: 0.0.1
+    devDependencies:
+      '@youpd/config':
+        specifier: workspace:*
+        version: link:../config
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
 
   packages/config: {}
 
@@ -343,6 +387,9 @@ importers:
 
   packages/types:
     dependencies:
+      '@youpd/composer-core':
+        specifier: workspace:*
+        version: link:../composer-core
       zod:
         specifier: ^4.0.0
         version: 4.4.3

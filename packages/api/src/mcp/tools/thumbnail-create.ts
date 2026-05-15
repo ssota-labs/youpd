@@ -1,8 +1,10 @@
 import { z } from 'zod';
 import {
   AspectSchema,
+  CompositionSchema,
   FillersSchema,
-  ThumbnailDocumentSchema,
+  aspectToCanvas,
+  canvasToAspect,
   type ThumbnailDocument,
 } from '@youpd/types';
 import { applyTemplate } from '../../thumbnail/apply-template';
@@ -20,7 +22,7 @@ export const ThumbnailCreateInputSchema = z
     aspect: AspectSchema.default('16:9'),
     templateCode: z.string().min(1).max(60).optional(),
     fillers: FillersSchema.default({}),
-    document: ThumbnailDocumentSchema.optional(),
+    document: CompositionSchema.optional(),
     updatedBy: z.string().max(200).optional(),
   })
   .strict()
@@ -46,15 +48,19 @@ export async function thumbnailCreate(
   } else {
     document = input.document!;
   }
-  if (document.aspect !== input.aspect) {
-    document = { ...document, aspect: input.aspect };
+  const targetCanvas = aspectToCanvas(input.aspect);
+  if (
+    document.canvas.width !== targetCanvas.width ||
+    document.canvas.height !== targetCanvas.height
+  ) {
+    document = { ...document, canvas: targetCanvas };
   }
   const row = await createThumbnail({
     orgId: input.orgId,
     notionCandidateUrl: input.notionCandidateUrl ?? null,
     channelId: input.channelId ?? null,
     name: input.name ?? null,
-    aspect: input.aspect,
+    aspect: canvasToAspect(document.canvas),
     document,
     updatedBy: input.updatedBy ?? null,
   });
