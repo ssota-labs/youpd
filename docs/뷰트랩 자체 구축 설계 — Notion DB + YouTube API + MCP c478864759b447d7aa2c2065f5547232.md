@@ -55,7 +55,7 @@ flowchart LR
 <aside>
 📦
 
-**+ 운영 메타 DB**: 마켓플레이스 배포·버전 관리를 위해 위 9개 DB와는 별개로 **Agent Meta** DB 1개를 둔다 (현재 버전·최신 버전 캐시·속성/옵션 스냅샷·상태·변경 로그). MCP `get_latest_version` / `get_latest_version_schema` / `get_bundle_manifest`가 이 메타와 짝을 이뤄 스키마 동기화를 자동화한다. 자세한 구성은 [유피디 — 유튜브 기획/제작 커스텀 에이전트 기획안](https://www.notion.so/c29d45781454451ea58ed4677b23e946?pvs=21) §4-3 참고.
+**+ 운영 메타 DB**: 마켓플레이스 배포·버전 관리를 위해 위 9개 DB와는 별개로 **Agent Meta** DB 1개를 둔다 (현재 버전·최신 버전 캐시·속성/옵션 스냅샷·상태·변경 로그). **템플릿 컬럼 계약**은 더 이상 공개 REST로 내려주지 않고, Notion Worker가 **코드 SSOT**(`apps/notion-worker/src/lib/schema.ts`)와 `healthcheck`로 data source 스키마와 정합성을 검사한다. 자세한 구성은 [유피디 — 유튜브 기획/제작 커스텀 에이전트 기획안](https://www.notion.so/c29d45781454451ea58ed4677b23e946?pvs=21) §4-3 참고.
 
 </aside>
 
@@ -352,34 +352,36 @@ flowchart TD
 
 | Tool key | 호출 순서 요약 |
 | --- | --- |
-| `checkWorkspace` | 환경·`YOUPD_*_DATA_SOURCE_ID`·스키마 이름 매칭 점검 (쓰기 없음) |
-| `videosByKeyword` | `POST …/rest/search/keyword` → Videos data source 행 생성/갱신 |
-| `channelAllVideos` | `GET …/rest/channels/{id}/videos` (페이지네이션) → Videos upsert |
-| `videoComments` | `GET …/rest/videos/{id}/comments` → Comments upsert |
-| `snapshotTrackedVideos` | Notion에서 추적용 `videoId` 수집 → `POST …/rest/snapshots/now` 배치 → Snapshots upsert |
+| `healthcheck` | 환경·`YOUPD_*_DATA_SOURCE_ID`·**canonical 스키마**(속성명·타입 고정) 점검 (쓰기 없음) |
+| `videosByKeyword` | `POST …/rest/search/keyword` (옵션 다페이지) → Channels + Videos data source upsert |
+| `channelAllVideos` | `GET …/rest/channels/{id}/videos` (전량) → Channel + Videos upsert |
+| `videoComments` | `GET …/rest/videos/{id}/comments` → Comments upsert (Videos에 영상 행 선행) |
+| `snapshotVideos` | Videos DS에서 `videoId` 수집 → `POST …/rest/snapshots/now` → Video Snapshots upsert |
+| `snapshotChannels` | Channels DS에서 `channelId` 수집 → `POST …/rest/snapshots/channels` → Channel Snapshots upsert |
 
 **비목표**: `worker.database` / `worker.sync()` 로 Notion-managed DB를 만들거나 동기화하는 모델(초기 PoC 가능성)은 **v0.6에서 채택하지 않음**.
 
-### 5-3. MCP 노출 도구 (설계 초안 — 폴백·온디맨드)
+### 5-3. MCP 노출 도구 (v0.6+ 간소화 — 폴백·온디맨드)
+
+버전·번들·스키마 JSON·노션 후보 payload 생성·`get_skill_group` 등 **라우팅/메타 MCP 도구는 제거**되었다. 스키마 계약은 Worker **코드 SSOT** + `healthcheck`로 검증한다.
 
 | Tool | 입력 | 동작 | units |
 | --- | --- | --- | --- |
-| `search_keyword` | keyword, max_results | search.list → videos.list → MCP 경로 반환 또는 Notion 적재 구현분기 — **대량 채팅 경로에서는 Worker/REST 우선**(v0.6) | ~100–400 |
+| `search_keyword` | keyword, max_results, max_total_results? | search.list → videos.list → 반환 (다페이지 옵션). **대량 적재는 Worker/REST** | ~100+/page |
 | `get_video_detail` | videoId | videos.list + channels.list + commentThreads.list | ~3–10 |
 | `get_channel_overview` | channelId | channels.list + 인기영상 TOP10 | ~2–5 |
-| `get_channel_all_videos` | channelId, max_videos? | channels.list(contentDetails) → uploads 재생목록 ID → playlistItems.list 페이지네이션 → videos.list 일괄 → Videos DB upsert (경쟁 채널 전수 분석용) | ~1 + (영상수/50) × 2 |
-| `compute_metrics` | videoId | Notion Snapshots에서 기여도·성과도·노출확률 재계산 | 0 (Notion read-only) |
-| `snapshot_now` | videoIds[] | 수동 스냅샷 강제 실행 | ~1/50개 |
-| `get_video_comments` | videoId | commentThreads.list (`order=relevance, maxResults=50`) → 좋아요 내림차순 정렬 → **Comments DB upsert TOP 50**만 + 언어/감정 자동 분류 | **1** (고정) |
-| `comments_tag_batch` | videoId 또는 keyword | Comments DB rows에 감정/주제 태그/인사이트 요약 LLM 일괄 적용 | 0 (Notion+LLM only) |
-| `notion_create_key_candidate` | keyword, videoRefs, 명사유형, ... | Key Content Candidates DB row 생성 | 0 |
-| `notion_create_pull_candidate` | keyword, videoRefs, 후킹, 제목후보, ... | Pull Content Candidates DB row 생성 | 0 |
-| `fetch_hot_chart` | regionCode, categoryId?, limit? | `videos.list chart=mostPopular` → Videos + Hot Video Daily upsert (출처=chart=mostPopular) | 1 |
-| `fetch_trending_by_keyword` | keyword, hours=24, max_results? | `search.list order=viewCount & publishedAfter` → Videos + Hot Video Daily upsert (출처=search.recent24h) | 100 |
-| `extract_title_pattern` | hotDailyIds[] 또는 dateRange | Hot Video Daily에서 *제목 패턴·수식어*만 추출 → 풀링콘텐츠 제목 4·7단계 입력 | 0 (Notion+LLM) |
-| `get_latest_version` | 없음 | 현재 번들이 정의하는 9개 DB + Agent Meta DB의 최신 스키마 버전 문자열 반환 | 0 |
-| `get_latest_version_schema` | dbName? | 전체 또는 특정 DB의 최신 스키마 JSON 반환 (createDatabase/updateDatabase 입력으로 그대로 사용 가능) | 0 |
-| `get_bundle_manifest` | 없음 | 번들 버전 + 공개 템플릿 페이지 URL + changelog 요약을 한 번에 반환 (에이전트 첫 대화 진입점) | 0 |
+| `get_channel_all_videos` | channelId, max_videos? | 채널 전체 영상 페이지네이션 | variable |
+| `compute_metrics` | … | 순수 계산 | 0 |
+| `snapshot_now` | videoIds[] | 수동 스냅샷 | ~1/50개 |
+| `get_video_comments` | videoId | commentThreads.list | 1 |
+| `comments_tag_batch` | … | (별도 파이프라인) | 0 |
+| `fetch_hot_chart` | … | 인기 차트 | 1 |
+| `fetch_trending_by_keyword` | … | 급상승 검색 | ~100 |
+| `extract_title_pattern` | … | Notion+LLM | 0 |
+| `search_sessions_summary` | … | 감사 로그 집계 | 0 |
+| `thumbnail_*` | … | 썸네일 시안 | 0 |
+
+*(Notion row 생성용 MCP `notion_create_*`, MCP `get_latest_version*`, `get_bundle_manifest`는 제거됨.)*
 
 ### 5-4. 호스팅 옵션
 

@@ -5,13 +5,31 @@ import type { ChangelogEntry, NotionDatabaseSchema } from './types';
 // covers the agent template + MCP tool set; the schema version covers the
 // Notion DB structures. They are bumped in lockstep for v1.x.
 export const SCHEMA_VERSION = '1.0.0';
-export const BUNDLE_VERSION = '1.2.0';
-export const BUNDLE_RELEASED_AT = '2026-06-15T00:00:00Z';
+export const BUNDLE_VERSION = '1.4.0';
+export const BUNDLE_RELEASED_AT = '2026-05-16T00:00:00Z';
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    version: '1.2.0',
+    version: '1.4.0',
     released_at: BUNDLE_RELEASED_AT,
+    notes: [
+      'Removed REST meta routes: GET /api/youpd/rest/schema/latest and GET /api/youpd/rest/bundle/manifest (schema/bundle helpers remain in @youpd/api for tests/internal callers)',
+      'Notion Worker: renamed worker tool snapshotTrackedVideos → snapshotVideos',
+    ],
+  },
+  {
+    version: '1.3.0',
+    released_at: '2026-05-15T00:00:00Z',
+    notes: [
+      'v0.6+ MCP surface simplification: removed ping, get_skill_group, get_latest_version, get_latest_version_schema, get_bundle_manifest, notion_create_key_candidate, notion_create_pull_candidate from MCP tools/list',
+      'Schema + bundle manifest remain on REST: GET /api/youpd/rest/schema/latest and GET /api/youpd/rest/bundle/manifest',
+      'Removed Progressive MCP module from the API package; MCP server uses inline short descriptions per tool',
+      'No Notion DB schema version bump',
+    ],
+  },
+  {
+    version: '1.2.0',
+    released_at: '2026-06-15T00:00:00Z',
     notes: [
       'Product release v0.3 — Progressive MCP module',
       'New core tool: get_skill_group (skill-group routing entry point)',

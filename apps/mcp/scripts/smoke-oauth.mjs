@@ -1,5 +1,5 @@
 // End-to-end smoke for the MCP OAuth + tools/call flow.
-//   DCR → authorize → consent → token → POST /api/mcp tools/call ping
+//   DCR → authorize → consent → token → POST /api/mcp tools/call (read-only summary)
 //
 // Uses Supabase admin client to (a) create a test user, (b) sign in with a
 // password to obtain @supabase/ssr-shaped cookies that our Next.js app can
@@ -233,8 +233,8 @@ async function main() {
   if (replayBody.error !== 'invalid_grant') fail(`replay: expected invalid_grant, got ${JSON.stringify(replayBody)}`);
   console.log(`✓ replay rejected (${replay.status} ${replayBody.error})`);
 
-  // -------- 7. MCP tools/call ping with bearer --------
-  step('7. POST /api/mcp tools/call ping (with bearer)');
+  // -------- 7. MCP tools/call (read-only) with bearer --------
+  step('7. POST /api/mcp tools/call search_sessions_summary (with bearer)');
   // First handshake: initialize
   const initResp = await fetch(`${ORIGIN}/api/mcp`, {
     method: 'POST',
@@ -269,17 +269,19 @@ async function main() {
       jsonrpc: '2.0',
       id: 2,
       method: 'tools/call',
-      params: { name: 'ping', arguments: { message: 'hello-smoke' } },
+      params: {
+        name: 'search_sessions_summary',
+        arguments: { group_by: 'day' },
+      },
     }),
   });
   if (toolResp.status !== 200) fail(`mcp tools/call: ${toolResp.status} ${await toolResp.text()}`);
   const toolText = await toolResp.text();
   console.log(`mcp tools/call response: ${toolText.slice(0, 400)}${toolText.length > 400 ? '…' : ''}`);
-  if (!toolText.includes(`"userId":"${userId}"`)) {
-    fail(`mcp tools/call: expected userId=${userId} in response`);
+  if (!toolText.includes('"rows"')) {
+    fail('mcp tools/call: expected rows in search_sessions_summary response');
   }
-  if (!toolText.includes('"echo":"hello-smoke"')) fail('mcp tools/call: echo missing');
-  console.log(`✓ userId threaded through to tool handler`);
+  console.log(`✓ authenticated MCP tools/call succeeded`);
 
   // -------- 8. Bearer with bogus token → 401 --------
   step('8. POST /api/mcp with bogus bearer');

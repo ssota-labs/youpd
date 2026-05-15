@@ -1,21 +1,24 @@
 import { Worker } from '@notionhq/workers';
-import type { CapabilityContext } from '@notionhq/workers';
 
 import { j } from '@notionhq/workers/schema-builder';
+import type { CapabilityContext } from '@notionhq/workers';
 
 import { youpdRestJson } from './lib/youpd-rest.js';
+import { CANONICAL, validateCanonicalSchema, type TableKey } from './lib/schema.js';
 import {
-  collectVideoIdsFromDataSource,
   chunks,
-  resolvePropertyMeta,
-  resolveTitleProperty,
+  collectChannelIdsFromDataSource,
+  collectVideoIdsFromDataSource,
+  requireProp,
   type DataSourceSchema,
-  type SnapshotColumnNames,
-  type VideoColumnNames,
-  type VideoRowPayload,
+  resolveChannelPageId,
+  upsertChannelRow,
+  upsertChannelSnapshotRow,
   upsertCommentRow,
   upsertSnapshotRow,
   upsertVideoRow,
+  type VideoRowPayload,
+  resolveVideoPageId,
 } from './lib/notion-upsert.js';
 
 const worker = new Worker();
@@ -28,17 +31,16 @@ const apiPacer = worker.pacer('youpdRest', {
   intervalMs: 60_000,
 });
 
-type VideoLike = {
-  videoId: string;
-  title: string;
-  channelId: string;
-  channelTitle: string;
-  publishedAt: string;
-  views: number | null;
-  likes: number | null;
-  comments: number | null;
-  url: string;
-};
+const PT_TZ = 'America/Los_Angeles';
+
+function ptDateYmd(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: PT_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
 
 function requireEnv(name: string): string {
   const v = process.env[name];
@@ -63,112 +65,19 @@ async function dataSourceSchema(
   return out;
 }
 
-function resolveVideoColumns(schema: DataSourceSchema): VideoColumnNames {
-  const title = resolveTitleProperty(schema);
-  if (!title) {
-    throw new Error('Videos data source has no title property.');
-  }
-  const videoId = resolvePropertyMeta(schema, [
-    'videoId',
-    'Video ID',
-    '영상 ID',
-    '영상ID',
-  ]);
-  if (!videoId) {
-    throw new Error(
-      'Videos data source: could not resolve a video id column (try videoId, Video ID, 영상 ID).',
-    );
-  }
-  return {
-    title,
-    videoId: videoId.name,
-    channelId: resolvePropertyMeta(schema, ['channelId', 'Channel ID', '채널 ID'])
-      ?.name ?? null,
-    channelTitle: resolvePropertyMeta(schema, [
-      'channelTitle',
-      'Channel title',
-      '채널',
-    ])?.name ?? null,
-    views: resolvePropertyMeta(schema, ['조회수(최신)', 'Views', '조회수'])?.name ?? null,
-    likes: resolvePropertyMeta(schema, ['좋아요(최신)', 'Likes', '좋아요'])?.name ?? null,
-    comments: resolvePropertyMeta(schema, ['댓글수(최신)', 'Comments', '댓글'])?.name ?? null,
-    publishedAt: resolvePropertyMeta(schema, ['게시일', 'Published', 'Published at'])
-      ?.name ?? null,
-    url: resolvePropertyMeta(schema, ['영상링크', 'URL', 'Video URL'])?.name ?? null,
-  };
-}
+type VideoApiRow = {
+  videoId: string;
+  title: string;
+  channelId: string;
+  channelTitle: string;
+  publishedAt: string;
+  views: number | null;
+  likes: number | null;
+  comments: number | null;
+  url: string;
+};
 
-function resolveSnapshotColumns(schema: DataSourceSchema): SnapshotColumnNames {
-  const title = resolveTitleProperty(schema);
-  if (!title) throw new Error('Snapshots data source has no title property.');
-  const rowKey = resolvePropertyMeta(schema, ['rowKey', 'Row key', '키']);
-  if (!rowKey) {
-    throw new Error(
-      'Snapshots data source: could not resolve rowKey column (try rowKey).',
-    );
-  }
-  const videoId = resolvePropertyMeta(schema, [
-    'videoId',
-    'Video ID',
-    '영상 ID',
-    '영상ID',
-  ]);
-  if (!videoId) {
-    throw new Error('Snapshots data source: could not resolve videoId column.');
-  }
-  const snapshotDate = resolvePropertyMeta(schema, [
-    'snapshotDate',
-    'Snapshot date',
-    '날짜',
-    'Date',
-  ]);
-  if (!snapshotDate) {
-    throw new Error(
-      'Snapshots data source: could not resolve snapshotDate column.',
-    );
-  }
-  return {
-    title,
-    rowKey: rowKey.name,
-    videoId: videoId.name,
-    snapshotDate: snapshotDate.name,
-    views: resolvePropertyMeta(schema, ['views', 'Views', '조회수'])?.name ?? null,
-    likes: resolvePropertyMeta(schema, ['likes', 'Likes', '좋아요'])?.name ?? null,
-    comments: resolvePropertyMeta(schema, ['comments', 'Comments', '댓글'])?.name ?? null,
-  };
-}
-
-function resolveCommentColumns(schema: DataSourceSchema) {
-  const title = resolveTitleProperty(schema);
-  if (!title) throw new Error('Comments data source has no title property.');
-  const commentId = resolvePropertyMeta(schema, ['commentId', 'Comment ID']);
-  if (!commentId) {
-    throw new Error('Comments data source: could not resolve commentId column.');
-  }
-  const videoId = resolvePropertyMeta(schema, [
-    'videoId',
-    'Video ID',
-    '영상 ID',
-  ]);
-  if (!videoId) {
-    throw new Error('Comments data source: could not resolve videoId column.');
-  }
-  const text = resolvePropertyMeta(schema, ['text', 'Text', '본문', '내용']);
-  if (!text) {
-    throw new Error('Comments data source: could not resolve text column.');
-  }
-  return {
-    title,
-    commentId: commentId.name,
-    videoId: videoId.name,
-    text: text.name,
-    likeCount: resolvePropertyMeta(schema, ['likeCount', 'Likes', '좋아요'])?.name ?? null,
-    publishedAt: resolvePropertyMeta(schema, ['publishedAt', 'Published', '게시일'])
-      ?.name ?? null,
-  };
-}
-
-function videoRowFromLike(v: VideoLike): VideoRowPayload {
+function videoRowFromApi(v: VideoApiRow): VideoRowPayload {
   return {
     title: v.title,
     videoId: v.videoId,
@@ -182,14 +91,25 @@ function videoRowFromLike(v: VideoLike): VideoRowPayload {
   };
 }
 
-worker.tool('checkWorkspace', {
-  title: 'Check YouPD workspace wiring',
+const HEALTH_TABLES: { env: string; table: TableKey }[] = [
+  { env: 'YOUPD_VIDEOS_DATA_SOURCE_ID', table: 'videos' },
+  { env: 'YOUPD_CHANNELS_DATA_SOURCE_ID', table: 'channels' },
+  { env: 'YOUPD_SNAPSHOTS_DATA_SOURCE_ID', table: 'videoSnapshots' },
+  { env: 'YOUPD_CHANNEL_SNAPSHOTS_DATA_SOURCE_ID', table: 'channelSnapshots' },
+  { env: 'YOUPD_COMMENTS_DATA_SOURCE_ID', table: 'comments' },
+];
+
+worker.tool('healthcheck', {
+  title: 'YouPD Notion DB healthcheck',
   description:
-    'Read-only: verifies YOUPD_* data source env vars and that each data source has the expected columns. Run during onboarding.',
+    'Read-only: checks YOUPD_* data source env vars and validates each against the canonical column contract (exact names + types).',
   schema: j.object({}),
   hints: { readOnlyHint: true },
   outputSchema: j.object({
     ok: j.boolean(),
+    schema_version: j
+      .string()
+      .describe('Fixed: youpd-worker-canonical-v1'),
     reports: j.array(
       j.object({
         env: j.string(),
@@ -207,50 +127,38 @@ worker.tool('checkWorkspace', {
       detail: string | null;
     }[] = [];
 
-    const checks: { env: string; parse: (schema: DataSourceSchema) => void }[] = [
-      {
-        env: 'YOUPD_VIDEOS_DATA_SOURCE_ID',
-        parse: (s) => {
-          resolveVideoColumns(s);
-        },
-      },
-      {
-        env: 'YOUPD_SNAPSHOTS_DATA_SOURCE_ID',
-        parse: (s) => {
-          resolveSnapshotColumns(s);
-        },
-      },
-      {
-        env: 'YOUPD_COMMENTS_DATA_SOURCE_ID',
-        parse: (s) => {
-          resolveCommentColumns(s);
-        },
-      },
-    ];
-
-    for (const c of checks) {
-      const id = optionalEnv(c.env) ?? null;
+    for (const h of HEALTH_TABLES) {
+      const id = optionalEnv(h.env) ?? null;
       if (!id) {
         reports.push({
-          env: c.env,
+          env: h.env,
           data_source_id: null,
           status: 'missing_env',
-          detail: 'Set this env var to the target data source id.',
+          detail: 'Set this env var to the target Notion data source id.',
         });
         continue;
       }
       try {
         const schema = await dataSourceSchema(notion, id);
-        c.parse(schema);
-        reports.push({
-          env: c.env,
-          data_source_id: id,
-          status: 'ok',
-          detail: null,
-        });
+        const v = validateCanonicalSchema(h.table, schema);
+        if (!v.ok) {
+          reports.push({
+            env: h.env,
+            data_source_id: id,
+            status: 'schema_mismatch',
+            detail: v.message,
+          });
+        } else {
+          reports.push({
+            env: h.env,
+            data_source_id: id,
+            status: 'ok',
+            detail: null,
+          });
+        }
       } catch (e) {
         reports.push({
-          env: c.env,
+          env: h.env,
           data_source_id: id,
           status: 'error',
           detail: e instanceof Error ? e.message : String(e),
@@ -258,92 +166,125 @@ worker.tool('checkWorkspace', {
       }
     }
 
-    const tracked = optionalEnv('YOUPD_TRACKED_VIDEOS_DATA_SOURCE_ID');
-    if (tracked) {
-      try {
-        const schema = await dataSourceSchema(notion, tracked);
-        const vid = resolvePropertyMeta(schema, [
-          'videoId',
-          'Video ID',
-          '영상 ID',
-          '영상ID',
-        ]);
-        if (!vid) throw new Error('Could not resolve videoId column on tracked source.');
-        reports.push({
-          env: 'YOUPD_TRACKED_VIDEOS_DATA_SOURCE_ID',
-          data_source_id: tracked,
-          status: 'ok',
-          detail: null,
-        });
-      } catch (e) {
-        reports.push({
-          env: 'YOUPD_TRACKED_VIDEOS_DATA_SOURCE_ID',
-          data_source_id: tracked,
-          status: 'error',
-          detail: e instanceof Error ? e.message : String(e),
-        });
-      }
-    } else {
-      reports.push({
-        env: 'YOUPD_TRACKED_VIDEOS_DATA_SOURCE_ID',
-        data_source_id: null,
-        status: 'optional',
-        detail:
-          'Not set; snapshotTrackedVideos will use YOUPD_VIDEOS_DATA_SOURCE_ID (all rows).',
-      });
-    }
-
-    const ok = !reports.some((r) => r.status === 'error');
-    return { ok, reports };
+    const ok =
+      reports.every((r) => r.status === 'ok') && reports.length > 0;
+    return {
+      ok,
+      schema_version: 'youpd-worker-canonical-v1' as const,
+      reports,
+    };
   },
 });
 
 worker.tool('videosByKeyword', {
   title: 'Import videos by keyword into Notion',
   description:
-    'Calls YouPD REST search/keyword and upserts videos into the configured Videos data source.',
+    'Calls YouPD REST search/keyword with optional multi-page fetch, upserts Channels then Videos (canonical relations).',
   schema: j.object({
     keyword: j.string().describe('YouTube search query.'),
-    max_results: j.number().describe('1–50 results.').nullable(),
+    max_results: j
+      .number()
+      .describe('Per page, 1–50 (default 50).')
+      .nullable(),
+    max_total_results: j
+      .number()
+      .describe(
+        'Optional cap across pages (1–500). When set, follows search pagination until cap or exhausted.',
+      )
+      .nullable(),
   }),
   outputSchema: j.object({
     upserted: j.number(),
-    created: j.number(),
-    updated: j.number(),
+    created_videos: j.number(),
+    updated_videos: j.number(),
+    channels_upserted: j.number(),
+    search_pages: j.number().nullable(),
     quota_session_id: j.string().nullable(),
   }),
-  execute: async ({ keyword, max_results }, { notion }) => {
-    const dsId = requireEnv('YOUPD_VIDEOS_DATA_SOURCE_ID');
-    const schema = await dataSourceSchema(notion, dsId);
-    const cols = resolveVideoColumns(schema);
+  execute: async ({ keyword, max_results, max_total_results }, { notion }) => {
+    const videosDs = requireEnv('YOUPD_VIDEOS_DATA_SOURCE_ID');
+    const channelsDs = requireEnv('YOUPD_CHANNELS_DATA_SOURCE_ID');
+
+    const vs = await dataSourceSchema(notion, videosDs);
+    const cs = await dataSourceSchema(notion, channelsDs);
+    const vv = validateCanonicalSchema('videos', vs);
+    if (!vv.ok) throw new Error(vv.message);
+    const cv = validateCanonicalSchema('channels', cs);
+    if (!cv.ok) throw new Error(cv.message);
+
     await apiPacer.wait();
+    const body: Record<string, unknown> = {
+      keyword,
+      max_results: max_results ?? 50,
+    };
+    if (max_total_results != null) {
+      body.max_total_results = max_total_results;
+    }
+
     const env = await youpdRestJson<{
       keyword: string;
-      videos: VideoLike[];
-      channels: { channelId: string; title: string }[];
+      videos: VideoApiRow[];
+      channels: {
+        channelId: string;
+        title: string;
+        publishedAt: string;
+        subscriberCount: number | null;
+        videoCount: number | null;
+        viewCount: number | null;
+        url: string;
+      }[];
+      search_pages?: number;
     }>('/api/youpd/rest/search/keyword', {
       method: 'POST',
-      body: JSON.stringify({
-        keyword,
-        max_results: max_results ?? 50,
-      }),
+      body: JSON.stringify(body),
     });
+
+    const collected = ptDateYmd();
+    const channelPageById = new Map<string, string>();
+
+    let chUpserts = 0;
+    for (const ch of env.data.channels) {
+      const u = await upsertChannelRow(notion, channelsDs, {
+        channelId: ch.channelId,
+        title: ch.title,
+        subscriberCount: ch.subscriberCount,
+        viewCount: ch.viewCount,
+        videoCount: ch.videoCount,
+        publishedAt: ch.publishedAt,
+        avgLikes: null,
+        url: ch.url,
+      });
+      channelPageById.set(ch.channelId, u.pageId);
+      chUpserts += 1;
+    }
+
     let created = 0;
     let updated = 0;
     for (const v of env.data.videos) {
+      const chPage =
+        channelPageById.get(v.channelId) ??
+        (() => {
+          throw new Error(
+            `Missing channel page for ${v.channelId}; channels array should include it.`,
+          );
+        })();
       const kind = await upsertVideoRow(
         notion,
-        dsId,
-        cols,
-        videoRowFromLike(v),
+        videosDs,
+        videoRowFromApi(v),
+        chPage,
+        collected,
       );
       if (kind === 'created') created += 1;
       else updated += 1;
     }
+
     return {
       upserted: env.data.videos.length,
-      created,
-      updated,
+      created_videos: created,
+      updated_videos: updated,
+      channels_upserted: chUpserts,
+      search_pages: env.data.search_pages ?? null,
       quota_session_id: env.meta.jobId ?? null,
     };
   },
@@ -352,7 +293,7 @@ worker.tool('videosByKeyword', {
 worker.tool('channelAllVideos', {
   title: 'Import full channel uploads into Notion',
   description:
-    'Calls YouPD REST channels/{id}/videos?all=true and upserts all returned videos into the Videos data source. Suitable for scheduler runs.',
+    'Calls YouPD REST channels/{id}/videos?all=true, upserts the channel row then all video rows.',
   schema: j.object({
     channel_id: j.string().describe('YouTube channel id (UC...).'),
     max_videos: j
@@ -362,38 +303,77 @@ worker.tool('channelAllVideos', {
   }),
   outputSchema: j.object({
     upserted: j.number(),
-    created: j.number(),
-    updated: j.number(),
+    created_videos: j.number(),
+    updated_videos: j.number(),
+    channel_upserted: j.boolean(),
     quota_session_id: j.string().nullable(),
   }),
   execute: async ({ channel_id, max_videos }, { notion }) => {
-    const dsId = requireEnv('YOUPD_VIDEOS_DATA_SOURCE_ID');
-    const schema = await dataSourceSchema(notion, dsId);
-    const cols = resolveVideoColumns(schema);
-    await apiPacer.wait();
+    const videosDs = requireEnv('YOUPD_VIDEOS_DATA_SOURCE_ID');
+    const channelsDs = requireEnv('YOUPD_CHANNELS_DATA_SOURCE_ID');
+
+    const vs = await dataSourceSchema(notion, videosDs);
+    const cs = await dataSourceSchema(notion, channelsDs);
+    const vv = validateCanonicalSchema('videos', vs);
+    if (!vv.ok) throw new Error(vv.message);
+    const cv = validateCanonicalSchema('channels', cs);
+    if (!cv.ok) throw new Error(cv.message);
+
     const params = new URLSearchParams({ all: 'true' });
     if (max_videos != null) params.set('max_videos', String(max_videos));
+
+    await apiPacer.wait();
     const env = await youpdRestJson<{
-      videos: VideoLike[];
+      channel: {
+        channelId: string;
+        title: string;
+        publishedAt: string;
+        subscriberCount: number | null;
+        videoCount: number | null;
+        viewCount: number | null;
+        url: string;
+      } | null;
+      videos: VideoApiRow[];
     }>(
       `/api/youpd/rest/channels/${encodeURIComponent(channel_id)}/videos?${params.toString()}`,
     );
+
+    if (!env.data.channel) {
+      throw new Error(`Channel not found: ${channel_id}`);
+    }
+
+    const ch = env.data.channel;
+    const { pageId: chPage } = await upsertChannelRow(notion, channelsDs, {
+      channelId: ch.channelId,
+      title: ch.title,
+      subscriberCount: ch.subscriberCount,
+      viewCount: ch.viewCount,
+      videoCount: ch.videoCount,
+      publishedAt: ch.publishedAt,
+      avgLikes: null,
+      url: ch.url,
+    });
+
+    const collected = ptDateYmd();
     let created = 0;
     let updated = 0;
     for (const v of env.data.videos) {
       const kind = await upsertVideoRow(
         notion,
-        dsId,
-        cols,
-        videoRowFromLike(v),
+        videosDs,
+        videoRowFromApi(v),
+        chPage,
+        collected,
       );
       if (kind === 'created') created += 1;
       else updated += 1;
     }
+
     return {
       upserted: env.data.videos.length,
-      created,
-      updated,
+      created_videos: created,
+      updated_videos: updated,
+      channel_upserted: true,
       quota_session_id: env.meta.jobId ?? null,
     };
   },
@@ -402,7 +382,7 @@ worker.tool('channelAllVideos', {
 worker.tool('videoComments', {
   title: 'Import video comments into Notion',
   description:
-    'Calls YouPD REST videos/{id}/comments and upserts each top comment row into the Comments data source.',
+    'Calls YouPD REST videos/{id}/comments and upserts rows into the Comments DB (relation to Videos).',
   schema: j.object({
     video_id: j.string().describe('YouTube video id.'),
     top_n: j.number().describe('1–100.').nullable(),
@@ -415,9 +395,23 @@ worker.tool('videoComments', {
     quota_session_id: j.string().nullable(),
   }),
   execute: async ({ video_id, top_n }, { notion }) => {
-    const dsId = requireEnv('YOUPD_COMMENTS_DATA_SOURCE_ID');
-    const schema = await dataSourceSchema(notion, dsId);
-    const cols = resolveCommentColumns(schema);
+    const videosDs = requireEnv('YOUPD_VIDEOS_DATA_SOURCE_ID');
+    const commentsDs = requireEnv('YOUPD_COMMENTS_DATA_SOURCE_ID');
+
+    const vschema = await dataSourceSchema(notion, videosDs);
+    const cschema = await dataSourceSchema(notion, commentsDs);
+    const vx = validateCanonicalSchema('videos', vschema);
+    if (!vx.ok) throw new Error(vx.message);
+    const cx = validateCanonicalSchema('comments', cschema);
+    if (!cx.ok) throw new Error(cx.message);
+
+    const videoPageId = await resolveVideoPageId(notion, videosDs, video_id);
+    if (!videoPageId) {
+      throw new Error(
+        `No Videos DB row for video_id ${video_id}. Import the video first.`,
+      );
+    }
+
     await apiPacer.wait();
     const qs =
       top_n != null ? `?top_n=${encodeURIComponent(String(top_n))}` : '';
@@ -437,13 +431,18 @@ worker.tool('videoComments', {
     let updated = 0;
     if (!env.data.comments_disabled) {
       for (const c of env.data.top_comments) {
-        const kind = await upsertCommentRow(notion, dsId, cols, {
-          commentId: c.commentId,
-          videoId: c.videoId,
-          text: c.text,
-          likeCount: c.likeCount,
-          publishedAt: c.publishedAt,
-        });
+        const kind = await upsertCommentRow(
+          notion,
+          commentsDs,
+          {
+            commentId: c.commentId,
+            videoId: c.videoId,
+            text: c.text,
+            likeCount: c.likeCount,
+            publishedAt: c.publishedAt,
+          },
+          videoPageId,
+        );
         if (kind === 'created') created += 1;
         else updated += 1;
       }
@@ -458,10 +457,10 @@ worker.tool('videoComments', {
   },
 });
 
-worker.tool('snapshotTrackedVideos', {
-  title: 'Snapshot tracked videos into Notion',
+worker.tool('snapshotVideos', {
+  title: 'Snapshot videos into Notion',
   description:
-    'Reads video ids from YOUPD_TRACKED_VIDEOS_DATA_SOURCE_ID (fallback: YOUPD_VIDEOS_DATA_SOURCE_ID), calls YouPD REST snapshots/now in batches, and upserts snapshot rows.',
+    'Reads video ids from the Videos data source, calls REST snapshots/now, writes Video Snapshots rows linked to each video page.',
   schema: j.object({}),
   outputSchema: j.object({
     video_ids_processed: j.number(),
@@ -475,36 +474,25 @@ worker.tool('snapshotTrackedVideos', {
     const videosDs = requireEnv('YOUPD_VIDEOS_DATA_SOURCE_ID');
     const snapsDs = requireEnv('YOUPD_SNAPSHOTS_DATA_SOURCE_ID');
 
-    const trackedDs =
-      optionalEnv('YOUPD_TRACKED_VIDEOS_DATA_SOURCE_ID') ?? videosDs;
+    const vschema = await dataSourceSchema(notion, videosDs);
+    const sschema = await dataSourceSchema(notion, snapsDs);
+    const vv = validateCanonicalSchema('videos', vschema);
+    if (!vv.ok) throw new Error(vv.message);
+    const sv = validateCanonicalSchema('videoSnapshots', sschema);
+    if (!sv.ok) throw new Error(sv.message);
 
-    const trackedSchema = await dataSourceSchema(notion, trackedDs);
-    const videoMeta = resolvePropertyMeta(trackedSchema, [
-      'videoId',
-      'Video ID',
-      '영상 ID',
-      '영상ID',
-    ]);
-    if (!videoMeta) {
-      throw new Error(
-        'Tracked data source: could not resolve videoId column for reading ids.',
-      );
-    }
-
+    const vidProp = requireProp(vschema, CANONICAL.videos.videoId);
     const videoIds = await collectVideoIdsFromDataSource(
       notion,
-      trackedDs,
-      videoMeta.id,
+      videosDs,
+      vidProp.id,
     );
-
-    const snapSchema = await dataSourceSchema(notion, snapsDs);
-    const snapCols = resolveSnapshotColumns(snapSchema);
 
     let created = 0;
     let updated = 0;
     let rows = 0;
     const quotaSessionIds: string[] = [];
-    const batches = chunks(videoIds, 500);
+    const batches = chunks(videoIds, 50);
     let batchIndex = 0;
 
     for (const batch of batches) {
@@ -526,9 +514,12 @@ worker.tool('snapshotTrackedVideos', {
       if (env.meta.jobId) quotaSessionIds.push(env.meta.jobId);
 
       for (const s of env.data.snapshots) {
-        const kind = await upsertSnapshotRow(notion, snapsDs, snapCols, {
+        const videoPageId = await resolveVideoPageId(notion, videosDs, s.video_id);
+        if (!videoPageId) continue;
+        const kind = await upsertSnapshotRow(notion, snapsDs, {
           ...s,
-        });
+          delta: null,
+        }, videoPageId);
         if (kind === 'created') created += 1;
         else updated += 1;
         rows += 1;
@@ -537,6 +528,99 @@ worker.tool('snapshotTrackedVideos', {
 
     return {
       video_ids_processed: videoIds.length,
+      snapshot_rows_upserted: rows,
+      created,
+      updated,
+      batches: batchIndex,
+      quota_session_ids: quotaSessionIds,
+    };
+  },
+});
+
+worker.tool('snapshotChannels', {
+  title: 'Snapshot tracked channels into Notion',
+  description:
+    'Reads channelId values from the Channels data source, fetches metrics via REST, upserts Channel Snapshots rows.',
+  schema: j.object({}),
+  outputSchema: j.object({
+    channel_ids_processed: j.number(),
+    snapshot_rows_upserted: j.number(),
+    created: j.number(),
+    updated: j.number(),
+    batches: j.number(),
+    quota_session_ids: j.array(j.string()),
+  }),
+  execute: async (_input, { notion }) => {
+    const channelsDs = requireEnv('YOUPD_CHANNELS_DATA_SOURCE_ID');
+    const chSnapDs = requireEnv('YOUPD_CHANNEL_SNAPSHOTS_DATA_SOURCE_ID');
+
+    const cschema = await dataSourceSchema(notion, channelsDs);
+    const sschema = await dataSourceSchema(notion, chSnapDs);
+    const cv = validateCanonicalSchema('channels', cschema);
+    if (!cv.ok) throw new Error(cv.message);
+    const sv = validateCanonicalSchema('channelSnapshots', sschema);
+    if (!sv.ok) throw new Error(sv.message);
+
+    const idProp = requireProp(cschema, CANONICAL.channels.channelId);
+    const channelIds = await collectChannelIdsFromDataSource(
+      notion,
+      channelsDs,
+      idProp.id,
+    );
+
+    let created = 0;
+    let updated = 0;
+    let rows = 0;
+    const quotaSessionIds: string[] = [];
+    const batches = chunks(channelIds, 50);
+    let batchIndex = 0;
+
+    for (const batch of batches) {
+      if (batch.length === 0) continue;
+      await apiPacer.wait();
+      const env = await youpdRestJson<{
+        snapshots: {
+          channel_id: string;
+          snapshot_date: string;
+          subscribers: number | null;
+          view_count: number | null;
+          video_count: number | null;
+        }[];
+      }>('/api/youpd/rest/snapshots/channels', {
+        method: 'POST',
+        body: JSON.stringify({ channel_ids: batch }),
+      });
+      batchIndex += 1;
+      if (env.meta.jobId) quotaSessionIds.push(env.meta.jobId);
+
+      for (const s of env.data.snapshots) {
+        const chPage = await resolveChannelPageId(
+          notion,
+          channelsDs,
+          s.channel_id,
+        );
+        if (!chPage) continue;
+        const kind = await upsertChannelSnapshotRow(
+          notion,
+          chSnapDs,
+          {
+            channel_id: s.channel_id,
+            snapshot_date: s.snapshot_date,
+            subscribers: s.subscribers,
+            view_count: s.view_count,
+            video_count: s.video_count,
+            subscriber_delta: null,
+          },
+          chPage,
+        );
+        if (kind === 'created') created += 1;
+        else updated += 1;
+        rows += 1;
+      }
+    }
+
+    return {
+      channel_ids_processed: channelIds.length,
       snapshot_rows_upserted: rows,
       created,
       updated,
