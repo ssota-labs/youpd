@@ -270,12 +270,22 @@ export function DesignerCanvas(props: Props) {
           />
         </Layer_>
         <Layer_ listening={false}>
-          {/* Hover bounding box (skipped when selected — Transformer takes over). */}
+          {/* Hover bounding box (skipped when selected — Transformer takes over).
+              getClientRect({ relativeTo: stage }) returns source-space coords
+              that match what the KRect will draw inside the same scaled
+              stage, so we use it verbatim. Multi-line text + auto-width
+              wrap is reflected correctly because the rect comes from the
+              actual measured Konva node. */}
           {hoveredId && hoveredId !== selectedId
             ? (() => {
                 const layer = doc.layers.find((l) => l.id === hoveredId);
-                const box = layer ? boundingBox(layer) : null;
-                if (!box) return null;
+                if (!layer) return null;
+                const node = shapeRefs.current.get(hoveredId);
+                const stage = stageRef.current;
+                const box =
+                  node && stage
+                    ? hoverRectForNode(node, layer)
+                    : boundingBox(layer);
                 return (
                   <KRect
                     x={box.x}
@@ -371,6 +381,50 @@ type LayerHandlers = {
   onDoubleClick: () => void;
   registerNode: (node: Konva.Node | null) => void;
 };
+
+// For text layers, Konva's getClientRect returns the wrap-width box even if
+// the actual text is much shorter. Use getTextWidth() and account for align
+// so the hover indicator hugs the visible glyphs. Non-text nodes always have
+// width/height equal to what's drawn.
+function hoverRectForNode(node: Konva.Node, layer: Layer): {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+} {
+  if (layer.type === 'text') {
+    const textNode = node as Konva.Text;
+    const wrapWidth = textNode.width();
+    const textWidth = textNode.getTextWidth();
+    const tightWidth = Math.min(wrapWidth, textWidth);
+    const align = textNode.align();
+    let x = textNode.x();
+    if (align === 'center') x += (wrapWidth - tightWidth) / 2;
+    else if (align === 'right') x += wrapWidth - tightWidth;
+    return {
+      x,
+      y: textNode.y(),
+      width: tightWidth,
+      height: textNode.height(),
+    };
+  }
+  // Shapes / images: use the declared rect directly so rotation doesn't
+  // inflate the hover box.
+  if (layer.type === 'shape' && layer.shape === 'circle') {
+    return {
+      x: layer.x,
+      y: layer.y,
+      width: layer.width,
+      height: layer.height,
+    };
+  }
+  return {
+    x: node.x(),
+    y: node.y(),
+    width: typeof node.width === 'function' ? node.width() : layer.x,
+    height: typeof node.height === 'function' ? node.height() : layer.y,
+  };
+}
 
 function boundingBox(layer: Layer): {
   x: number;
