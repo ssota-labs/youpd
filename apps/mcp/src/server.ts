@@ -26,6 +26,22 @@ import {
   searchKeyword,
   searchSessionsSummary,
   snapshotNow,
+  ThumbnailAddLayerInputSchema,
+  ThumbnailApplyTemplateInputSchema,
+  ThumbnailCreateInputSchema,
+  ThumbnailExportPngInputSchema,
+  ThumbnailGetEmbedUrlInputSchema,
+  ThumbnailListInputSchema,
+  ThumbnailSetLayerInputSchema,
+  ThumbnailSuggestTitlesInputSchema,
+  thumbnailAddLayer,
+  thumbnailApplyTemplate,
+  thumbnailCreate,
+  thumbnailExportPng,
+  thumbnailGetEmbedUrl,
+  thumbnailList,
+  thumbnailSetLayer,
+  thumbnailSuggestTitlesFromComments,
 } from '@youpd/api/mcp/tools';
 import {
   getBundleManifest,
@@ -67,6 +83,110 @@ export function registerTools(server: McpServer): void {
   registerNotionCreatePullCandidate(server);
   registerSearchSessionsSummary(server);
   registerVersionTools(server);
+  registerThumbnailTools(server);
+}
+
+function registerThumbnailTools(server: McpServer): void {
+  registerSimpleTool(server, {
+    name: 'thumbnail_create',
+    title: 'Create a thumbnail design (template or document)',
+    inputSchema: ThumbnailCreateInputSchema,
+    handler: thumbnailCreate,
+    fallback: 'Create thumbnail row. 0 quota.',
+  });
+  registerSimpleTool(server, {
+    name: 'thumbnail_list',
+    title: 'List thumbnails for a Notion candidate',
+    inputSchema: ThumbnailListInputSchema,
+    handler: thumbnailList,
+    fallback: 'List thumbnails by candidate. 0 quota.',
+    readOnly: true,
+    idempotent: true,
+  });
+  registerSimpleTool(server, {
+    name: 'thumbnail_set_layer',
+    title: 'Patch a single layer on a thumbnail',
+    inputSchema: ThumbnailSetLayerInputSchema,
+    handler: thumbnailSetLayer,
+    fallback: 'Patch one layer with optimistic version lock. 0 quota.',
+  });
+  registerSimpleTool(server, {
+    name: 'thumbnail_add_layer',
+    title: 'Append a layer to a thumbnail',
+    inputSchema: ThumbnailAddLayerInputSchema,
+    handler: thumbnailAddLayer,
+    fallback: 'Append a layer to a thumbnail. 0 quota.',
+  });
+  registerSimpleTool(server, {
+    name: 'thumbnail_apply_template',
+    title: 'Create a thumbnail from a template + fillers',
+    inputSchema: ThumbnailApplyTemplateInputSchema,
+    handler: thumbnailApplyTemplate,
+    fallback: 'Apply a template with fillers. 0 quota.',
+  });
+  registerSimpleTool(server, {
+    name: 'thumbnail_suggest_titles_from_comments',
+    title: 'Suggest thumbnail copy from comment texts',
+    inputSchema: ThumbnailSuggestTitlesInputSchema,
+    handler: thumbnailSuggestTitlesFromComments,
+    fallback: 'Suggest thumbnail copy from comments. 0 quota.',
+    readOnly: true,
+    idempotent: true,
+  });
+  registerSimpleTool(server, {
+    name: 'thumbnail_export_png',
+    title: 'Render and upload a thumbnail PNG',
+    inputSchema: ThumbnailExportPngInputSchema,
+    handler: thumbnailExportPng,
+    fallback: 'Render PNG via satori + upload to Supabase Storage. 0 quota.',
+  });
+  registerSimpleTool(server, {
+    name: 'thumbnail_get_embed_url',
+    title: 'Get the iframe embed URL for a thumbnail',
+    inputSchema: ThumbnailGetEmbedUrlInputSchema,
+    handler: thumbnailGetEmbedUrl,
+    fallback: 'Build designer iframe URL. 0 quota.',
+    readOnly: true,
+    idempotent: true,
+  });
+}
+
+// Lightweight registration helper for tools that match the shared
+// "Zod input → async handler → json/error content" shape so each new tool
+// doesn't need a bespoke wrapper.
+function registerSimpleTool<TIn extends z.ZodObject<z.ZodRawShape>>(
+  server: McpServer,
+  spec: {
+    name: string;
+    title: string;
+    inputSchema: TIn;
+    handler: (params: z.infer<TIn>) => Promise<unknown>;
+    fallback: string;
+    readOnly?: boolean;
+    idempotent?: boolean;
+  },
+): void {
+  server.registerTool(
+    spec.name,
+    {
+      title: spec.title,
+      description: shortDescription(spec.name, spec.fallback),
+      inputSchema: spec.inputSchema.shape,
+      annotations: {
+        readOnlyHint: spec.readOnly ?? false,
+        destructiveHint: false,
+        idempotentHint: spec.idempotent ?? false,
+        openWorldHint: false,
+      },
+    },
+    async (params) => {
+      try {
+        return jsonContent(await spec.handler(params as z.infer<TIn>));
+      } catch (err) {
+        return errorContent(err);
+      }
+    },
+  );
 }
 
 function registerGetSkillGroup(server: McpServer): void {
@@ -546,6 +666,22 @@ function errorCodeFor(err: unknown): string {
   if (err instanceof QuotaExceededAtBudgetError) return 'budget_exceeded';
   if (err instanceof QuotaExceededError) return 'youtube_quota_exceeded';
   if (err instanceof YouTubeApiError) return `youtube_${err.reason}`;
-  if (err instanceof Error) return err.name;
+  if (err instanceof Error) {
+    // Map domain errors to stable wire codes per spec §4-2/§4-3.
+    switch (err.name) {
+      case 'InvalidLayerPatchError':
+        return 'INVALID_LAYER_PATCH';
+      case 'ThumbnailVersionConflictError':
+        return 'VERSION_CONFLICT';
+      case 'ThumbnailNotFoundError':
+        return 'THUMBNAIL_NOT_FOUND';
+      case 'TemplateNotFoundError':
+        return 'TEMPLATE_NOT_FOUND';
+      case 'LayerNotFoundError':
+        return 'LAYER_NOT_FOUND';
+      default:
+        return err.name;
+    }
+  }
   return 'unknown';
 }

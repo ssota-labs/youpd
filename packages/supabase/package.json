@@ -10,7 +10,11 @@
     "./server": "./src/server.ts",
     "./ssr": "./src/ssr.ts",
     "./repositories/healthChecks": "./src/repositories/healthChecks.ts",
-    "./repositories/quota": "./src/repositories/quota/index.ts"
+    "./repositories/quota": "./src/repositories/quota/index.ts",
+    "./repositories/thumbnails": "./src/repositories/thumbnails.ts",
+    "./repositories/templates": "./src/repositories/templates.ts",
+    "./realtime/thumbnail-channel": "./src/realtime/thumbnail-channel.ts",
+    "./storage/thumbnail-exports": "./src/storage/thumbnail-exports.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -22,7 +26,8 @@
     "@supabase/supabase-js": "^2.47.10",
     "@youpd/db": "workspace:*",
     "@youpd/types": "workspace:*",
-    "drizzle-orm": "^0.36.4"
+    "drizzle-orm": "^0.36.4",
+    "server-only": "^0.0.1"
   },
   "peerDependencies": {
     "next": ">=13.0.0"

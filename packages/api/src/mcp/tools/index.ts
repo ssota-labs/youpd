@@ -69,3 +69,51 @@ export {
   type SearchSessionsSummaryInput,
   type SearchSessionsSummaryOutput,
 } from './search-sessions-summary';
+export {
+  thumbnailCreate,
+  ThumbnailCreateInputSchema,
+  type ThumbnailCreateInput,
+  type ThumbnailCreateOutput,
+} from './thumbnail-create';
+export {
+  thumbnailList,
+  ThumbnailListInputSchema,
+  type ThumbnailListInput,
+  type ThumbnailListOutput,
+} from './thumbnail-list';
+export {
+  thumbnailSetLayer,
+  ThumbnailSetLayerInputSchema,
+  type ThumbnailSetLayerInput,
+  type ThumbnailSetLayerOutput,
+} from './thumbnail-set-layer';
+export {
+  thumbnailAddLayer,
+  ThumbnailAddLayerInputSchema,
+  type ThumbnailAddLayerInput,
+  type ThumbnailAddLayerOutput,
+} from './thumbnail-add-layer';
+export {
+  thumbnailApplyTemplate,
+  ThumbnailApplyTemplateInputSchema,
+  type ThumbnailApplyTemplateInput,
+  type ThumbnailApplyTemplateOutput,
+} from './thumbnail-apply-template';
+export {
+  thumbnailSuggestTitlesFromComments,
+  ThumbnailSuggestTitlesInputSchema,
+  type ThumbnailSuggestTitlesInput,
+  type ThumbnailSuggestTitlesOutput,
+} from './thumbnail-suggest-titles-from-comments';
+export {
+  thumbnailExportPng,
+  ThumbnailExportPngInputSchema,
+  type ThumbnailExportPngInput,
+  type ThumbnailExportPngOutput,
+} from './thumbnail-export-png';
+export {
+  thumbnailGetEmbedUrl,
+  ThumbnailGetEmbedUrlInputSchema,
+  type ThumbnailGetEmbedUrlInput,
+  type ThumbnailGetEmbedUrlOutput,
+} from './thumbnail-get-embed-url';
