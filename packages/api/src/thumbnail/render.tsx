@@ -25,7 +25,7 @@ export async function renderThumbnailPng(
     import('@resvg/resvg-js'),
   ]);
 
-  const fonts = opts.fonts ?? (await loadDefaultFonts()) ?? [];
+  const fonts = opts.fonts ?? (await loadDefaultFonts(doc)) ?? [];
 
   const tree = renderTree(doc, width, height) as Parameters<typeof satori>[0];
   const svg = await satori(tree, { width, height, fonts });
@@ -131,24 +131,92 @@ function layerNode(layer: Layer): unknown {
   };
 }
 
-// Default font loader fetches a regular + bold weight from FONT_CDN_BASE_URL.
-// Production deploys are expected to host Pretendard or Noto Sans KR on the
-// configured CDN; falls back to system fonts if env is unset (text may not
-// render correctly without a Korean font face).
-async function loadDefaultFonts(): Promise<RenderOptions['fonts']> {
+// Font CDN convention: every family expected to be served at
+//   ${FONT_CDN_BASE_URL}/${file}
+// with a hard-coded manifest mirroring apps/web/src/app/api/fonts/route.ts.
+// This is the server-side counterpart of that manifest; both sides must
+// stay in sync (M4 plans a shared package, but for the MVP we duplicate
+// the metadata to keep packages/api framework-agnostic).
+type ServerFontVariant = {
+  weight: 400 | 500 | 700 | 800 | 900;
+  file: string;
+};
+type ServerFontFamily = {
+  family: string;
+  variants: ServerFontVariant[];
+};
+const FONT_MANIFEST: ServerFontFamily[] = [
+  {
+    family: 'Pretendard',
+    variants: [
+      { weight: 400, file: 'Pretendard-Regular.otf' },
+      { weight: 700, file: 'Pretendard-Bold.otf' },
+    ],
+  },
+  {
+    family: 'Noto Sans KR',
+    variants: [
+      { weight: 400, file: 'NotoSansKR-Regular.otf' },
+      { weight: 700, file: 'NotoSansKR-Bold.otf' },
+    ],
+  },
+  {
+    family: 'Black Han Sans',
+    variants: [{ weight: 900, file: 'BlackHanSans-Regular.ttf' }],
+  },
+  {
+    family: 'Jua',
+    variants: [{ weight: 400, file: 'Jua-Regular.ttf' }],
+  },
+  {
+    family: 'Do Hyeon',
+    variants: [{ weight: 400, file: 'DoHyeon-Regular.ttf' }],
+  },
+];
+
+// Load font binaries for every family that appears in the document, plus
+// Pretendard as the default fallback. Misses (missing file, bad CDN) are
+// logged but don't block render — satori will fall back to whichever font
+// did load.
+async function loadDefaultFonts(
+  doc?: ThumbnailDocument,
+): Promise<RenderOptions['fonts']> {
   const base = process.env.FONT_CDN_BASE_URL;
   if (!base) return [];
-  const fetchFont = async (file: string): Promise<ArrayBuffer> => {
-    const res = await fetch(`${base.replace(/\/$/, '')}/${file}`);
-    if (!res.ok) throw new Error(`font fetch failed: ${file} ${res.status}`);
-    return res.arrayBuffer();
+
+  const wanted = new Set<string>(['Pretendard']);
+  if (doc) {
+    for (const l of doc.layers) {
+      if (l.type === 'text' && l.fontFamily) {
+        wanted.add(l.fontFamily.split(',')[0]!.trim());
+      }
+    }
+  }
+
+  const families = FONT_MANIFEST.filter((f) => wanted.has(f.family));
+  const fetchFont = async (file: string): Promise<ArrayBuffer | null> => {
+    try {
+      const res = await fetch(`${base.replace(/\/$/, '')}/${file}`);
+      if (!res.ok) return null;
+      return res.arrayBuffer();
+    } catch {
+      return null;
+    }
   };
-  const [regular, bold] = await Promise.all([
-    fetchFont('Pretendard-Regular.otf'),
-    fetchFont('Pretendard-Bold.otf'),
-  ]);
-  return [
-    { name: 'Pretendard', data: regular, weight: 400, style: 'normal' },
-    { name: 'Pretendard', data: bold, weight: 700, style: 'normal' },
-  ];
+  const results: NonNullable<RenderOptions['fonts']> = [];
+  await Promise.all(
+    families.flatMap((fam) =>
+      fam.variants.map(async (v) => {
+        const data = await fetchFont(v.file);
+        if (!data) return;
+        results.push({
+          name: fam.family,
+          data,
+          weight: v.weight,
+          style: 'normal',
+        });
+      }),
+    ),
+  );
+  return results;
 }

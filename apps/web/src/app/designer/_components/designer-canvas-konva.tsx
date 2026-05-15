@@ -10,6 +10,7 @@ import {
   Rect as KRect,
   Circle as KCircle,
   Transformer,
+  Line as KLine,
 } from 'react-konva';
 import type Konva from 'konva';
 import type { Layer, LayerPatch, ThumbnailDocument } from '@youpd/types';
@@ -19,6 +20,7 @@ import {
   patchLayerOnServer,
 } from './designer-store';
 import { TextEditorOverlay } from './text-editor-overlay';
+import { snapDrag, type GuideLine } from './snap';
 
 type Props = {
   thumbnailId: string;
@@ -45,6 +47,7 @@ export function DesignerCanvas(props: Props) {
   const shapeRefs = useRef(new Map<string, Konva.Node>());
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [stageScale, setStageScale] = useState(1);
+  const [guides, setGuides] = useState<GuideLine[]>([]);
 
   const { width, height } = ASPECT_DIMENSIONS[doc.aspect];
 
@@ -187,8 +190,35 @@ export function DesignerCanvas(props: Props) {
               onHoverIn: () => setHovered(layer.id),
               onHoverOut: () => setHovered(null),
               onDragStart: () => setIsDragging(true),
+              onDragMove: (node) => {
+                const x = node.x();
+                const y = node.y();
+                const widthEst =
+                  'width' in layer && typeof layer.width === 'number'
+                    ? layer.width
+                    : 100;
+                const heightEst =
+                  'height' in layer && typeof layer.height === 'number'
+                    ? layer.height
+                    : layer.type === 'text'
+                      ? (layer.fontSize ?? 64) * 1.2
+                      : 100;
+                const snapped = snapDrag({
+                  layers: doc.layers,
+                  draggedId: layer.id,
+                  x,
+                  y,
+                  canvasW: width,
+                  canvasH: height,
+                  shape: { width: widthEst, height: heightEst },
+                });
+                if (snapped.x !== x) node.x(snapped.x);
+                if (snapped.y !== y) node.y(snapped.y);
+                setGuides(snapped.guides);
+              },
               onDragEnd: (x, y) => {
                 setIsDragging(false);
+                setGuides([]);
                 void commitPatch(layer.id, { x, y });
               },
               onTransformEnd: (patch) => {
@@ -214,6 +244,27 @@ export function DesignerCanvas(props: Props) {
             anchorStroke="#60a5fa"
             anchorFill="#fff"
           />
+        </Layer_>
+        <Layer_ listening={false}>
+          {guides.map((g, i) =>
+            g.axis === 'v' ? (
+              <KLine
+                key={`v-${i}-${g.x}`}
+                points={[g.x, 0, g.x, height]}
+                stroke="#ec4899"
+                strokeWidth={1 / stageScale}
+                dash={[6 / stageScale, 4 / stageScale]}
+              />
+            ) : (
+              <KLine
+                key={`h-${i}-${g.y}`}
+                points={[0, g.y, width, g.y]}
+                stroke="#ec4899"
+                strokeWidth={1 / stageScale}
+                dash={[6 / stageScale, 4 / stageScale]}
+              />
+            ),
+          )}
         </Layer_>
       </Stage>
       {editingLayer && editingLayer.type === 'text' ? (
@@ -241,6 +292,7 @@ type LayerHandlers = {
   onHoverIn: () => void;
   onHoverOut: () => void;
   onDragStart: () => void;
+  onDragMove: (node: Konva.Node) => void;
   onDragEnd: (x: number, y: number) => void;
   onTransformEnd: (patch: LayerPatch) => void;
   onDoubleClick: () => void;
@@ -305,6 +357,7 @@ function renderLayer(layer: Layer, h: LayerHandlers): React.ReactNode {
         strokeWidth={outlineWidth || (layer.strokeWidth ?? 0)}
         draggable
         onDragStart={h.onDragStart}
+        onDragMove={(e) => h.onDragMove(e.target)}
         onDragEnd={(e) => h.onDragEnd(e.target.x(), e.target.y())}
         onTransformEnd={(e) => onTransformEndFor(e.target)}
         onClick={h.onSelect}
@@ -326,6 +379,7 @@ function renderLayer(layer: Layer, h: LayerHandlers): React.ReactNode {
         onHoverIn={h.onHoverIn}
         onHoverOut={h.onHoverOut}
         onDragStart={h.onDragStart}
+        onDragMove={h.onDragMove}
         onDragEnd={h.onDragEnd}
         onTransformEnd={(node) => onTransformEndFor(node)}
         outlineStroke={outlineStroke}
@@ -348,6 +402,7 @@ function renderLayer(layer: Layer, h: LayerHandlers): React.ReactNode {
         rotation={layer.rotation ?? 0}
         draggable
         onDragStart={h.onDragStart}
+        onDragMove={(e) => h.onDragMove(e.target)}
         onDragEnd={(e) =>
           h.onDragEnd(
             e.target.x() - layer.width / 2,
@@ -378,6 +433,7 @@ function renderLayer(layer: Layer, h: LayerHandlers): React.ReactNode {
       rotation={layer.rotation ?? 0}
       draggable
       onDragStart={h.onDragStart}
+        onDragMove={(e) => h.onDragMove(e.target)}
       onDragEnd={(e) => h.onDragEnd(e.target.x(), e.target.y())}
       onTransformEnd={(e) => onTransformEndFor(e.target)}
       onClick={h.onSelect}
@@ -395,6 +451,7 @@ function KonvaImageLoader(props: {
   onHoverIn: () => void;
   onHoverOut: () => void;
   onDragStart: () => void;
+  onDragMove: (node: Konva.Node) => void;
   onDragEnd: (x: number, y: number) => void;
   onTransformEnd: (node: Konva.Node) => void;
   outlineStroke: string | undefined;
@@ -423,6 +480,7 @@ function KonvaImageLoader(props: {
       strokeWidth={props.outlineWidth}
       draggable
       onDragStart={props.onDragStart}
+      onDragMove={(e) => props.onDragMove(e.target)}
       onDragEnd={(e) => props.onDragEnd(e.target.x(), e.target.y())}
       onTransformEnd={(e) => props.onTransformEnd(e.target)}
       onClick={props.onSelect}

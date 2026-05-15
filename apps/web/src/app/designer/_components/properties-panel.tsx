@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Layer, LayerPatch } from '@youpd/types';
 import { useDesignerStore } from './designer-store';
 import { setLayer, refetchState } from './designer-actions';
+import { useFontManifest } from './font-loader';
 
 export function PropertiesPanel() {
   const thumbnailId = useDesignerStore((s) => s.thumbnailId);
@@ -106,6 +107,9 @@ function TextSection({
 }) {
   const [text, setText] = useState(layer.text);
   const debouncedCommit = useDebouncedCommit(commit);
+  const families = useFontManifest();
+  const currentFamily =
+    layer.fontFamily?.split(',')[0]?.trim() ?? 'Pretendard';
   return (
     <section className="space-y-2">
       <Field label="텍스트">
@@ -117,6 +121,19 @@ function TextSection({
             debouncedCommit({ text: e.target.value });
           }}
         />
+      </Field>
+      <Field label="폰트">
+        <select
+          className={inputCls}
+          value={currentFamily}
+          onChange={(e) => commit({ fontFamily: e.target.value })}
+        >
+          {(families.length ? families : [{ family: 'Pretendard' } as never]).map((f) => (
+            <option key={f.family} value={f.family} style={{ fontFamily: f.family }}>
+              {f.family}
+            </option>
+          ))}
+        </select>
       </Field>
       <div className="grid grid-cols-2 gap-2">
         <Field label="폰트 크기">
