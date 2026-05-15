@@ -37,7 +37,7 @@ export const TOOL_DOCS: readonly ToolDoc[] = [
     short_description:
       'YouTube 키워드 검색 + 영상·채널 enrichment. ~102 quota. 먼저 `get_skill_group("COLLECT")` 권장.',
     long_description:
-      'search.list → videos.list → channels.list을 한 번에 호출해 키워드에 대한 영상·채널 요약을 정규화해 반환한다. 시드 키워드에서 후보 영상·채널을 발견하는 진입 도구.',
+      '[v0.5 우선순위: Notion Workers `videosByKeyword`/REST `POST /api/youpd/rest/search/keyword` — MCP는 회귀·폴백] search.list → videos.list → channels.list을 한 번에 호출해 키워드에 대한 영상·채널 요약을 정규화해 반환한다. 시드 키워드에서 후보 영상·채널을 발견하는 진입 도구.',
     when_to_use:
       '신규 키워드 시드에서 후보 영상·채널을 처음 모을 때.',
     example_calls: [
@@ -52,7 +52,7 @@ export const TOOL_DOCS: readonly ToolDoc[] = [
     short_description:
       '지역/카테고리 인기 차트 영상. 1 quota. 먼저 `get_skill_group("COLLECT")` 권장.',
     long_description:
-      'videos.list?chart=mostPopular 결과를 지역(기본 KR)·카테고리 옵션으로 반환한다.',
+      '[v0.5 Hot chart: Worker `hotVideoDaily` / REST `GET …/trending/hot-chart`] videos.list?chart=mostPopular 결과를 지역(기본 KR)·카테고리 옵션으로 반환한다.',
     when_to_use:
       '특정 지역의 현재 인기 영상을 일일 단위로 캡처할 때.',
     example_calls: [
@@ -68,7 +68,7 @@ export const TOOL_DOCS: readonly ToolDoc[] = [
     short_description:
       '최근 N시간 급상승 영상 (키워드+시간 윈도우). ~102 quota. 먼저 `get_skill_group("COLLECT")` 권장.',
     long_description:
-      'search.list(publishedAfter=now-Nh, order=viewCount) → videos.list + channels.list로 빠르게 떠오르는 영상을 잡는다. 기본 24시간 윈도우.',
+      '[v0.5: Worker/REST 우선 패턴 동일 — MCP 폴백] search.list(publishedAfter=now-Nh, order=viewCount) → videos.list + channels.list로 빠르게 떠오르는 영상을 잡는다. 기본 24시간 윈도우.',
     when_to_use:
       '최근 N시간 안에 빠르게 뜨는 영상·키워드를 잡아야 할 때.',
     example_calls: [
@@ -113,7 +113,7 @@ export const TOOL_DOCS: readonly ToolDoc[] = [
     short_description:
       '채널 전체 영상 페이지네이션. Budget = 1 + 2 × ceil(max/50). 먼저 `get_skill_group("METRIC")` 권장.',
     long_description:
-      '채널의 모든 업로드를 페이지네이션으로 끌어와 videos.list 배치로 enrich한다. 깊은 경쟁 분석용. quota 예산이 큼.',
+      '[v0.5 우선순위: Worker `channelAllVideos` / REST 페이지네이션 `GET …/channels/{id}/videos`] 채널의 모든 업로드를 페이지네이션으로 끌어와 videos.list 배치로 enrich한다. 깊은 경쟁 분석용. quota 예산이 큼.',
     when_to_use:
       '특정 채널의 전 영상 라이브러리를 분석해야 할 때(quota 예산을 충분히 잡고).',
     example_calls: [
@@ -128,7 +128,7 @@ export const TOOL_DOCS: readonly ToolDoc[] = [
     short_description:
       '추적 영상들의 오늘 조회수/좋아요/댓글 스냅샷. ~ceil(N/50) quota. 먼저 `get_skill_group("METRIC")` 권장.',
     long_description:
-      'videos.list을 50개씩 배치 호출해 영상별 일일 스냅샷 행을 반환한다(snapshot_date는 PT 캘린더 기준). 에이전트가 Video Snapshots DB에 upsert.',
+      '[v0.5: Worker `dailySnapshots`/REST 우선] videos.list을 50개씩 배치 호출해 영상별 일일 스냅샷 행을 반환한다(snapshot_date는 PT 캘린더 기준). 에이전트가 Video Snapshots DB에 upsert.',
     when_to_use:
       '추적 중인 영상 N개의 일일 메트릭을 캡처해 Video Snapshots DB에 기록할 때.',
     example_calls: [
@@ -158,7 +158,7 @@ export const TOOL_DOCS: readonly ToolDoc[] = [
     short_description:
       '영상의 좋아요 TOP N 댓글. 1 quota. 먼저 `get_skill_group("COMMENT")` 권장.',
     long_description:
-      'commentThreads.list(order=relevance, maxResults=100)을 likeCount desc로 정렬해 상위 N개를 반환. 댓글 비활성 영상은 comments_disabled=true.',
+      '[v0.5: Worker `videoComments` 또는 REST 우선] commentThreads.list(order=relevance, maxResults=100)을 likeCount desc로 정렬해 상위 N개를 반환. 댓글 비활성 영상은 comments_disabled=true.',
     when_to_use:
       '영상 댓글에서 후킹·카피·시청자 페인포인트를 뽑을 때.',
     example_calls: [

@@ -1,0 +1,5 @@
+{
+  "comment": "Values filled by `ntn workers new` / deploy. NOTION_WORKSPACE_ID env skips prompts.",
+  "workerId": "",
+  "workspaceId": ""
+}

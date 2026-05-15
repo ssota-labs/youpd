@@ -3,12 +3,16 @@ import { fetchHotChart } from './fetch-hot-chart';
 import { makeClient } from './test-utils';
 
 vi.mock('../quota', () => ({
+  attachQuotaSession: (result: unknown, sid: string | null) =>
+    sid == null
+      ? result
+      : { ...(result as Record<string, unknown>), quota_session_id: sid },
   runWithBudget: async <T>(input: {
     units: number;
     call: () => Promise<{ resultCount: number; payload: T }>;
   }) => {
     const { payload } = await input.call();
-    return { result: payload, unitsConsumed: input.units };
+    return { result: payload, unitsConsumed: input.units, sessionId: null };
   },
   QuotaExceededAtBudgetError: class extends Error {},
 }));

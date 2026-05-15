@@ -20,7 +20,7 @@ export const GROUP_DOCS: Record<SkillGroupCode, GroupDoc> = {
     code: 'COLLECT',
     name: '수집·탐색',
     description:
-      '키워드/영상/채널/트렌드/핫차트 수집 도구. YouTube Data API를 호출해 후보 데이터를 모으는 단계.',
+      '키워드/영상/채널/트렌드/핫차트 수집 도구. YouTube Data API를 호출해 후보 데이터를 모으는 단계. v0.5부터 대량 적재 경로는 Notion Workers + REST가 기본이다.',
     when_to_use:
       '키워드 시드에서 영상·채널을 수집하거나, 특정 지역의 인기 차트·최근 N시간 급상승 영상을 가져올 때.',
     example_intents: [
@@ -30,12 +30,14 @@ export const GROUP_DOCS: Record<SkillGroupCode, GroupDoc> = {
       '이 키워드 트렌딩 어때?',
     ],
     status: 'available',
+    notes:
+      'v0.5: MCP `search_keyword`·`fetch_*` 등 대량 JSON을 에이전트에 태우지 말 것. 같은 연산은 `POST /api/youpd/rest/search/keyword`(Bearer) 또는 Notion Worker `videosByKeyword` sync를 사용.',
   },
   METRIC: {
     code: 'METRIC',
     name: '지표·진단',
     description:
-      '영상·채널 상세 메타데이터, 스냅샷 캡처, 기여도/성과도/노출확률 계산. 수집된 데이터를 평가하는 단계.',
+      '영상·채널 상세 메타데이터, 스냅샷 캡처, 기여도/성과도/노출확률 계산. 수집된 데이터를 평가하는 단계. v0.5에서 채널 전체 스냅샷류는 Workers 경로 우선.',
     when_to_use:
       '단일 영상/채널 진단, 일일 스냅샷 기록, 채널 평균 대비 기여도·구독자 대비 성과도·노출확률 계산이 필요할 때.',
     example_intents: [
@@ -46,12 +48,14 @@ export const GROUP_DOCS: Record<SkillGroupCode, GroupDoc> = {
       '채널의 모든 영상 수집해서 분석해줘',
     ],
     status: 'available',
+    notes:
+      'v0.5: `get_channel_all_videos`·`snapshot_now` 대량 호출은 REST `/api/youpd/rest/channels/...` 또는 Worker `channelAllVideos`/`dailySnapshots` 우선.',
   },
   COMMENT: {
     code: 'COMMENT',
     name: '댓글 인사이트',
     description:
-      '영상 댓글에서 후킹·카피·시청자 페인포인트를 뽑기 위한 도구.',
+      '영상 댓글에서 후킹·카피·시청자 페인포인트를 뽑기 위한 도구. v0.5에서 대량 TOP-N 수집은 Worker `videoComments` sync 또는 REST 우선.',
     when_to_use:
       '댓글에서 인기 반응·후킹 문구·시청자 페르소나 단서를 찾고 싶을 때.',
     example_intents: [
@@ -61,6 +65,8 @@ export const GROUP_DOCS: Record<SkillGroupCode, GroupDoc> = {
       '댓글 기반 카피 후보 찾아줘',
     ],
     status: 'available',
+    notes:
+      'v0.5: MCP `get_video_comments`는 폴백. 가능하면 Worker `videoComments` 또는 REST 후 노션 DB 뷰에서 확인.',
   },
   PLAN: {
     code: 'PLAN',

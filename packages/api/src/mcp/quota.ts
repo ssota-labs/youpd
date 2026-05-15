@@ -15,6 +15,8 @@ export class QuotaExceededAtBudgetError extends Error {
   readonly required: number;
   readonly limit: number;
   readonly usageDay: string;
+  /** Populated after `recordSession` documents the refusal (REST job correlation). */
+  sessionId?: string;
   constructor(opts: {
     remaining: number;
     required: number;
@@ -62,6 +64,15 @@ export async function commitUnits(units: number): Promise<void> {
   await incrementDailyUsage(units);
 }
 
+/** Optional audit id from `search_sessions`; surfaced to REST as `meta.jobId`. */
+export function attachQuotaSession<T>(
+  result: T,
+  sessionId: string | null,
+): T & { quota_session_id?: string } {
+  if (!sessionId) return result as T & { quota_session_id?: string };
+  return { ...result, quota_session_id: sessionId };
+}
+
 export type RunWithBudgetInput<T> = {
   operation: string;
   units: number;
@@ -76,12 +87,12 @@ export type RunWithBudgetInput<T> = {
 // surface usage in the Notion Search Sessions DB.
 export async function runWithBudget<T>(
   input: RunWithBudgetInput<T>,
-): Promise<{ result: T; unitsConsumed: number }> {
+): Promise<{ result: T; unitsConsumed: number; sessionId: string | null }> {
   try {
     await assertBudget(input.units);
   } catch (err) {
     if (err instanceof QuotaExceededAtBudgetError) {
-      await recordSession({
+      const row = await recordSession({
         operation: input.operation,
         keyword: input.keyword ?? null,
         videoIds: input.videoIds ?? null,
@@ -91,6 +102,7 @@ export async function runWithBudget<T>(
         status: 'quota_exceeded',
         errorReason: err.message,
       });
+      err.sessionId = row.id;
     }
     throw err;
   }
@@ -98,7 +110,7 @@ export async function runWithBudget<T>(
   try {
     const { resultCount, payload } = await input.call();
     await commitUnits(input.units);
-    await recordSession({
+    const row = await recordSession({
       operation: input.operation,
       keyword: input.keyword ?? null,
       videoIds: input.videoIds ?? null,
@@ -107,7 +119,11 @@ export async function runWithBudget<T>(
       unitsConsumed: input.units,
       status: 'success',
     });
-    return { result: payload, unitsConsumed: input.units };
+    return {
+      result: payload,
+      unitsConsumed: input.units,
+      sessionId: row.id,
+    };
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
     const session: RecordSessionInput = {
@@ -120,7 +136,10 @@ export async function runWithBudget<T>(
       status: 'error',
       errorReason: reason,
     };
-    await recordSession(session);
+    const sessionRow = await recordSession(session);
+    if (err instanceof Error) {
+      Object.assign(err, { quotaSessionId: sessionRow.id });
+    }
     throw err;
   }
 }

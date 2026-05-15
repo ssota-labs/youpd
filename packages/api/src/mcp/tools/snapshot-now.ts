@@ -5,7 +5,7 @@ import {
   type YouTubeClient,
 } from '@youpd/youtube';
 import { getYouTubeClient } from '../youtube-client';
-import { runWithBudget } from '../quota';
+import { attachQuotaSession, runWithBudget } from '../quota';
 
 export const SnapshotNowInputSchema = z
   .object({
@@ -27,6 +27,7 @@ export type SnapshotNowOutput = {
   missing_video_ids: string[];
   batches: number;
   units_consumed: number;
+  quota_session_id?: string;
 };
 
 const PT_TZ = 'America/Los_Angeles';
@@ -59,7 +60,7 @@ export async function snapshotNow(
   const expectedBatches = Math.ceil(uniqueIds.length / 50);
   const upperBoundUnits = expectedBatches * UNIT_COST.videos_list;
 
-  const { result } = await runWithBudget<SnapshotNowOutput>({
+  const { result, sessionId } = await runWithBudget<SnapshotNowOutput>({
     operation: 'daily-snapshot',
     units: upperBoundUnits,
     videoIds: uniqueIds,
@@ -92,5 +93,5 @@ export async function snapshotNow(
     },
   });
 
-  return result;
+  return attachQuotaSession(result, sessionId);
 }

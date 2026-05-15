@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { NotionProp, type NotionPagePayload } from '../notion-payload';
-import { runWithBudget } from '../quota';
+import { attachQuotaSession, runWithBudget } from '../quota';
 
 // Stages must match the Key Content Candidates schema status options exactly
 // (see packages/api/src/mcp/version/schemas/keyContentCandidates.ts).
@@ -50,8 +50,8 @@ export type NotionCreateKeyCandidateInput = z.infer<
 // Candidates DB. The agent supplies parent.database_id from Agent Meta.
 export async function notionCreateKeyCandidate(
   input: NotionCreateKeyCandidateInput,
-): Promise<NotionPagePayload> {
-  const { result } = await runWithBudget<NotionPagePayload>({
+): Promise<NotionPagePayload & { quota_session_id?: string }> {
+  const { result, sessionId } = await runWithBudget<NotionPagePayload>({
     operation: 'compose-key-candidate',
     units: 0,
     call: async () => {
@@ -83,5 +83,5 @@ export async function notionCreateKeyCandidate(
     },
   });
 
-  return result;
+  return attachQuotaSession(result, sessionId);
 }

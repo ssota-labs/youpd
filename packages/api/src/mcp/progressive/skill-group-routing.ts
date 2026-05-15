@@ -7,7 +7,8 @@ import type {
 } from './types';
 
 const ROUTING_INTRO =
-  '유피디 스킬 그룹의 도구 사용법을 가져온다. 작업을 시작하기 전에 먼저 이 도구를 호출해 알맞은 그룹의 도구 사용법을 받아라.';
+  '유피디 스킬 그룹의 도구 사용법을 가져온다. 작업을 시작하기 전에 먼저 이 도구를 호출해 알맞은 그룹의 도구 사용법을 받아라.\n\n' +
+  'v0.5: 대용량 수집·일괄 적재는 **Notion Workers**(즉시 조회 도구 `videosByKeyword`/`channelAllVideos`/`videoComments` + 관리형 DB **sync**)와 `apps/web` **REST**(`/api/youpd/rest`)를 우선한다. 동일 로직의 MCP 도구는 회귀 테스트·폴백용이다.';
 
 export function buildSkillGroupRoutingDescription(): string {
   const lines: string[] = [ROUTING_INTRO, '', '그룹:'];

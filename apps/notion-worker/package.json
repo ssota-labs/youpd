@@ -1,0 +1,19 @@
+{
+  "name": "@youpd/notion-worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "echo \"(notion-worker) no lint configured\"",
+    "test": "echo \"(notion-worker) no tests yet\""
+  },
+  "dependencies": {
+    "@notionhq/workers": "0.4.0"
+  },
+  "devDependencies": {
+    "@youpd/config": "workspace:*",
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2"
+  }
+}
