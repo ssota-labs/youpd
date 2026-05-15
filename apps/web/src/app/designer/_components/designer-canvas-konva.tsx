@@ -31,7 +31,6 @@ type Props = {
 export function DesignerCanvas(props: Props) {
   const init = useDesignerStore((s) => s.init);
   const doc = useDesignerStore((s) => s.doc);
-  const version = useDesignerStore((s) => s.version);
   const selectedId = useDesignerStore((s) => s.selectedId);
   const hoveredId = useDesignerStore((s) => s.hoveredId);
   const setSelected = useDesignerStore((s) => s.setSelected);
@@ -61,8 +60,12 @@ export function DesignerCanvas(props: Props) {
   useEffect(() => {
     const compute = () => {
       if (typeof window === 'undefined') return;
-      // M2 will reserve ~380px for side panels; for now use the full width.
-      const maxW = Math.min(window.innerWidth - 64, 1100);
+      // Account for left layer panel (240) + right properties panel (288) +
+      // padding so the canvas fits the center column. Clamp to 320 minimum
+      // so the preview is usable on narrow viewports.
+      const reserved = 560;
+      const available = Math.max(320, window.innerWidth - reserved);
+      const maxW = Math.min(available, 1100);
       setStageScale(Math.min(1, maxW / width));
     };
     compute();
@@ -226,24 +229,6 @@ export function DesignerCanvas(props: Props) {
           onCancel={() => setEditingTextId(null)}
         />
       ) : null}
-      <StatusBadge version={version} />
-    </div>
-  );
-}
-
-function StatusBadge({ version }: { version: number }) {
-  const status = useDesignerStore((s) => s.status);
-  const label =
-    status === 'pending'
-      ? '저장 중…'
-      : status === 'conflict'
-        ? '동기화됨'
-        : status === 'error'
-          ? '저장 실패'
-          : `v${version}`;
-  return (
-    <div className="absolute right-2 top-2 text-[10px] px-2 py-1 rounded bg-zinc-800/80 text-zinc-300">
-      {label}
     </div>
   );
 }

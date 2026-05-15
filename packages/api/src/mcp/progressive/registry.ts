@@ -325,6 +325,33 @@ export const TOOL_DOCS: readonly ToolDoc[] = [
     tags: ['thumb', 'embed'],
   },
   {
+    name: 'thumbnail_reorder_layers',
+    group_code: 'THUMB',
+    short_description:
+      '시안 layers의 z-order 재배열. 0 quota.',
+    long_description:
+      'layerIds 배열 순서대로 thumbnails.layers를 다시 정렬. 모든 기존 layer id를 정확히 1번씩 포함해야 하며, 불일치 시 INVALID_LAYER_ORDER. version 충돌은 VERSION_CONFLICT.',
+    when_to_use: '레이어 패널에서 z-order를 바꾸거나 텍스트를 이미지 위로 올릴 때.',
+    example_calls: [
+      'thumbnail_reorder_layers({ thumbnailId, layerIds: ["bg", "number", "headline", "accent"] })',
+    ],
+    quota_cost: '0',
+    tags: ['thumb', 'edit'],
+  },
+  {
+    name: 'thumbnail_delete_layer',
+    group_code: 'THUMB',
+    short_description: '시안에서 단일 layer 제거. 0 quota.',
+    long_description:
+      'layerId에 해당하는 layer를 layers 배열에서 제거. 존재하지 않으면 LAYER_NOT_FOUND. version 충돌은 VERSION_CONFLICT.',
+    when_to_use: '불필요한 레이어를 정리하거나 잘못 추가한 레이어를 되돌릴 때.',
+    example_calls: [
+      'thumbnail_delete_layer({ thumbnailId, layerId: "subcopy" })',
+    ],
+    quota_cost: '0',
+    tags: ['thumb', 'edit'],
+  },
+  {
     name: 'get_bundle_manifest',
     group_code: 'SYS',
     short_description:

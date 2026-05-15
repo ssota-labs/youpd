@@ -125,9 +125,11 @@ describe('progressive tool registry', () => {
         'thumbnail_add_layer',
         'thumbnail_apply_template',
         'thumbnail_create',
+        'thumbnail_delete_layer',
         'thumbnail_export_png',
         'thumbnail_get_embed_url',
         'thumbnail_list',
+        'thumbnail_reorder_layers',
         'thumbnail_set_layer',
         'thumbnail_suggest_titles_from_comments',
       ].sort(),
@@ -159,10 +161,10 @@ describe('buildSkillGroupResponse', () => {
     expect(out.tools[0]!.when_to_use.length).toBeGreaterThan(0);
   });
 
-  it('returns available status with 8 tools for THUMB', () => {
+  it('returns available status with 10 tools for THUMB', () => {
     const out = buildSkillGroupResponse('THUMB');
     expect(out.status).toBe('available');
-    expect(out.tools).toHaveLength(8);
+    expect(out.tools).toHaveLength(10);
   });
 
   it('returns trigger_only status with empty tools for REPORT', () => {

@@ -29,17 +29,21 @@ import {
   ThumbnailAddLayerInputSchema,
   ThumbnailApplyTemplateInputSchema,
   ThumbnailCreateInputSchema,
+  ThumbnailDeleteLayerInputSchema,
   ThumbnailExportPngInputSchema,
   ThumbnailGetEmbedUrlInputSchema,
   ThumbnailListInputSchema,
+  ThumbnailReorderLayersInputSchema,
   ThumbnailSetLayerInputSchema,
   ThumbnailSuggestTitlesInputSchema,
   thumbnailAddLayer,
   thumbnailApplyTemplate,
   thumbnailCreate,
+  thumbnailDeleteLayer,
   thumbnailExportPng,
   thumbnailGetEmbedUrl,
   thumbnailList,
+  thumbnailReorderLayers,
   thumbnailSetLayer,
   thumbnailSuggestTitlesFromComments,
 } from '@youpd/api/mcp/tools';
@@ -148,6 +152,20 @@ function registerThumbnailTools(server: McpServer): void {
     fallback: 'Build designer iframe URL. 0 quota.',
     readOnly: true,
     idempotent: true,
+  });
+  registerSimpleTool(server, {
+    name: 'thumbnail_reorder_layers',
+    title: 'Reorder z-order of layers on a thumbnail',
+    inputSchema: ThumbnailReorderLayersInputSchema,
+    handler: thumbnailReorderLayers,
+    fallback: 'Reorder thumbnail layers. 0 quota.',
+  });
+  registerSimpleTool(server, {
+    name: 'thumbnail_delete_layer',
+    title: 'Delete a single layer from a thumbnail',
+    inputSchema: ThumbnailDeleteLayerInputSchema,
+    handler: thumbnailDeleteLayer,
+    fallback: 'Delete a thumbnail layer. 0 quota.',
   });
 }
 

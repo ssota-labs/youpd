@@ -117,3 +117,16 @@ export {
   type ThumbnailGetEmbedUrlInput,
   type ThumbnailGetEmbedUrlOutput,
 } from './thumbnail-get-embed-url';
+export {
+  thumbnailReorderLayers,
+  ThumbnailReorderLayersInputSchema,
+  InvalidLayerOrderError,
+  type ThumbnailReorderLayersInput,
+  type ThumbnailReorderLayersOutput,
+} from './thumbnail-reorder-layers';
+export {
+  thumbnailDeleteLayer,
+  ThumbnailDeleteLayerInputSchema,
+  type ThumbnailDeleteLayerInput,
+  type ThumbnailDeleteLayerOutput,
+} from './thumbnail-delete-layer';
