@@ -115,6 +115,31 @@ export function DesignerCanvas(props: Props) {
     tr.getLayer()?.batchDraw();
   }, [selectedId, doc.layers.length]);
 
+  // Konva.Text.getSelfRect() returns the wrap-width box, which inflates the
+  // Transformer (and any client-rect consumer) for short text inside a wide
+  // wrap width. Override to return the tight glyph rect with align applied.
+  // We re-apply on every layer change so newly mounted text nodes get the
+  // override too.
+  useEffect(() => {
+    shapeRefs.current.forEach((node, id) => {
+      const layer = doc.layers.find((l) => l.id === id);
+      if (!layer || layer.type !== 'text') return;
+      const text = node as Konva.Text;
+      text.getSelfRect = function getTightSelfRect() {
+        const wrap = this.width();
+        const w = this.getTextWidth();
+        const h = this.height();
+        let x = 0;
+        const align = this.align();
+        if (align === 'center') x = (wrap - w) / 2;
+        else if (align === 'right') x = wrap - w;
+        return { x, y: 0, width: w, height: h };
+      };
+    });
+    transformerRef.current?.forceUpdate();
+    transformerRef.current?.getLayer()?.batchDraw();
+  }, [doc.layers]);
+
   // Konva measures fonts via canvas measureText at first draw and caches the
   // metrics. If our @font-face fonts loaded after the initial mount, all
   // text nodes are stuck on system fallback. Wait until fonts.ready, then
