@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Tailwind v4 auto-scans this app's source tree, but workspace packages live
+   outside that root. The composer-react package emits the editor's class
+   names; @source tells Tailwind to generate the matching utilities. */
+@source "../../../../packages/composer-react/src/**/*.{ts,tsx}";
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
