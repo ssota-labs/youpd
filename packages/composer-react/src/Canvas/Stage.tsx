@@ -166,11 +166,22 @@ export function ComposerCanvas(props: ComposerCanvasProps) {
         const wrap = this.width();
         const w = this.getTextWidth();
         const h = this.height();
+        // Inflate by the stroke so a text node with strokeWidth=4 doesn't
+        // have its outline clipped by the bounding box. Stroke centers on
+        // the path so it extends half-width on each side, but Konva paints
+        // the full strokeWidth outside the glyph in canvas, so we add the
+        // full width to be safe.
+        const sw = this.strokeWidth() ?? 0;
         let x = 0;
         const align = this.align();
         if (align === 'center') x = (wrap - w) / 2;
         else if (align === 'right') x = wrap - w;
-        return { x, y: 0, width: w, height: h };
+        return {
+          x: x - sw,
+          y: -sw,
+          width: w + sw * 2,
+          height: h + sw * 2,
+        };
       };
     });
     transformerRef.current?.forceUpdate();

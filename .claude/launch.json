@@ -4,8 +4,8 @@
     {
       "name": "web",
       "cwd": "apps/web",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeExecutable": "/tmp/youpd-run.sh",
+      "runtimeArgs": ["pnpm", "run", "dev"],
       "port": 3000
     },
     {
