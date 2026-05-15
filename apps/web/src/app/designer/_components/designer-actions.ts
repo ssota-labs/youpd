@@ -70,3 +70,82 @@ export async function refetchState(thumbnailId: string): Promise<{
   if (!res.ok) return null;
   return (await res.json()) as never;
 }
+
+export function undo(thumbnailId: string): Promise<ServerResult<{
+  version: number;
+  canUndo: boolean;
+  canRedo: boolean;
+}>> {
+  return postJson('/api/mcp/thumbnail/undo', {
+    thumbnailId,
+    source: 'iframe',
+  });
+}
+
+export function redo(thumbnailId: string): Promise<ServerResult<{
+  version: number;
+  canUndo: boolean;
+  canRedo: boolean;
+}>> {
+  return postJson('/api/mcp/thumbnail/redo', {
+    thumbnailId,
+    source: 'iframe',
+  });
+}
+
+export async function fetchHistoryState(
+  thumbnailId: string,
+): Promise<{ canUndo: boolean; canRedo: boolean } | null> {
+  const res = await fetch(
+    `/api/mcp/thumbnail/history?thumbnailId=${thumbnailId}`,
+  );
+  if (!res.ok) return null;
+  return (await res.json()) as never;
+}
+
+export async function fetchTemplates(): Promise<
+  Array<{
+    code: string;
+    title: string;
+    aspect: '16:9' | '9:16';
+    previewUrl: string | null;
+    tags: string[];
+  }>
+> {
+  const res = await fetch('/api/mcp/thumbnail/templates');
+  if (!res.ok) return [];
+  const data = (await res.json()) as { templates: unknown[] };
+  return data.templates as never;
+}
+
+export async function applyTemplate(args: {
+  orgId: string;
+  notionCandidateUrl?: string;
+  templateCode: string;
+}): Promise<{ thumbnailId: string; embedUrl: string } | null> {
+  const res = await fetch('/api/mcp/thumbnail/apply-template', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      ...args,
+      fillers: {},
+    }),
+  });
+  if (!res.ok) return null;
+  return (await res.json()) as never;
+}
+
+export async function uploadAsset(args: {
+  orgId: string;
+  file: File;
+}): Promise<{ publicUrl: string } | null> {
+  const form = new FormData();
+  form.append('orgId', args.orgId);
+  form.append('file', args.file);
+  const res = await fetch('/api/upload/thumbnail-asset', {
+    method: 'POST',
+    body: form,
+  });
+  if (!res.ok) return null;
+  return (await res.json()) as never;
+}

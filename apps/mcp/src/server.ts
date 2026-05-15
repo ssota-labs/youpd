@@ -32,20 +32,26 @@ import {
   ThumbnailDeleteLayerInputSchema,
   ThumbnailExportPngInputSchema,
   ThumbnailGetEmbedUrlInputSchema,
+  ThumbnailHistoryStateInputSchema,
   ThumbnailListInputSchema,
+  ThumbnailRedoInputSchema,
   ThumbnailReorderLayersInputSchema,
   ThumbnailSetLayerInputSchema,
   ThumbnailSuggestTitlesInputSchema,
+  ThumbnailUndoInputSchema,
   thumbnailAddLayer,
   thumbnailApplyTemplate,
   thumbnailCreate,
   thumbnailDeleteLayer,
   thumbnailExportPng,
   thumbnailGetEmbedUrl,
+  thumbnailHistoryState,
   thumbnailList,
+  thumbnailRedo,
   thumbnailReorderLayers,
   thumbnailSetLayer,
   thumbnailSuggestTitlesFromComments,
+  thumbnailUndo,
 } from '@youpd/api/mcp/tools';
 import {
   getBundleManifest,
@@ -166,6 +172,29 @@ function registerThumbnailTools(server: McpServer): void {
     inputSchema: ThumbnailDeleteLayerInputSchema,
     handler: thumbnailDeleteLayer,
     fallback: 'Delete a thumbnail layer. 0 quota.',
+  });
+  registerSimpleTool(server, {
+    name: 'thumbnail_undo',
+    title: 'Undo the most recent edit on a thumbnail',
+    inputSchema: ThumbnailUndoInputSchema,
+    handler: thumbnailUndo,
+    fallback: 'Undo last thumbnail edit. 0 quota.',
+  });
+  registerSimpleTool(server, {
+    name: 'thumbnail_redo',
+    title: 'Redo a previously undone thumbnail edit',
+    inputSchema: ThumbnailRedoInputSchema,
+    handler: thumbnailRedo,
+    fallback: 'Redo a thumbnail edit. 0 quota.',
+  });
+  registerSimpleTool(server, {
+    name: 'thumbnail_history_state',
+    title: 'Inspect undo/redo availability for a thumbnail',
+    inputSchema: ThumbnailHistoryStateInputSchema,
+    handler: thumbnailHistoryState,
+    fallback: 'Check undo/redo availability. 0 quota.',
+    readOnly: true,
+    idempotent: true,
   });
 }
 

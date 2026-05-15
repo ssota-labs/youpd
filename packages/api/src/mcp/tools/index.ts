@@ -130,3 +130,15 @@ export {
   type ThumbnailDeleteLayerInput,
   type ThumbnailDeleteLayerOutput,
 } from './thumbnail-delete-layer';
+export {
+  thumbnailUndo,
+  thumbnailRedo,
+  thumbnailHistoryState,
+  ThumbnailUndoInputSchema,
+  ThumbnailRedoInputSchema,
+  ThumbnailHistoryStateInputSchema,
+  type ThumbnailUndoInput,
+  type ThumbnailRedoInput,
+  type ThumbnailHistoryStateInput,
+  type ThumbnailHistoryStateOutput,
+} from './thumbnail-undo';

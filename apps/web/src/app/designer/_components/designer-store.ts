@@ -13,6 +13,8 @@ type State = {
   hoveredId: string | null;
   isDragging: boolean;
   status: ServerSyncStatus;
+  canUndo: boolean;
+  canRedo: boolean;
 };
 
 type Actions = {
@@ -30,6 +32,7 @@ type Actions = {
   // Replace the entire doc + version (used for Realtime full re-sync and undo).
   replaceDoc: (doc: ThumbnailDocument, version: number) => void;
   setStatus: (status: ServerSyncStatus) => void;
+  setHistoryState: (state: { canUndo: boolean; canRedo: boolean }) => void;
 };
 
 export const useDesignerStore = create<State & Actions>((set) => ({
@@ -40,8 +43,18 @@ export const useDesignerStore = create<State & Actions>((set) => ({
   hoveredId: null,
   isDragging: false,
   status: 'idle',
+  canUndo: false,
+  canRedo: false,
   init: ({ thumbnailId, doc, version }) =>
-    set({ thumbnailId, doc, version, selectedId: null, hoveredId: null }),
+    set({
+      thumbnailId,
+      doc,
+      version,
+      selectedId: null,
+      hoveredId: null,
+      canUndo: false,
+      canRedo: false,
+    }),
   setSelected: (id) => set({ selectedId: id }),
   setHovered: (id) => set({ hoveredId: id }),
   setIsDragging: (v) => set({ isDragging: v }),
@@ -56,6 +69,7 @@ export const useDesignerStore = create<State & Actions>((set) => ({
     })),
   replaceDoc: (doc, version) => set({ doc, version }),
   setStatus: (status) => set({ status }),
+  setHistoryState: ({ canUndo, canRedo }) => set({ canUndo, canRedo }),
 }));
 
 // Helper that wraps a server-side set_layer call with optimistic update +

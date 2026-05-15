@@ -352,6 +352,39 @@ export const TOOL_DOCS: readonly ToolDoc[] = [
     tags: ['thumb', 'edit'],
   },
   {
+    name: 'thumbnail_undo',
+    group_code: 'THUMB',
+    short_description: '최근 편집 1회 되돌리기. 0 quota.',
+    long_description:
+      'thumbnail_versions 스냅샷에서 가장 최근 prior layers를 복원. 더 이상 되돌릴 게 없으면 HISTORY_BOUNDARY. 동일 thumbnail은 redo 가능 상태로 들어간다.',
+    when_to_use: '방금 수정한 레이어를 되돌리거나 ⌘Z 호출.',
+    example_calls: ['thumbnail_undo({ thumbnailId })'],
+    quota_cost: '0',
+    tags: ['thumb', 'history'],
+  },
+  {
+    name: 'thumbnail_redo',
+    group_code: 'THUMB',
+    short_description: '이전에 되돌린 편집 1회 다시 적용. 0 quota.',
+    long_description:
+      'thumbnail_undo로 만들어진 redo 스냅샷을 소비. cursor가 0이면 HISTORY_BOUNDARY.',
+    when_to_use: 'undo 후 다시 적용하고 싶을 때.',
+    example_calls: ['thumbnail_redo({ thumbnailId })'],
+    quota_cost: '0',
+    tags: ['thumb', 'history'],
+  },
+  {
+    name: 'thumbnail_history_state',
+    group_code: 'THUMB',
+    short_description: 'undo/redo 가능 여부 조회 (read-only). 0 quota.',
+    long_description:
+      'UI 버튼 활성/비활성 상태에 사용. { canUndo, canRedo } 반환.',
+    when_to_use: '디자이너 iframe에서 Toolbar 버튼 상태 표시.',
+    example_calls: ['thumbnail_history_state({ thumbnailId })'],
+    quota_cost: '0',
+    tags: ['thumb', 'history'],
+  },
+  {
     name: 'get_bundle_manifest',
     group_code: 'SYS',
     short_description:

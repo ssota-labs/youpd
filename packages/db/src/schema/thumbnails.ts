@@ -31,6 +31,10 @@ export const thumbnails = pgTable(
     exportPngUrl: text('export_png_url'),
     exportShortPngUrl: text('export_short_png_url'),
     version: integer('version').notNull().default(1),
+    // Pointer into thumbnail_versions: 0 means "at latest", positive means
+    // "N edits in the past" (after undo). Each new edit prunes future entries
+    // and resets cursor to 0.
+    historyCursor: integer('history_cursor').notNull().default(0),
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
