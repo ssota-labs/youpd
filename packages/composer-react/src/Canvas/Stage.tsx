@@ -168,46 +168,48 @@ export function ComposerCanvas(props: ComposerCanvasProps) {
         const align = this.align();
         const advance = this.getTextWidth();
         const emHeight = this.height();
+        const ls = this.letterSpacing();
+        const str = this.text();
 
-        // Width uses advance (= getTextWidth) so we never clip the glyph's
-        // right side-bearing. Height uses the canvas TextMetrics ink box
-        // when available so digits / uppercase glyphs don't leave a huge
-        // empty band below (em-box descender area).
-        let inkTop = 0;
-        let inkHeight = emHeight;
+        // Width uses the canvas TextMetrics ink box so the selection rect
+        // hugs the actually-rendered glyphs (Konva's cached advance comes
+        // from a fallback font at first measurement, which mis-sizes both
+        // overhanging glyphs like Pretendard "4" and wide-bearing jamo
+        // like "ㅇㅇㅇ"). Height stays as em-box (fontSize * lineHeight)
+        // so the selection box matches the text-input/wrap height users
+        // expect.
+        let inkWidth = advance;
+        let inkXShift = 0;
         const cvs = document.createElement('canvas');
         const ctx = cvs.getContext('2d');
         if (ctx) {
           ctx.font = `${this.fontStyle()} ${this.fontSize()}px "${this.fontFamily()}"`;
           ctx.textBaseline = 'alphabetic';
-          const m = ctx.measureText(this.text());
+          const m = ctx.measureText(str);
           if (
-            typeof m.actualBoundingBoxAscent === 'number' &&
-            typeof m.fontBoundingBoxAscent === 'number'
+            typeof m.actualBoundingBoxLeft === 'number' &&
+            typeof m.actualBoundingBoxRight === 'number'
           ) {
-            const inkAscent = m.actualBoundingBoxAscent;
-            const inkDescent = m.actualBoundingBoxDescent;
-            // Konva renders text with textBaseline='top'. The alphabetic
-            // baseline sits `fontBoundingBoxAscent` below the em-box top
-            // (this is the canonical font ascent for the current size),
-            // and the ink starts (ascent - actualBoundingBoxAscent) below
-            // the em-box top. Using the real font ascent — not an 0.8
-            // guess — keeps the rect aligned with what Konva draws.
-            const fontAscent = m.fontBoundingBoxAscent;
-            inkTop = Math.max(0, fontAscent - inkAscent);
-            inkHeight = inkAscent + inkDescent;
+            // letter-spacing accumulates between glyphs in advance but is
+            // not reflected in the ink bbox we just measured (measureText
+            // ignores Konva's letterSpacing); add it back so multi-glyph
+            // strings stay correct when LS > 0.
+            const lsTotal = ls * Math.max(0, str.length - 1);
+            const inkLeftOverhang = Math.max(0, m.actualBoundingBoxLeft);
+            inkWidth = m.actualBoundingBoxRight + inkLeftOverhang + lsTotal;
+            inkXShift = -inkLeftOverhang;
           }
         }
 
-        let xOffset = 0;
-        if (align === 'center') xOffset = (wrap - advance) / 2;
-        else if (align === 'right') xOffset = wrap - advance;
+        let xOffset = inkXShift;
+        if (align === 'center') xOffset = inkXShift + (wrap - inkWidth) / 2;
+        else if (align === 'right') xOffset = inkXShift + (wrap - inkWidth);
 
         return {
           x: xOffset - sw,
-          y: inkTop - sw,
-          width: advance + sw * 2,
-          height: inkHeight + sw * 2,
+          y: -sw,
+          width: inkWidth + sw * 2,
+          height: emHeight + sw * 2,
         };
       };
     });
