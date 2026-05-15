@@ -50,7 +50,7 @@ export function DesignerShell(props: Props) {
         <h1 className="text-sm font-semibold truncate">
           {props.name ?? '시안'}{' '}
           <span className="text-zinc-500 text-xs">
-            · {props.initialDocument.aspect}
+            · {props.initialDocument.canvas.width}×{props.initialDocument.canvas.height}
           </span>
         </h1>
       </header>

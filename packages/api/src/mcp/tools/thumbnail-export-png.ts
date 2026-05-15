@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import {
   AspectSchema,
-  ThumbnailDocumentSchema,
+  CompositionSchema,
+  aspectToCanvas,
   type ThumbnailDocument,
 } from '@youpd/types';
 import {
@@ -34,8 +35,8 @@ export async function thumbnailExportPng(
   input: ThumbnailExportPngInput,
 ): Promise<ThumbnailExportPngOutput> {
   const row = await getThumbnail(input.thumbnailId);
-  const baseDoc: ThumbnailDocument = ThumbnailDocumentSchema.parse({
-    aspect: row.aspect,
+  const baseDoc: ThumbnailDocument = CompositionSchema.parse({
+    canvas: aspectToCanvas(row.aspect as '16:9' | '9:16'),
     background: row.background ?? undefined,
     layers: row.layers,
   });
@@ -44,8 +45,12 @@ export async function thumbnailExportPng(
   let exportShortPngUrl: string | null = row.exportShortPngUrl;
 
   for (const aspect of input.formats) {
+    const targetCanvas = aspectToCanvas(aspect);
     const doc: ThumbnailDocument =
-      baseDoc.aspect === aspect ? baseDoc : { ...baseDoc, aspect };
+      baseDoc.canvas.width === targetCanvas.width &&
+      baseDoc.canvas.height === targetCanvas.height
+        ? baseDoc
+        : { ...baseDoc, canvas: targetCanvas };
     const bytes = await renderThumbnailPng(doc);
     const { publicUrl } = await uploadThumbnailExport({
       thumbnailId: row.id,

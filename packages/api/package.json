@@ -23,6 +23,8 @@
   },
   "dependencies": {
     "@resvg/resvg-js": "^2.6.2",
+    "@youpd/composer-core": "workspace:*",
+    "@youpd/composer-render-satori": "workspace:*",
     "@youpd/db": "workspace:*",
     "@youpd/supabase": "workspace:*",
     "@youpd/types": "workspace:*",

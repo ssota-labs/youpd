@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { applyTemplate } from './apply-template';
-import type { TemplateDocument } from '@youpd/types';
+import { applyTemplate } from './apply';
+import type { TemplateDocument } from '../schema/template';
 
 const sample: TemplateDocument = {
   canvas: { width: 1280, height: 720 },

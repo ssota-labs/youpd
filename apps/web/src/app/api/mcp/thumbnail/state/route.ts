@@ -1,6 +1,6 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
-import { ThumbnailDocumentSchema } from '@youpd/types';
+import { CompositionSchema, aspectToCanvas } from '@youpd/types';
 import { getThumbnail } from '@youpd/supabase/repositories/thumbnails';
 
 export const dynamic = 'force-dynamic';
@@ -13,8 +13,8 @@ export async function GET(req: Request) {
   }
   try {
     const row = await getThumbnail(thumbnailId);
-    const document = ThumbnailDocumentSchema.parse({
-      aspect: row.aspect,
+    const document = CompositionSchema.parse({
+      canvas: aspectToCanvas(row.aspect as '16:9' | '9:16'),
       background: row.background ?? undefined,
       layers: row.layers,
     });
