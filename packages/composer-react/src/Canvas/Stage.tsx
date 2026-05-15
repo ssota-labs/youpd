@@ -164,23 +164,47 @@ export function ComposerCanvas(props: ComposerCanvasProps) {
       text._setTextData?.();
       text.getSelfRect = function getTightSelfRect() {
         const wrap = this.width();
-        const w = this.getTextWidth();
-        const h = this.height();
-        // Inflate by the stroke so a text node with strokeWidth=4 doesn't
-        // have its outline clipped by the bounding box. Stroke centers on
-        // the path so it extends half-width on each side, but Konva paints
-        // the full strokeWidth outside the glyph in canvas, so we add the
-        // full width to be safe.
         const sw = this.strokeWidth() ?? 0;
-        let x = 0;
         const align = this.align();
-        if (align === 'center') x = (wrap - w) / 2;
-        else if (align === 'right') x = wrap - w;
+
+        // Use canvas TextMetrics.actualBoundingBox* so the rect hugs the
+        // rendered ink (not the em-box) — important for digits/uppercase
+        // glyphs that leave the descender area empty. Falls back to the
+        // em-box measurement if the browser doesn't expose those metrics.
+        const cvs = document.createElement('canvas');
+        const ctx = cvs.getContext('2d');
+        let inkLeft = 0;
+        let inkRight = this.getTextWidth();
+        let inkAscent = 0;
+        let inkDescent = this.height();
+        if (ctx) {
+          ctx.font = `${this.fontStyle()} ${this.fontSize()}px "${this.fontFamily()}"`;
+          ctx.textBaseline = 'alphabetic';
+          const m = ctx.measureText(this.text());
+          if (typeof m.actualBoundingBoxLeft === 'number') {
+            inkLeft = -m.actualBoundingBoxLeft;
+            inkRight = m.actualBoundingBoxRight;
+            inkAscent = m.actualBoundingBoxAscent;
+            inkDescent = m.actualBoundingBoxDescent;
+          }
+        }
+        const inkWidth = inkRight - inkLeft;
+        // Konva renders text with textBaseline='top', so the alphabetic
+        // baseline sits at ascent below the top. The actual ink starts at
+        // (ascent - actualBoundingBoxAscent) below the top edge.
+        const fontAscent = this.fontSize() * 0.8; // approximate ascent
+        const inkTop = Math.max(0, fontAscent - inkAscent);
+        const inkHeight = inkAscent + inkDescent;
+
+        let xOffset = inkLeft;
+        if (align === 'center') xOffset = (wrap - inkWidth) / 2 + inkLeft;
+        else if (align === 'right') xOffset = wrap - inkWidth + inkLeft;
+
         return {
-          x: x - sw,
-          y: -sw,
-          width: w + sw * 2,
-          height: h + sw * 2,
+          x: xOffset - sw,
+          y: inkTop - sw,
+          width: inkWidth + sw * 2,
+          height: inkHeight + sw * 2,
         };
       };
     });
