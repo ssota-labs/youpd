@@ -311,19 +311,48 @@ export function DesignerCanvas(props: Props) {
           )}
         </Layer_>
       </Stage>
-      {editingLayer && editingLayer.type === 'text' ? (
-        <TextEditorOverlay
-          layer={editingLayer}
-          stageScale={stageScale}
-          onCommit={(text) => {
-            setEditingTextId(null);
-            if (text !== editingLayer.text) {
-              void commitPatch(editingLayer.id, { text });
-            }
-          }}
-          onCancel={() => setEditingTextId(null)}
-        />
-      ) : null}
+      {editingLayer && editingLayer.type === 'text'
+        ? (() => {
+            // Use the actual Konva node's measured rect so the textarea
+            // overlays exactly what was drawn (including text-wrap to width
+            // across multiple lines). Falls back to the layer's declared
+            // width and a single-line height if the node ref isn't ready.
+            const node = shapeRefs.current.get(editingLayer.id);
+            const rect = node
+              ? (() => {
+                  // getClientRect honors rotation/scale; for the v0.4 simple
+                  // axis-aligned editor we want the un-rotated drawn box.
+                  const rotation = node.rotation();
+                  node.rotation(0);
+                  const r = node.getClientRect({ skipTransform: false });
+                  node.rotation(rotation);
+                  return r;
+                })()
+              : {
+                  x: editingLayer.x * stageScale,
+                  y: editingLayer.y * stageScale,
+                  width: (editingLayer.width ?? 600) * stageScale,
+                  height:
+                    (editingLayer.fontSize ?? 64) *
+                    (editingLayer.lineHeight ?? 1.1) *
+                    stageScale,
+                };
+            return (
+              <TextEditorOverlay
+                layer={editingLayer}
+                rect={rect}
+                stageScale={stageScale}
+                onCommit={(text) => {
+                  setEditingTextId(null);
+                  if (text !== editingLayer.text) {
+                    void commitPatch(editingLayer.id, { text });
+                  }
+                }}
+                onCancel={() => setEditingTextId(null)}
+              />
+            );
+          })()
+        : null}
     </div>
   );
 }

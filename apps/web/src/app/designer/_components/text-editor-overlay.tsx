@@ -3,8 +3,14 @@
 import { useEffect, useRef } from 'react';
 import type { TextLayer } from '@youpd/types';
 
+type Rect = { x: number; y: number; width: number; height: number };
+
 type Props = {
   layer: TextLayer;
+  // Rect in screen pixels (already scaled), measured from the actual Konva
+  // node via getClientRect — guarantees the textarea covers exactly what the
+  // node drew, including multi-line wrapping.
+  rect: Rect;
   stageScale: number;
   onCommit: (text: string) => void;
   onCancel: () => void;
@@ -12,7 +18,13 @@ type Props = {
 
 // Renders a <textarea> overlaid exactly on top of the Konva text node.
 // Positions assume the parent <div> wraps the Stage and has the same origin.
-export function TextEditorOverlay({ layer, stageScale, onCommit, onCancel }: Props) {
+export function TextEditorOverlay({
+  layer,
+  rect,
+  stageScale,
+  onCommit,
+  onCancel,
+}: Props) {
   const ref = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -45,10 +57,15 @@ export function TextEditorOverlay({ layer, stageScale, onCommit, onCancel }: Pro
       }}
       style={{
         position: 'absolute',
-        left: layer.x * stageScale,
-        top: layer.y * stageScale,
-        width: (layer.width ?? 600) * stageScale,
-        minHeight: (layer.fontSize ?? 64) * (layer.lineHeight ?? 1.1) * stageScale,
+        // Match the Konva node's drawn rect exactly.
+        left: rect.x,
+        top: rect.y,
+        width: rect.width,
+        height: rect.height,
+        // border-box so the dashed border is inside the rect rather than
+        // adding 2px outside on every edge (which used to overflow the
+        // bounding box on every double-click).
+        boxSizing: 'border-box',
         fontSize: (layer.fontSize ?? 64) * stageScale,
         fontFamily: layer.fontFamily ?? 'Pretendard, sans-serif',
         fontWeight,
@@ -57,13 +74,17 @@ export function TextEditorOverlay({ layer, stageScale, onCommit, onCancel }: Pro
         color: layer.fill ?? '#fff',
         textAlign: layer.align ?? 'left',
         background: 'transparent',
-        border: '2px solid #60a5fa',
+        border: '1px dashed #60a5fa',
         outline: 'none',
         padding: 0,
         margin: 0,
         resize: 'none',
-        overflow: 'hidden',
+        // Clip overflow to the original bounding box; if the user types
+        // more text than fits, they'll see scroll. After commit, Konva
+        // re-renders the layer at the actual size needed.
+        overflow: 'auto',
         whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word',
         zIndex: 10,
       }}
     />
