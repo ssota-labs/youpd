@@ -137,12 +137,31 @@ export function ComposerCanvas(props: ComposerCanvasProps) {
   }, [selectedId, doc.layers.length]);
 
   // Tight getSelfRect for Konva.Text so Transformer + getClientRect track the
-  // actual glyph rect rather than the wrap-width box.
+  // actual glyph rect rather than the wrap-width box. Also override
+  // _getTextWidth to use a fresh canvas — Konva's cached dummy 2D context
+  // sometimes loses non-Latin glyph coverage for newly-loaded web fonts
+  // (returns Latin width only), and a fresh context picks up the full
+  // measurement reliably.
   useEffect(() => {
     shapeRefs.current.forEach((node, id) => {
       const layer = doc.layers.find((l) => l.id === id);
       if (!layer || layer.type !== 'text') return;
-      const text = node as Konva.Text;
+      const text = node as Konva.Text & {
+        _getTextWidth?: (s: string) => number;
+        _setTextData?: () => void;
+      };
+      text._getTextWidth = function freshGetTextWidth(s: string) {
+        const cvs = document.createElement('canvas');
+        const ctx = cvs.getContext('2d');
+        if (!ctx) return 0;
+        ctx.font = `${this.fontStyle()} ${this.fontSize()}px "${this.fontFamily()}"`;
+        const w = ctx.measureText(s).width;
+        const ls = this.letterSpacing();
+        return w + (s.length ? ls * (s.length - 1) : 0);
+      };
+      // Trigger a re-measure with the override active so cached textWidth
+      // reflects the correct value on first mount.
+      text._setTextData?.();
       text.getSelfRect = function getTightSelfRect() {
         const wrap = this.width();
         const w = this.getTextWidth();
@@ -163,15 +182,18 @@ export function ComposerCanvas(props: ComposerCanvasProps) {
   // is still loading get sized against the system fallback (much narrower),
   // and the bounding box is too small until the user touches a property.
   //
-  // fonts.ready resolves when the FontFace promises settle, but canvas
-  // measureText sometimes still returns fallback metrics on the same tick.
-  // We call Konva.Text._setTextData() — its internal re-measurement entry —
-  // immediately + over the next two animation frames so we catch whichever
-  // frame the new font becomes paintable. Cached textWidth on the node is
-  // refreshed, and the getSelfRect override picks it up automatically.
+  // Subtlety: even after document.fonts.ready resolves, the OffscreenCanvas
+  // 2D context Konva uses for measureText sometimes still falls back. We
+  // call document.fonts.load with the *exact* font spec Konva uses for each
+  // text node (matching fontStyle + size + family), wait a paint frame, then
+  // invoke Konva.Text._setTextData() — its internal re-measurement entry —
+  // to refresh the cached textWidth. The getSelfRect override picks up the
+  // new width so Transformer + hover rect resize automatically.
   const fontManifestUrl = useComposerFontManifestUrl();
   useEffect(() => {
     let cancelled = false;
+    const fontSpec = (n: Konva.Text): string =>
+      `${n.fontStyle()} ${n.fontSize()}px "${n.fontFamily()}"`;
     const remeasureAndDraw = () => {
       const stage = stageRef.current;
       if (!stage) return;
@@ -182,7 +204,42 @@ export function ComposerCanvas(props: ComposerCanvasProps) {
       transformerRef.current?.forceUpdate();
       stage.batchDraw();
     };
-    void fontsReady(fontManifestUrl).then(() => {
+    void fontsReady(fontManifestUrl).then(async () => {
+      if (cancelled) return;
+      const stage = stageRef.current;
+      if (stage) {
+        const textNodes = stage.find('Text') as unknown as Konva.Text[];
+        if ('fonts' in document) {
+          const docFonts = (document as Document & { fonts: FontFaceSet })
+            .fonts;
+          await Promise.all(
+            textNodes.map((t) =>
+              docFonts.load(fontSpec(t)).catch(() => undefined),
+            ),
+          );
+        }
+        // The DocumentFontFaceSet promise can resolve before the canvas
+        // implementation has actually picked up the new font face. Painting
+        // the same string into a hidden DOM element forces the browser's
+        // rendering pipeline to fully load the glyphs so the next canvas
+        // measureText returns the loaded-font metrics.
+        const probe = document.createElement('div');
+        probe.setAttribute('aria-hidden', 'true');
+        probe.style.cssText =
+          'position:fixed; top:-9999px; left:-9999px; visibility:hidden; white-space:nowrap;';
+        for (const t of textNodes) {
+          const s = document.createElement('span');
+          s.style.font = fontSpec(t);
+          s.textContent = t.text();
+          probe.appendChild(s);
+        }
+        document.body.appendChild(probe);
+        // Force layout + a paint frame so the font is actually rasterized
+        // somewhere before we ask Konva's canvas to measure.
+        void probe.offsetWidth;
+        await new Promise((r) => requestAnimationFrame(() => r(undefined)));
+        document.body.removeChild(probe);
+      }
       if (cancelled) return;
       remeasureAndDraw();
       requestAnimationFrame(() => {
@@ -197,7 +254,12 @@ export function ComposerCanvas(props: ComposerCanvasProps) {
     return () => {
       cancelled = true;
     };
-  }, [doc.layers, fontManifestUrl]);
+    // Only depend on the manifest URL: re-running on every doc.layers change
+    // would cancel the in-flight font load before remeasure completes (each
+    // edit replaces the layers array reference). New layers added after
+    // fonts are loaded already see the correct metrics at mount time, so a
+    // single mount-load-remeasure cycle is enough.
+  }, [fontManifestUrl]);
 
   const handleStageMouseDown = (
     e: Konva.KonvaEventObject<MouseEvent | TouchEvent>,

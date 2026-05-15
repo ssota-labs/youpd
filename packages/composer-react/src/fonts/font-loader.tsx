@@ -77,14 +77,29 @@ export function useFontManifest(): Family[] {
         style.id = styleId;
         style.textContent = data.families
           .flatMap((f) =>
-            f.variants.map(
-              (v) => `@font-face {
+            f.variants.map((v) => {
+              // Pick a format hint that matches the file extension. Browsers
+              // (esp. Chromium) silently drop non-Latin glyph coverage when
+              // the format hint is wrong — labelling a .ttf as "opentype"
+              // was previously breaking Hangul measurement.
+              const ext = v.url.split('.').pop()?.toLowerCase() ?? '';
+              const fmt =
+                ext === 'otf'
+                  ? 'opentype'
+                  : ext === 'ttf'
+                    ? 'truetype'
+                    : ext === 'woff2'
+                      ? 'woff2'
+                      : ext === 'woff'
+                        ? 'woff'
+                        : 'truetype';
+              return `@font-face {
   font-family: "${f.family}";
-  src: url("${v.url}") format("opentype");
+  src: url("${v.url}") format("${fmt}");
   font-weight: ${v.weight};
   font-display: swap;
-}`,
-            ),
+}`;
+            }),
           )
           .join('\n');
         document.head.appendChild(style);
