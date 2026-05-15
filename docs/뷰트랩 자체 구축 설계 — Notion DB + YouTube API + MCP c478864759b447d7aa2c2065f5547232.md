@@ -7,19 +7,25 @@
 
 **기반 문서**: [뷰트랩 서비스 설명](https://www.notion.so/35e2f1b57fc38091ace0ea9a0843c194?pvs=21) · [키콘텐츠 기획](https://www.notion.so/4cb2f1b57fc382d6bc62019efc1cfd7b?pvs=21)
 
+**문서 버전 메모**: **v0.6 (2026-05-15)** 아키텍처 업데이트가 반영되었습니다: **Notion Workers는 `worker.sync`/managed DB 없이** 확정적인 **`worker.tool()`만** 제공하고, **YouTube Data API 호출 및 할당량은 앱 서버 REST**에 두며, 적재 대상은 **템플릿 복제 사용자의 기존 Notion DB(data source)**입니다. 변경 요약은 `docs/CHANGELOG.md`, 결정 기록은 `docs/adr/`를 참고합니다.
+
 </aside>
 
 ## 1. 전체 그림
 
 ```mermaid
 flowchart LR
-	YT["YouTube Data API v3"] -->|Search/Videos/Channels/Comments| FE["패쳐(Fetcher)<br>Cloud Function / Cron"]
-	FE -->|원시 데이터 적재| NDB["Notion DB<br>(8개 데이터 소스)"]
+	YT["YouTube Data API v3"] -->|"Bearer `/api/youpd/rest`"| WEB["YouPD Next.js API<br>(호스팅 계정)"]
+	WEB -->|"결과 JSON"| WRK["Notion Worker<br>`worker.tool()` (v0.6+)"]
+	WRK -->|"context.notion upsert"| NDB["사용자 템플릿<br>Notion DB"]
 	NDB --> DASH["대시보드·뷰"]
-	NDB --> MCP["MCP 서버<br>(on-demand 조회·집계)"]
-	MCP --> AGENT["Notion AI 에이전트<br>(키콘텐츠 기획 스킬)"]
+	NDB --> MCP["MCP 서버<br>(소량·버전·폴백)"]
+	MCP --> WEB
+	MCP --> AGENT["Notion Custom Agent<br>(스킬·스케줄러)"]
 	DASH --> AGENT
-	AGENT -->|제안·초안 작성| KC["키콘텐츠/풀링콘텐츠 후보 DB"]
+	AGENT --> WRK
+	AGENT --> MCP
+	AGENT -->|"제안·초안 작성"| KC["후보 DB"]
 	KC --> NDB
 ```
 
@@ -313,25 +319,52 @@ erDiagram
 | MCP 서버 호스팅 | - | ₩0 (자체 서버 또는 Notion 내 대체) |
 | **월 합계** | **~₩11만** | **₩0~5,000** |
 
-## 5. MCP 서버 설계
+## 5. MCP·Notion Worker·REST (v0.6 이후 권장 분리)
 
-### 5-1. 아키텍처 분리
+### 5-0. 책임 경계 한 줄 요약
+
+| 경로 | 주 용도 | Notion 적재 | YouTube 접촉 |
+| --- | --- | --- | --- |
+| **Notion Worker 도구** | 대량 적재·스케줄 반복(run tool) | `context.notion`으로 사용자 **템플릿 DB**에 upsert | **간접** — Worker는 `YOUPD_API_TOKEN`으로 **REST만** 호출 |
+| **`apps/web` REST** | 할당량·정책·감사 중앙화 | DB 직접 쓰지 않거나 Worker가 노션에 반영 | **직접** — 서버 측 어댑터 |
+| **MCP** | 채팅 온디맨드·스키마/번들·폴백 | 도구별 (기존 설계 유지) | 서버 어댑터와 동일 백엔드 공유 가능 |
+
+ADR: `docs/adr/001-notion-worker-tools-only.md`, `docs/adr/002-bulk-ingestion-split-mcp-vs-worker-rest.md`.
+
+### 5-1. 아키텍처 분리 (업데이트)
 
 ```mermaid
 flowchart TD
-	A["스케줄러—일별 스냅샷"] -.하루×1.-> Y["YouTube API"]
-	A --> N1["Notion DB 기록"]
-	B["MCP 도구—on-demand"] -->|키워드 검색, 상세·댓글 조회| Y
-	B --> N2["Notion DB upsert"]
-	C["Notion AI 에이전트"] -->|자연어 질의| B
-	C -->|결과해석·기획 작성| N3["Candidates DB"]
+	Y["YouTube API"] <-->|"서버 크리덴셜"| REST["YouPD REST"]
+	REST <-->|Bearer| WTOOLS["Worker tools<br>`videosByKeyword` 등"]
+	WTOOLS -->|context.notion| N1["템플릿 사용자 DB"]
+	SCH["Custom Agent Scheduler"] -->|결정적 인자| WTOOLS
+	A["MCP (폴백·소량)"] --> REST
+	A -->|일부 도구| N2["Notion DB"]
+	C["Custom Agent 채팅"] --> WTOOLS
+	C --> A
+	C --> SCH
 ```
 
-### 5-2. MCP 노출 도구 (설계 초안)
+레거시 “패쳐(Fetcher)→Notion 단독 크론” 배치와 병렬로 둘 수 있으나, **마켓플레이스 복제 워크스페이스** 스토리에는 **Worker + 템플릿 DB**가 1순위입니다.
+
+### 5-2. Notion Worker 노출 도구 (`@youpd/notion-worker`)
+
+| Tool key | 호출 순서 요약 |
+| --- | --- |
+| `checkWorkspace` | 환경·`YOUPD_*_DATA_SOURCE_ID`·스키마 이름 매칭 점검 (쓰기 없음) |
+| `videosByKeyword` | `POST …/rest/search/keyword` → Videos data source 행 생성/갱신 |
+| `channelAllVideos` | `GET …/rest/channels/{id}/videos` (페이지네이션) → Videos upsert |
+| `videoComments` | `GET …/rest/videos/{id}/comments` → Comments upsert |
+| `snapshotTrackedVideos` | Notion에서 추적용 `videoId` 수집 → `POST …/rest/snapshots/now` 배치 → Snapshots upsert |
+
+**비목표**: `worker.database` / `worker.sync()` 로 Notion-managed DB를 만들거나 동기화하는 모델(초기 PoC 가능성)은 **v0.6에서 채택하지 않음**.
+
+### 5-3. MCP 노출 도구 (설계 초안 — 폴백·온디맨드)
 
 | Tool | 입력 | 동작 | units |
 | --- | --- | --- | --- |
-| `search_keyword` | keyword, max_results | search.list → videos.list → Notion upsert | ~100–400 |
+| `search_keyword` | keyword, max_results | search.list → videos.list → MCP 경로 반환 또는 Notion 적재 구현분기 — **대량 채팅 경로에서는 Worker/REST 우선**(v0.6) | ~100–400 |
 | `get_video_detail` | videoId | videos.list + channels.list + commentThreads.list | ~3–10 |
 | `get_channel_overview` | channelId | channels.list + 인기영상 TOP10 | ~2–5 |
 | `get_channel_all_videos` | channelId, max_videos? | channels.list(contentDetails) → uploads 재생목록 ID → playlistItems.list 페이지네이션 → videos.list 일괄 → Videos DB upsert (경쟁 채널 전수 분석용) | ~1 + (영상수/50) × 2 |
@@ -348,7 +381,7 @@ flowchart TD
 | `get_latest_version_schema` | dbName? | 전체 또는 특정 DB의 최신 스키마 JSON 반환 (createDatabase/updateDatabase 입력으로 그대로 사용 가능) | 0 |
 | `get_bundle_manifest` | 없음 | 번들 버전 + 공개 템플릿 페이지 URL + changelog 요약을 한 번에 반환 (에이전트 첫 대화 진입점) | 0 |
 
-### 5-3. 호스팅 옵션
+### 5-4. 호스팅 옵션
 
 - **경량**: Vercel Functions / Cloudflare Workers + Cron (무료 tier 가능)
 - **안정**: GCP Cloud Run + Cloud Scheduler (무료 크레딧 내)

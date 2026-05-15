@@ -52,7 +52,7 @@ export const TOOL_DOCS: readonly ToolDoc[] = [
     short_description:
       '지역/카테고리 인기 차트 영상. 1 quota. 먼저 `get_skill_group("COLLECT")` 권장.',
     long_description:
-      '[v0.5 Hot chart: Worker `hotVideoDaily` / REST `GET …/trending/hot-chart`] videos.list?chart=mostPopular 결과를 지역(기본 KR)·카테고리 옵션으로 반환한다.',
+      '[v0.5 Hot chart: REST `GET …/trending/hot-chart` 우선] videos.list?chart=mostPopular 결과를 지역(기본 KR)·카테고리 옵션으로 반환한다.',
     when_to_use:
       '특정 지역의 현재 인기 영상을 일일 단위로 캡처할 때.',
     example_calls: [
@@ -128,7 +128,7 @@ export const TOOL_DOCS: readonly ToolDoc[] = [
     short_description:
       '추적 영상들의 오늘 조회수/좋아요/댓글 스냅샷. ~ceil(N/50) quota. 먼저 `get_skill_group("METRIC")` 권장.',
     long_description:
-      '[v0.5: Worker `dailySnapshots`/REST 우선] videos.list을 50개씩 배치 호출해 영상별 일일 스냅샷 행을 반환한다(snapshot_date는 PT 캘린더 기준). 에이전트가 Video Snapshots DB에 upsert.',
+      '[v0.5: Worker `snapshotTrackedVideos`/REST 우선] videos.list을 배치 호출해 영상별 일일 스냅샷 행을 반환한다(snapshot_date는 PT 캘린더 기준). Worker는 Tracked/Videos DB에서 videoId를 읽은 뒤 Video Snapshots DB에 upsert; MCP는 회귀·폴백.',
     when_to_use:
       '추적 중인 영상 N개의 일일 메트릭을 캡처해 Video Snapshots DB에 기록할 때.',
     example_calls: [

@@ -20,7 +20,7 @@ export const GROUP_DOCS: Record<SkillGroupCode, GroupDoc> = {
     code: 'COLLECT',
     name: '수집·탐색',
     description:
-      '키워드/영상/채널/트렌드/핫차트 수집 도구. YouTube Data API를 호출해 후보 데이터를 모으는 단계. v0.5부터 대량 적재 경로는 Notion Workers + REST가 기본이다.',
+      '키워드/영상/채널/트렌드/핫차트 수집 도구. YouTube Data API를 호출해 후보 데이터를 모으는 단계. v0.5부터 대량 적재 경로는 Notion Worker 도구(REST + 템플릿 DB 쓰기)와 REST가 기본이다.',
     when_to_use:
       '키워드 시드에서 영상·채널을 수집하거나, 특정 지역의 인기 차트·최근 N시간 급상승 영상을 가져올 때.',
     example_intents: [
@@ -31,13 +31,13 @@ export const GROUP_DOCS: Record<SkillGroupCode, GroupDoc> = {
     ],
     status: 'available',
     notes:
-      'v0.5: MCP `search_keyword`·`fetch_*` 등 대량 JSON을 에이전트에 태우지 말 것. 같은 연산은 `POST /api/youpd/rest/search/keyword`(Bearer) 또는 Notion Worker `videosByKeyword` sync를 사용.',
+      'v0.5: MCP `search_keyword`·`fetch_*` 등 대량 JSON을 에이전트에 태우지 말 것. 같은 연산은 `POST /api/youpd/rest/search/keyword`(Bearer) 또는 Notion Worker `videosByKeyword` 도구(REST → Videos DB upsert)를 사용.',
   },
   METRIC: {
     code: 'METRIC',
     name: '지표·진단',
     description:
-      '영상·채널 상세 메타데이터, 스냅샷 캡처, 기여도/성과도/노출확률 계산. 수집된 데이터를 평가하는 단계. v0.5에서 채널 전체 스냅샷류는 Workers 경로 우선.',
+      '영상·채널 상세 메타데이터, 스냅샷 캡처, 기여도/성과도/노출확률 계산. 수집된 데이터를 평가하는 단계. v0.5에서 채널 전체·스냅샷 일괄 처리는 Worker `channelAllVideos`/`snapshotTrackedVideos`와 REST 경로 우선.',
     when_to_use:
       '단일 영상/채널 진단, 일일 스냅샷 기록, 채널 평균 대비 기여도·구독자 대비 성과도·노출확률 계산이 필요할 때.',
     example_intents: [
@@ -49,13 +49,13 @@ export const GROUP_DOCS: Record<SkillGroupCode, GroupDoc> = {
     ],
     status: 'available',
     notes:
-      'v0.5: `get_channel_all_videos`·`snapshot_now` 대량 호출은 REST `/api/youpd/rest/channels/...` 또는 Worker `channelAllVideos`/`dailySnapshots` 우선.',
+      'v0.5: `get_channel_all_videos`·`snapshot_now` 대량 호출은 REST `/api/youpd/rest/channels/...` 또는 Worker `channelAllVideos`/`snapshotTrackedVideos`(스케줄러용) 우선.',
   },
   COMMENT: {
     code: 'COMMENT',
     name: '댓글 인사이트',
     description:
-      '영상 댓글에서 후킹·카피·시청자 페인포인트를 뽑기 위한 도구. v0.5에서 대량 TOP-N 수집은 Worker `videoComments` sync 또는 REST 우선.',
+      '영상 댓글에서 후킹·카피·시청자 페인포인트를 뽑기 위한 도구. v0.5에서 대량 TOP-N 수집은 Worker `videoComments` 도구 또는 REST 우선.',
     when_to_use:
       '댓글에서 인기 반응·후킹 문구·시청자 페르소나 단서를 찾고 싶을 때.',
     example_intents: [
