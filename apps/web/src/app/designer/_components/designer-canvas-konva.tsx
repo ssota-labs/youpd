@@ -323,30 +323,27 @@ export function DesignerCanvas(props: Props) {
       </Stage>
       {editingLayer && editingLayer.type === 'text'
         ? (() => {
-            // Use the actual Konva node's measured rect so the textarea
-            // overlays exactly what was drawn (including text-wrap to width
-            // across multiple lines). Falls back to the layer's declared
-            // width and a single-line height if the node ref isn't ready.
+            // Mirror the hover box: use getTextWidth + align so the textarea
+            // hugs the visible glyphs instead of the wrap width. Then convert
+            // source-space coords to screen pixels for the absolute-positioned
+            // <textarea>.
             const node = shapeRefs.current.get(editingLayer.id);
-            const rect = node
-              ? (() => {
-                  // getClientRect honors rotation/scale; for the v0.4 simple
-                  // axis-aligned editor we want the un-rotated drawn box.
-                  const rotation = node.rotation();
-                  node.rotation(0);
-                  const r = node.getClientRect({ skipTransform: false });
-                  node.rotation(rotation);
-                  return r;
-                })()
+            const tight = node
+              ? hoverRectForNode(node, editingLayer)
               : {
-                  x: editingLayer.x * stageScale,
-                  y: editingLayer.y * stageScale,
-                  width: (editingLayer.width ?? 600) * stageScale,
+                  x: editingLayer.x,
+                  y: editingLayer.y,
+                  width: editingLayer.width ?? 600,
                   height:
                     (editingLayer.fontSize ?? 64) *
-                    (editingLayer.lineHeight ?? 1.1) *
-                    stageScale,
+                    (editingLayer.lineHeight ?? 1.1),
                 };
+            const rect = {
+              x: tight.x * stageScale,
+              y: tight.y * stageScale,
+              width: tight.width * stageScale,
+              height: tight.height * stageScale,
+            };
             return (
               <TextEditorOverlay
                 layer={editingLayer}
