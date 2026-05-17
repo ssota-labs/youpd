@@ -10,7 +10,8 @@ import {
   videosList,
   type YouTubeClient,
 } from '@youpd/youtube';
-import { getYouTubeClient } from '../youtube-client';
+import { executeWithKeyRotation } from '../youtube-key-pool';
+import { waitBetweenYouTubePages } from '../youtube-throttle';
 import { runWithBudget, attachQuotaSession } from '../quota';
 
 export const SearchKeywordInputSchema = z
@@ -56,7 +57,7 @@ const CHANNELS_UNITS = UNIT_COST.channels_list;
 
 export async function searchKeyword(
   input: SearchKeywordInput,
-  client: YouTubeClient = getYouTubeClient(),
+  injectedClient?: YouTubeClient,
 ): Promise<SearchKeywordOutput> {
   const totalCap =
     input.max_total_results ?? input.max_results;
@@ -68,11 +69,15 @@ export async function searchKeyword(
     maxPages * (SEARCH_UNITS + VIDEOS_UNITS) +
     Math.ceil(totalCap / 50) * CHANNELS_UNITS;
 
-  const { result, sessionId } = await runWithBudget<SearchKeywordOutput>({
-    operation: 'video-search',
-    units: upperBoundUnits,
-    keyword: input.keyword,
-    call: async () => {
+  return executeWithKeyRotation(
+    injectedClient ?? null,
+    async (client, keyId) => {
+      const { result, sessionId } = await runWithBudget<SearchKeywordOutput>({
+        operation: 'video-search',
+        units: upperBoundUnits,
+        keyword: input.keyword,
+        keyId,
+        call: async () => {
       let pageToken: string | undefined;
       const allVideos: VideoSummary[] = [];
       let searchPages = 0;
@@ -110,6 +115,9 @@ export async function searchKeyword(
         if (!search.nextPageToken) break;
         if (allVideos.length >= totalCap) break;
         pageToken = search.nextPageToken;
+        // Inter-page throttle to keep us under YouTube's per-second/minute
+        // rate caps when one keyword needs many pages.
+        await waitBetweenYouTubePages();
       }
 
       if (allVideos.length === 0) {
@@ -140,8 +148,10 @@ export async function searchKeyword(
         search_pages: searchPages,
       };
       return { resultCount: allVideos.length, payload };
-    },
-  });
+        },
+      });
 
-  return attachQuotaSession(result, sessionId);
+      return attachQuotaSession(result, sessionId);
+    },
+  );
 }

@@ -66,6 +66,10 @@ export {
   type SearchSessionsSummaryInput,
   type SearchSessionsSummaryOutput,
 } from './search-sessions-summary';
+// Thumbnail tools below are no longer registered on the MCP server (see
+// apps/mcp/src/server.ts). They remain exported here for the web designer
+// REST routes (apps/web/src/app/api/mcp/thumbnail/*) and e2e scripts that
+// reuse the same handlers.
 export {
   thumbnailCreate,
   ThumbnailCreateInputSchema,
