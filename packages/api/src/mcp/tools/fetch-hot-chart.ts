@@ -6,7 +6,7 @@ import {
   type VideoSummary,
   type YouTubeClient,
 } from '@youpd/youtube';
-import { getYouTubeClient } from '../youtube-client';
+import { executeWithKeyRotation } from '../youtube-key-pool';
 import { attachQuotaSession, runWithBudget } from '../quota';
 
 export const FetchHotChartInputSchema = z
@@ -33,32 +33,38 @@ export type FetchHotChartOutput = {
 // entry seeds Hot Video Daily and/or which title patterns to extract.
 export async function fetchHotChart(
   input: FetchHotChartInput,
-  client: YouTubeClient = getYouTubeClient(),
+  injectedClient?: YouTubeClient,
 ): Promise<FetchHotChartOutput> {
   const totalUnits = UNIT_COST.videos_list;
 
-  const { result, sessionId } = await runWithBudget<FetchHotChartOutput>({
-    operation: 'hot-chart',
-    units: totalUnits,
-    call: async () => {
-      const res = await videosList(client, {
-        chart: 'mostPopular',
-        regionCode: input.region_code,
-        videoCategoryId: input.category_id,
-        maxResults: input.limit,
+  return executeWithKeyRotation(
+    injectedClient ?? null,
+    async (client, keyId) => {
+      const { result, sessionId } = await runWithBudget<FetchHotChartOutput>({
+        operation: 'hot-chart',
+        units: totalUnits,
+        keyId,
+        call: async () => {
+          const res = await videosList(client, {
+            chart: 'mostPopular',
+            regionCode: input.region_code,
+            videoCategoryId: input.category_id,
+            maxResults: input.limit,
+          });
+          const videos = res.items.map(normaliseVideo);
+          const payload: FetchHotChartOutput = {
+            region_code: input.region_code,
+            category_id: input.category_id ?? null,
+            fetched_at: new Date().toISOString(),
+            source: 'chart=mostPopular',
+            videos,
+            units_consumed: totalUnits,
+          };
+          return { resultCount: videos.length, payload };
+        },
       });
-      const videos = res.items.map(normaliseVideo);
-      const payload: FetchHotChartOutput = {
-        region_code: input.region_code,
-        category_id: input.category_id ?? null,
-        fetched_at: new Date().toISOString(),
-        source: 'chart=mostPopular',
-        videos,
-        units_consumed: totalUnits,
-      };
-      return { resultCount: videos.length, payload };
-    },
-  });
 
-  return attachQuotaSession(result, sessionId);
+      return attachQuotaSession(result, sessionId);
+    },
+  );
 }

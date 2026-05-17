@@ -10,7 +10,7 @@ import {
   type VideoSummary,
   type YouTubeClient,
 } from '@youpd/youtube';
-import { getYouTubeClient } from '../youtube-client';
+import { executeWithKeyRotation } from '../youtube-key-pool';
 import { attachQuotaSession, runWithBudget } from '../quota';
 
 export const FetchTrendingByKeywordInputSchema = z
@@ -40,7 +40,7 @@ export type FetchTrendingByKeywordOutput = {
 // search_keyword but with the time window filter.
 export async function fetchTrendingByKeyword(
   input: FetchTrendingByKeywordInput,
-  client: YouTubeClient = getYouTubeClient(),
+  injectedClient?: YouTubeClient,
 ): Promise<FetchTrendingByKeywordOutput> {
   const totalUnits =
     UNIT_COST.search_list + UNIT_COST.videos_list + UNIT_COST.channels_list;
@@ -49,11 +49,13 @@ export async function fetchTrendingByKeyword(
     Date.now() - input.hours * 60 * 60 * 1000,
   ).toISOString();
 
-  const { result, sessionId } = await runWithBudget<FetchTrendingByKeywordOutput>({
-    operation: 'trending-keyword',
-    units: totalUnits,
-    keyword: input.keyword,
-    call: async () => {
+  return executeWithKeyRotation(injectedClient ?? null, async (client, keyId) => {
+    const { result, sessionId } = await runWithBudget<FetchTrendingByKeywordOutput>({
+      operation: 'trending-keyword',
+      units: totalUnits,
+      keyword: input.keyword,
+      keyId,
+      call: async () => {
       const search = await searchList(client, {
         q: input.keyword,
         type: 'video',
@@ -103,4 +105,5 @@ export async function fetchTrendingByKeyword(
   });
 
   return attachQuotaSession(result, sessionId);
+  });
 }

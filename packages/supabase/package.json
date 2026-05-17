@@ -13,6 +13,7 @@
     "./repositories/quota": "./src/repositories/quota/index.ts",
     "./repositories/thumbnails": "./src/repositories/thumbnails.ts",
     "./repositories/templates": "./src/repositories/templates.ts",
+    "./repositories/youtube-keys": "./src/repositories/youtube-keys.ts",
     "./realtime/thumbnail-channel": "./src/realtime/thumbnail-channel.ts",
     "./storage/thumbnail-exports": "./src/storage/thumbnail-exports.ts",
     "./storage/thumbnail-assets": "./src/storage/thumbnail-assets.ts"

@@ -20,7 +20,8 @@
     "lint": "echo \"(api) no lint configured\"",
     "test": "vitest run",
     "seed:templates": "tsx --import ./scripts/register-shim.mjs scripts/seed-templates.ts",
-    "e2e:thumbnail": "tsx --import ./scripts/register-shim.mjs scripts/e2e-thumbnail.ts"
+    "e2e:thumbnail": "tsx --import ./scripts/register-shim.mjs scripts/e2e-thumbnail.ts",
+    "youtube-key:add": "tsx --import ./scripts/register-shim.mjs scripts/youtube-key-add.ts"
   },
   "dependencies": {
     "@resvg/resvg-js": "^2.6.2",

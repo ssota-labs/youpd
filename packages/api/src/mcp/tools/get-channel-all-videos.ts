@@ -10,7 +10,7 @@ import {
   type VideoSummary,
   type YouTubeClient,
 } from '@youpd/youtube';
-import { getYouTubeClient } from '../youtube-client';
+import { executeWithKeyRotation } from '../youtube-key-pool';
 import { attachQuotaSession, runWithBudget } from '../quota';
 
 export const GetChannelAllVideosInputSchema = z
@@ -36,7 +36,7 @@ export type GetChannelAllVideosOutput = {
 // when the daily counter is too low.
 export async function getChannelAllVideos(
   input: GetChannelAllVideosInput,
-  client: YouTubeClient = getYouTubeClient(),
+  injectedClient?: YouTubeClient,
 ): Promise<GetChannelAllVideosOutput> {
   const expectedPages = Math.ceil(input.max_videos / 50);
   const upperBoundUnits =
@@ -44,11 +44,13 @@ export async function getChannelAllVideos(
     expectedPages * UNIT_COST.playlist_items_list +
     expectedPages * UNIT_COST.videos_list;
 
-  const { result, sessionId } = await runWithBudget<GetChannelAllVideosOutput>({
-    operation: 'channel-all-videos',
-    units: upperBoundUnits,
-    channelId: input.channel_id,
-    call: async () => {
+  return executeWithKeyRotation(injectedClient ?? null, async (client, keyId) => {
+    const { result, sessionId } = await runWithBudget<GetChannelAllVideosOutput>({
+      operation: 'channel-all-videos',
+      units: upperBoundUnits,
+      channelId: input.channel_id,
+      keyId,
+      call: async () => {
       const channelsRes = await channelsList(client, { ids: [input.channel_id] });
       const rawChannel = channelsRes.items[0];
       if (!rawChannel) {
@@ -101,4 +103,5 @@ export async function getChannelAllVideos(
   });
 
   return attachQuotaSession(result, sessionId);
+  });
 }
