@@ -9,8 +9,6 @@ import {
   GetChannelOverviewInputSchema,
   GetVideoCommentsInputSchema,
   GetVideoDetailInputSchema,
-  NotionCreateKeyCandidateInputSchema,
-  NotionCreatePullCandidateInputSchema,
   SearchKeywordInputSchema,
   SearchSessionsSummaryInputSchema,
   SnapshotNowInputSchema,
@@ -21,8 +19,6 @@ import {
   getChannelOverview,
   getVideoComments,
   getVideoDetail,
-  notionCreateKeyCandidate,
-  notionCreatePullCandidate,
   searchKeyword,
   searchSessionsSummary,
   snapshotNow,
@@ -53,33 +49,67 @@ import {
   thumbnailSuggestTitlesFromComments,
   thumbnailUndo,
 } from '@youpd/api/mcp/tools';
-import {
-  getBundleManifest,
-  getLatestVersion,
-  getLatestVersionSchema,
-} from '@youpd/api/mcp/version';
-import {
-  QuotaExceededAtBudgetError,
-} from '@youpd/api/mcp/quota';
-import {
-  GetSkillGroupInputSchema,
-  TOOL_DOCS_BY_NAME,
-  buildSkillGroupResponse,
-  buildSkillGroupRoutingDescription,
-} from '@youpd/api/mcp/progressive';
+import { QuotaExceededAtBudgetError } from '@youpd/api/mcp/quota';
 import { QuotaExceededError, YouTubeApiError } from '@youpd/youtube';
 
+/** Short MCP tool descriptions (no progressive routing layer). */
+const TOOL_SHORT_DESCRIPTIONS: Record<string, string> = {
+  search_keyword:
+    'YouTube search.list → videos.list → channels.list. ~102 quota.',
+  get_video_detail:
+    'videos.list + channels.list + top 50 comments. ~3 quota.',
+  get_channel_overview:
+    'channels.list + uploads playlist + videos.list, sorted by view count. ~3 quota.',
+  get_channel_all_videos:
+    'Paginated uploads + videos.list batches. Budget = 1 + 2 × ceil(max/50) quota.',
+  get_video_comments:
+    'commentThreads.list ordered by likeCount → top_n. 1 quota.',
+  fetch_hot_chart:
+    'videos.list?chart=mostPopular for region/category. 1 quota.',
+  fetch_trending_by_keyword:
+    'search.list(publishedAfter=now-Nh) + videos/channels enrich. ~102 quota.',
+  snapshot_now:
+    'videos.list batched 50/call → snapshot row per video. ~ceil(N/50) quota.',
+  compute_metrics:
+    '기여도/성과도/노출확률 순수 함수 계산. 0 quota.',
+  search_sessions_summary:
+    'MCP search_sessions 감사 로그 집계 (server-wide). 0 quota.',
+  thumbnail_create:
+    'Create thumbnail row. 0 quota.',
+  thumbnail_list:
+    'List thumbnails by candidate. 0 quota.',
+  thumbnail_set_layer:
+    'Patch one layer with optimistic version lock. 0 quota.',
+  thumbnail_add_layer:
+    'Append a layer to a thumbnail. 0 quota.',
+  thumbnail_apply_template:
+    'Apply a template with fillers. 0 quota.',
+  thumbnail_suggest_titles_from_comments:
+    'Suggest thumbnail copy from comments. 0 quota.',
+  thumbnail_export_png:
+    'Render PNG via satori + upload to Supabase Storage. 0 quota.',
+  thumbnail_get_embed_url:
+    'Build designer iframe URL. 0 quota.',
+  thumbnail_reorder_layers:
+    'Reorder thumbnail layers. 0 quota.',
+  thumbnail_delete_layer:
+    'Delete a thumbnail layer. 0 quota.',
+  thumbnail_undo:
+    'Undo last thumbnail edit. 0 quota.',
+  thumbnail_redo:
+    'Redo a thumbnail edit. 0 quota.',
+  thumbnail_history_state:
+    'Check undo/redo availability. 0 quota.',
+};
+
 function shortDescription(name: string, fallback: string): string {
-  const doc = TOOL_DOCS_BY_NAME.get(name);
-  return doc ? doc.short_description : fallback;
+  return TOOL_SHORT_DESCRIPTIONS[name] ?? fallback;
 }
 
 // Register all MCP tools on a server instance. Called once per request by
 // mcp-handler — the second-arg `extra` parameter carries `authInfo` from
 // withMcpAuth, including the authenticated userId in `authInfo.extra.userId`.
 export function registerTools(server: McpServer): void {
-  registerPing(server);
-  registerGetSkillGroup(server);
   registerSearchKeyword(server);
   registerGetVideoDetail(server);
   registerGetChannelOverview(server);
@@ -89,10 +119,7 @@ export function registerTools(server: McpServer): void {
   registerFetchTrendingByKeyword(server);
   registerSnapshotNow(server);
   registerComputeMetrics(server);
-  registerNotionCreateKeyCandidate(server);
-  registerNotionCreatePullCandidate(server);
   registerSearchSessionsSummary(server);
-  registerVersionTools(server);
   registerThumbnailTools(server);
 }
 
@@ -232,64 +259,6 @@ function registerSimpleTool<TIn extends z.ZodObject<z.ZodRawShape>>(
       } catch (err) {
         return errorContent(err);
       }
-    },
-  );
-}
-
-function registerGetSkillGroup(server: McpServer): void {
-  server.registerTool(
-    'get_skill_group',
-    {
-      title: 'Get YouPD skill group docs',
-      description: buildSkillGroupRoutingDescription(),
-      inputSchema: GetSkillGroupInputSchema.shape,
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
-    },
-    async (params) => {
-      try {
-        return jsonContent(buildSkillGroupResponse(params.code));
-      } catch (err) {
-        return errorContent(err);
-      }
-    },
-  );
-}
-
-function registerPing(server: McpServer): void {
-  const PingInputSchema = z.object({ message: z.string().optional() }).strict();
-
-  server.registerTool(
-    'ping',
-    {
-      title: 'Ping',
-      description: 'Health check that echoes an optional message and returns a timestamp.',
-      inputSchema: PingInputSchema.shape,
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
-    },
-    async (params, extra) => {
-      const authExtra = extra?.authInfo?.extra as
-        | { userId?: string }
-        | undefined;
-      const output = {
-        status: 'ok' as const,
-        timestamp: new Date().toISOString(),
-        echo: params.message ?? null,
-        userId: authExtra?.userId ?? null,
-      };
-      return {
-        content: [{ type: 'text', text: JSON.stringify(output) }],
-        structuredContent: output,
-      };
     },
   );
 }
@@ -539,60 +508,6 @@ function registerComputeMetrics(server: McpServer): void {
   );
 }
 
-function registerNotionCreateKeyCandidate(server: McpServer): void {
-  server.registerTool(
-    'notion_create_key_candidate',
-    {
-      title: 'Build Notion properties payload for a Key Content Candidate',
-      description: shortDescription(
-        'notion_create_key_candidate',
-        'Notion key_content_candidates pages.create properties payload. 0 quota.',
-      ),
-      inputSchema: NotionCreateKeyCandidateInputSchema.shape,
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
-    },
-    async (params) => {
-      try {
-        return jsonContent(await notionCreateKeyCandidate(params));
-      } catch (err) {
-        return errorContent(err);
-      }
-    },
-  );
-}
-
-function registerNotionCreatePullCandidate(server: McpServer): void {
-  server.registerTool(
-    'notion_create_pull_candidate',
-    {
-      title: 'Build Notion properties payload for a Pull Content Candidate',
-      description: shortDescription(
-        'notion_create_pull_candidate',
-        'Notion pull_content_candidates pages.create properties payload. 0 quota.',
-      ),
-      inputSchema: NotionCreatePullCandidateInputSchema.shape,
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
-    },
-    async (params) => {
-      try {
-        return jsonContent(await notionCreatePullCandidate(params));
-      } catch (err) {
-        return errorContent(err);
-      }
-    },
-  );
-}
-
 function registerSearchSessionsSummary(server: McpServer): void {
   server.registerTool(
     'search_sessions_summary',
@@ -617,77 +532,6 @@ function registerSearchSessionsSummary(server: McpServer): void {
         return errorContent(err);
       }
     },
-  );
-}
-
-function registerVersionTools(server: McpServer): void {
-  const EmptySchema = z.object({}).strict();
-  const VersionSchemaInput = z
-    .object({ db_name: z.string().min(1).optional() })
-    .strict();
-
-  server.registerTool(
-    'get_latest_version',
-    {
-      title: 'Get latest YouPD bundle version',
-      description: shortDescription(
-        'get_latest_version',
-        'Returns the bundle + schema version string.',
-      ),
-      inputSchema: EmptySchema.shape,
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
-    },
-    async () => jsonContent(getLatestVersion()),
-  );
-
-  server.registerTool(
-    'get_latest_version_schema',
-    {
-      title: 'Get Notion DB schema for the latest version',
-      description: shortDescription(
-        'get_latest_version_schema',
-        '11개 Notion DB 스키마(or 단일 db_name) 반환. 0 quota.',
-      ),
-      inputSchema: VersionSchemaInput.shape,
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
-    },
-    async (params) => {
-      try {
-        const out = getLatestVersionSchema(params.db_name);
-        return jsonContent(out);
-      } catch (err) {
-        return errorContent(err);
-      }
-    },
-  );
-
-  server.registerTool(
-    'get_bundle_manifest',
-    {
-      title: 'Get YouPD bundle manifest',
-      description: shortDescription(
-        'get_bundle_manifest',
-        'Bundle version + template + healthcheck + changelog. Core entry point.',
-      ),
-      inputSchema: EmptySchema.shape,
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
-    },
-    async () => jsonContent(getBundleManifest()),
   );
 }
 

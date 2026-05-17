@@ -10,7 +10,6 @@
     "./mcp": "./src/mcp/index.ts",
     "./mcp/tools": "./src/mcp/tools/index.ts",
     "./mcp/version": "./src/mcp/version/index.ts",
-    "./mcp/progressive": "./src/mcp/progressive/index.ts",
     "./mcp/quota": "./src/mcp/quota.ts",
     "./collection": "./src/collection/index.ts",
     "./rest": "./src/rest/index.ts",

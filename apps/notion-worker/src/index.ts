@@ -1,84 +1,97 @@
-import { Worker, type CapabilityContext } from '@notionhq/workers';
-import * as Builder from '@notionhq/workers/builder';
-import { j } from '@notionhq/workers/schema-builder';
-import * as Schema from '@notionhq/workers/schema';
+import { Worker } from '@notionhq/workers';
 
+import { j } from '@notionhq/workers/schema-builder';
+import type { CapabilityContext } from '@notionhq/workers';
+
+import { createLocalTokenBucket } from './lib/pacer-local-fallback.js';
 import { youpdRestJson } from './lib/youpd-rest.js';
+import { CANONICAL, validateCanonicalSchema, type TableKey } from './lib/schema.js';
+import {
+  chunks,
+  collectChannelIdsFromDataSource,
+  collectVideoIdsFromDataSource,
+  findPageIdByTitleEquals,
+  mapVideoCategoryToHotSelect,
+  mergeRelationPropertyByName,
+  requireProp,
+  type DataSourceSchema,
+  resolveChannelPageId,
+  upsertChannelRow,
+  upsertChannelSnapshotRow,
+  upsertCommentRow,
+  upsertHotVideoDailyRow,
+  upsertKeywordRow,
+  upsertSnapshotRow,
+  upsertVideoRow,
+  type VideoRowPayload,
+  resolveVideoPageId,
+} from './lib/notion-upsert.js';
 
 const worker = new Worker();
+/** `ntn workers exec --local` resolves `import(m).default.default`; mirror self-ref without breaking deploy. */
+(worker as Worker & { default: typeof worker }).default = worker;
 export default worker;
 
-const apiPacer = worker.pacer('youpdRest', {
+const YOUPD_REST_PACER_KEY = 'youpdRest';
+const YOUPD_REST_PACER_OPTS = {
   allowedRequests: 24,
   intervalMs: 60_000,
-});
+} as const;
 
-const videosDb = worker.database('videosWorker', {
-  type: 'managed',
-  initialTitle: 'YouPD Videos (worker)',
-  primaryKeyProperty: 'videoId',
-  schema: {
-    properties: {
-      제목: Schema.title(),
-      videoId: Schema.richText(),
-      channelId: Schema.richText(),
-      channelTitle: Schema.richText(),
-      '조회수(최신)': Schema.number('number_with_commas'),
-      '좋아요(최신)': Schema.number('number_with_commas'),
-      '댓글수(최신)': Schema.number('number_with_commas'),
-      게시일: Schema.date(),
-      영상링크: Schema.url(),
-    },
-  },
-});
+const apiPacer = worker.pacer(YOUPD_REST_PACER_KEY, YOUPD_REST_PACER_OPTS);
 
-const snapshotsDb = worker.database('videoSnapshotsWorker', {
-  type: 'managed',
-  initialTitle: 'YouPD Snapshots (worker)',
-  primaryKeyProperty: 'rowKey',
-  schema: {
-    properties: {
-      rowKey: Schema.richText(),
-      videoId: Schema.richText(),
-      snapshotDate: Schema.date(),
-      views: Schema.number('number_with_commas'),
-      likes: Schema.number('number_with_commas'),
-      comments: Schema.number('number_with_commas'),
-    },
-  },
-});
+let paceYoupdRestLocal: (() => Promise<void>) | undefined;
 
-const commentsDb = worker.database('commentsWorker', {
-  type: 'managed',
-  initialTitle: 'YouPD Comments (worker)',
-  primaryKeyProperty: 'commentId',
-  schema: {
-    properties: {
-      commentId: Schema.richText(),
-      videoId: Schema.richText(),
-      text: Schema.richText(),
-      likeCount: Schema.number('number'),
-      publishedAt: Schema.date(),
-    },
-  },
-});
+async function paceYoupdRest(): Promise<void> {
+  try {
+    await apiPacer.wait();
+  } catch (e) {
+    if (
+      !(e instanceof Error) ||
+      !e.message.includes(`Pacer "${YOUPD_REST_PACER_KEY}" not found`)
+    ) {
+      throw e;
+    }
+    paceYoupdRestLocal ??= createLocalTokenBucket(YOUPD_REST_PACER_OPTS);
+    await paceYoupdRestLocal();
+  }
+}
 
-const hotDailyDb = worker.database('hotVideoDailyWorker', {
-  type: 'managed',
-  initialTitle: 'YouPD Hot Video Daily (worker)',
-  primaryKeyProperty: 'rowKey',
-  schema: {
-    properties: {
-      rowKey: Schema.richText(),
-      videoId: Schema.richText(),
-      rank: Schema.number('number'),
-      regionCode: Schema.richText(),
-      title: Schema.title(),
-    },
-  },
-});
+const PT_TZ = 'America/Los_Angeles';
 
-type VideoLike = {
+function ptDateYmd(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: PT_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+}
+
+function requireEnv(name: string): string {
+  const v = process.env[name];
+  if (!v?.trim()) throw new Error(`${name} is not set`);
+  return v.trim();
+}
+
+function optionalEnv(name: string): string | undefined {
+  const v = process.env[name];
+  return v?.trim() || undefined;
+}
+
+async function dataSourceSchema(
+  notion: CapabilityContext['notion'],
+  dataSourceId: string,
+): Promise<DataSourceSchema> {
+  const ds = await notion.dataSources.retrieve({ data_source_id: dataSourceId });
+  const out: DataSourceSchema = {};
+  for (const [k, v] of Object.entries(ds.properties)) {
+    out[k] = { id: v.id, name: v.name, type: v.type };
+  }
+  return out;
+}
+
+type VideoApiRow = {
   videoId: string;
   title: string;
   channelId: string;
@@ -88,298 +101,515 @@ type VideoLike = {
   likes: number | null;
   comments: number | null;
   url: string;
+  /** Present on hot-chart / some REST payloads (YouTube category id). */
+  categoryId?: string | null;
 };
 
-function videoChange(v: VideoLike) {
+function videoRowFromApi(v: VideoApiRow): VideoRowPayload {
   return {
-    type: 'upsert' as const,
-    key: v.videoId,
-    properties: {
-      제목: Builder.title(v.title),
-      videoId: Builder.richText(v.videoId),
-      channelId: Builder.richText(v.channelId),
-      channelTitle: Builder.richText(v.channelTitle),
-      '조회수(최신)': Builder.number(v.views ?? 0),
-      '좋아요(최신)': Builder.number(v.likes ?? 0),
-      '댓글수(최신)': Builder.number(v.comments ?? 0),
-      게시일: Builder.date(v.publishedAt.slice(0, 10)),
-      영상링크: Builder.url(v.url),
-    },
+    title: v.title,
+    videoId: v.videoId,
+    channelId: v.channelId,
+    channelTitle: v.channelTitle,
+    publishedAt: v.publishedAt,
+    views: v.views,
+    likes: v.likes,
+    comments: v.comments,
+    url: v.url,
   };
 }
 
-function envList(name: string): string[] {
-  return (process.env[name] ?? '')
-    .split(',')
-    .map((s: string) => s.trim())
-    .filter(Boolean);
-}
-
-type NotionPageLike = {
-  properties?: Record<string, unknown>;
-};
-
-type DailySnapshotsState = {
-  cursor?: string;
-};
-
-const TRACKED_VIDEO_ID_PROPERTIES = [
-  'videoId',
-  'Video ID',
-  '영상 ID',
-  '영상ID',
+const HEALTH_TABLES: { env: string; table: TableKey }[] = [
+  { env: 'YOUPD_KEYWORDS_DATA_SOURCE_ID', table: 'keywords' },
+  { env: 'YOUPD_VIDEOS_DATA_SOURCE_ID', table: 'videos' },
+  { env: 'YOUPD_CHANNELS_DATA_SOURCE_ID', table: 'channels' },
+  { env: 'YOUPD_SNAPSHOTS_DATA_SOURCE_ID', table: 'videoSnapshots' },
+  { env: 'YOUPD_CHANNEL_SNAPSHOTS_DATA_SOURCE_ID', table: 'channelSnapshots' },
+  { env: 'YOUPD_COMMENTS_DATA_SOURCE_ID', table: 'comments' },
+  { env: 'YOUPD_HOT_VIDEO_DAILY_DATA_SOURCE_ID', table: 'hotVideoDaily' },
 ];
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-function propertyText(property: unknown): string {
-  if (!isRecord(property)) return '';
-  const type = typeof property.type === 'string' ? property.type : undefined;
-  if (!type) return '';
-  const value = property[type];
-
-  if (typeof value === 'string') return value.trim();
-  if (Array.isArray(value)) {
-    return value
-      .map((item) =>
-        isRecord(item) && typeof item.plain_text === 'string'
-          ? item.plain_text
-          : '',
-      )
-      .join('')
-      .trim();
-  }
-
-  return '';
-}
-
-function videoIdFromPage(page: unknown): string | null {
-  if (!isRecord(page)) return null;
-  const properties = (page as NotionPageLike).properties;
-  if (!properties) return null;
-
-  for (const name of TRACKED_VIDEO_ID_PROPERTIES) {
-    const id = propertyText(properties[name]);
-    if (id) return id;
-  }
-
-  return null;
-}
-
-async function trackedVideoIdsFromNotion(
-  { notion }: CapabilityContext,
-  cursor?: string,
-): Promise<{ ids: string[]; nextCursor?: string }> {
-  const dataSourceId =
-    process.env.TRACKED_VIDEOS_DATA_SOURCE_ID ??
-    process.env.TRACKED_VIDEOS_DATABASE_ID;
-  if (!dataSourceId) {
-    throw new Error(
-      'TRACKED_VIDEOS_DATA_SOURCE_ID is required for dailySnapshots.',
-    );
-  }
-
-  const response = await notion.dataSources.query({
-    data_source_id: dataSourceId,
-    page_size: 100,
-    ...(cursor ? { start_cursor: cursor } : {}),
-  });
-
-  const ids = Array.from(
-    new Set(
-      response.results
-        .map(videoIdFromPage)
-        .filter((id): id is string => Boolean(id)),
+worker.tool('healthcheck', {
+  title: 'YouPD Notion DB healthcheck',
+  description:
+    'Read-only: checks YOUPD_* data source env vars and validates each against the canonical column contract (exact names + types).',
+  schema: j.object({}),
+  hints: { readOnlyHint: true },
+  outputSchema: j.object({
+    ok: j.boolean(),
+    schema_version: j
+      .string()
+      .describe('Fixed: youpd-worker-canonical-v1'),
+    reports: j.array(
+      j.object({
+        env: j.string(),
+        data_source_id: j.string().nullable(),
+        status: j.string(),
+        detail: j.string().nullable(),
+      }),
     ),
-  );
+  }),
+  execute: async (_input, { notion }) => {
+    const reports: {
+      env: string;
+      data_source_id: string | null;
+      status: string;
+      detail: string | null;
+    }[] = [];
 
-  return {
-    ids,
-    nextCursor: response.next_cursor ?? undefined,
-  };
-}
-
-worker.sync('videosByKeyword', {
-  database: videosDb,
-  mode: 'incremental',
-  schedule: '30m',
-  execute: async (state: { keywordIndex?: number } | undefined) => {
-    const keywords = envList('SYNC_KEYWORDS');
-    const i = state?.keywordIndex ?? 0;
-    if (keywords.length === 0 || i >= keywords.length) {
-      return { changes: [], hasMore: false };
+    for (const h of HEALTH_TABLES) {
+      const id = optionalEnv(h.env) ?? null;
+      if (!id) {
+        reports.push({
+          env: h.env,
+          data_source_id: null,
+          status: 'missing_env',
+          detail: 'Set this env var to the target Notion data source id.',
+        });
+        continue;
+      }
+      try {
+        const schema = await dataSourceSchema(notion, id);
+        const v = validateCanonicalSchema(h.table, schema);
+        if (!v.ok) {
+          reports.push({
+            env: h.env,
+            data_source_id: id,
+            status: 'schema_mismatch',
+            detail: v.message,
+          });
+        } else {
+          reports.push({
+            env: h.env,
+            data_source_id: id,
+            status: 'ok',
+            detail: null,
+          });
+        }
+      } catch (e) {
+        reports.push({
+          env: h.env,
+          data_source_id: id,
+          status: 'error',
+          detail: e instanceof Error ? e.message : String(e),
+        });
+      }
     }
-    await apiPacer.wait();
-    const keyword = keywords[i]!;
-    const env = await youpdRestJson<{
-      keyword: string;
-      videos: VideoLike[];
-      channels: { channelId: string; title: string }[];
-    }>('/api/youpd/rest/search/keyword', {
-      method: 'POST',
-      body: JSON.stringify({ keyword, max_results: 50 }),
-    });
-    const changes = env.data.videos.map(videoChange);
-    const hasMore = i + 1 < keywords.length;
+
+    const ok =
+      reports.every((r) => r.status === 'ok') && reports.length > 0;
     return {
-      changes,
-      hasMore,
-      nextState: hasMore ? { keywordIndex: i + 1 } : undefined,
+      ok,
+      schema_version: 'youpd-worker-canonical-v1' as const,
+      reports,
     };
   },
 });
 
-worker.sync('channelAllVideos', {
-  database: videosDb,
-  mode: 'incremental',
-  schedule: 'manual',
-  execute: async (state: {
-    token?: string;
-    uploadsPlaylistId?: string;
-    channelId?: string;
-  } | undefined) => {
-    const channelId = process.env.SYNC_CHANNEL_ID ?? state?.channelId;
-    if (!channelId) {
-      return { changes: [], hasMore: false };
+worker.tool('videosByKeyword', {
+  title: 'Import videos by keyword into Notion',
+  description:
+    'Calls YouPD REST search/keyword with optional multi-page fetch, upserts Channels then Videos, updates Keywords (title = query) with relations and last-collected date.',
+  schema: j.object({
+    keyword: j.string().describe('YouTube search query.'),
+    max_results: j
+      .number()
+      .describe('Per page, 1–50 (default 50).')
+      .nullable(),
+    max_total_results: j
+      .number()
+      .describe(
+        'Optional cap across pages (1–500). When set, follows search pagination until cap or exhausted.',
+      )
+      .nullable(),
+  }),
+  outputSchema: j.object({
+    upserted: j.number(),
+    created_videos: j.number(),
+    updated_videos: j.number(),
+    channels_upserted: j.number(),
+    search_pages: j.number().nullable(),
+    quota_session_id: j.string().nullable(),
+    keyword_page_id: j.string(),
+    keyword_row_kind: j.string().describe('"created" | "updated"'),
+  }),
+  execute: async ({ keyword, max_results, max_total_results }, { notion }) => {
+    const videosDs = requireEnv('YOUPD_VIDEOS_DATA_SOURCE_ID');
+    const channelsDs = requireEnv('YOUPD_CHANNELS_DATA_SOURCE_ID');
+    const keywordsDs = requireEnv('YOUPD_KEYWORDS_DATA_SOURCE_ID');
+
+    const vs = await dataSourceSchema(notion, videosDs);
+    const cs = await dataSourceSchema(notion, channelsDs);
+    const ks = await dataSourceSchema(notion, keywordsDs);
+    const vv = validateCanonicalSchema('videos', vs);
+    if (!vv.ok) throw new Error(vv.message);
+    const cv = validateCanonicalSchema('channels', cs);
+    if (!cv.ok) throw new Error(cv.message);
+    const kv = validateCanonicalSchema('keywords', ks);
+    if (!kv.ok) throw new Error(kv.message);
+
+    await paceYoupdRest();
+    const body: Record<string, unknown> = {
+      keyword,
+      max_results: max_results ?? 50,
+    };
+    if (max_total_results != null) {
+      body.max_total_results = max_total_results;
     }
-    await apiPacer.wait();
-    const params = new URLSearchParams();
-    if (state?.uploadsPlaylistId) {
-      params.set('uploads_playlist_id', state.uploadsPlaylistId);
+
+    const env = await youpdRestJson<{
+      keyword: string;
+      videos: VideoApiRow[];
+      channels: {
+        channelId: string;
+        title: string;
+        publishedAt: string;
+        subscriberCount: number | null;
+        videoCount: number | null;
+        viewCount: number | null;
+        url: string;
+      }[];
+      search_pages?: number;
+    }>('/api/youpd/rest/search/keyword', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+
+    const collected = ptDateYmd();
+    const channelPageById = new Map<string, string>();
+
+    let chUpserts = 0;
+    for (const ch of env.data.channels) {
+      const u = await upsertChannelRow(notion, channelsDs, {
+        channelId: ch.channelId,
+        title: ch.title,
+        subscriberCount: ch.subscriberCount,
+        viewCount: ch.viewCount,
+        videoCount: ch.videoCount,
+        publishedAt: ch.publishedAt,
+        avgLikes: null,
+        url: ch.url,
+      });
+      channelPageById.set(ch.channelId, u.pageId);
+      chUpserts += 1;
     }
-    if (state?.token) params.set('playlist_page_token', state.token);
-    const q = params.toString();
-    const path = `/api/youpd/rest/channels/${encodeURIComponent(channelId)}/videos${q ? `?${q}` : ''}`;
+
+    let created = 0;
+    let updated = 0;
+    const videoPageIds: string[] = [];
+    for (const v of env.data.videos) {
+      const chPage =
+        channelPageById.get(v.channelId) ??
+        (() => {
+          throw new Error(
+            `Missing channel page for ${v.channelId}; channels array should include it.`,
+          );
+        })();
+      const row = await upsertVideoRow(
+        notion,
+        videosDs,
+        videoRowFromApi(v),
+        chPage,
+        collected,
+      );
+      if (row.kind === 'created') created += 1;
+      else updated += 1;
+      videoPageIds.push(row.pageId);
+    }
+
+    const kw = await upsertKeywordRow(notion, keywordsDs, keyword.trim(), collected);
+    await mergeRelationPropertyByName(
+      notion,
+      ks,
+      kw.pageId,
+      CANONICAL.keywords.videosRelation,
+      videoPageIds,
+    );
+    await mergeRelationPropertyByName(
+      notion,
+      ks,
+      kw.pageId,
+      CANONICAL.keywords.channelsRelation,
+      [...new Set(channelPageById.values())],
+    );
+
+    return {
+      upserted: env.data.videos.length,
+      created_videos: created,
+      updated_videos: updated,
+      channels_upserted: chUpserts,
+      search_pages: env.data.search_pages ?? null,
+      quota_session_id: env.meta.jobId ?? null,
+      keyword_page_id: kw.pageId,
+      keyword_row_kind: kw.kind,
+    };
+  },
+});
+
+worker.tool('hotVideoDailyFromChart', {
+  title: 'Import YouTube mostPopular chart into Hot Video Daily',
+  description:
+    'GET YouPD REST `/trending/hot-chart`, upserts channels/videos as needed, writes one Hot Video Daily row per chart position.',
+  schema: j.object({
+    region_code: j.string().nullable(),
+    category_id: j.string().nullable(),
+    limit: j.number().nullable(),
+    seed_keyword: j
+      .string()
+      .describe('Keywords row title (키워드) to link, if it exists.')
+      .nullable(),
+  }),
+  outputSchema: j.object({
+    entries: j.number(),
+    hot_created: j.number(),
+    hot_updated: j.number(),
+    videos_touched: j.number(),
+    quota_session_id: j.string().nullable(),
+  }),
+  execute: async (
+    { region_code, category_id, limit, seed_keyword },
+    { notion },
+  ) => {
+    const videosDs = requireEnv('YOUPD_VIDEOS_DATA_SOURCE_ID');
+    const channelsDs = requireEnv('YOUPD_CHANNELS_DATA_SOURCE_ID');
+    const keywordsDs = requireEnv('YOUPD_KEYWORDS_DATA_SOURCE_ID');
+    const hotDs = requireEnv('YOUPD_HOT_VIDEO_DAILY_DATA_SOURCE_ID');
+
+    const vs = await dataSourceSchema(notion, videosDs);
+    const cs = await dataSourceSchema(notion, channelsDs);
+    const ks = await dataSourceSchema(notion, keywordsDs);
+    const hs = await dataSourceSchema(notion, hotDs);
+    for (const [tbl, sch] of [
+      ['videos', vs],
+      ['channels', cs],
+      ['keywords', ks],
+      ['hotVideoDaily', hs],
+    ] as [TableKey, DataSourceSchema][]) {
+      const r = validateCanonicalSchema(tbl, sch);
+      if (!r.ok) throw new Error(r.message);
+    }
+
+    const rc = (region_code ?? 'KR').trim() || 'KR';
+    const lim = limit ?? 50;
+    const params = new URLSearchParams({
+      region_code: rc,
+      limit: String(Math.min(50, Math.max(1, lim))),
+    });
+    if (category_id != null && String(category_id).trim().length > 0) {
+      params.set('category_id', String(category_id).trim());
+    }
+
+    await paceYoupdRest();
+    const env = await youpdRestJson<{
+      region_code: string;
+      category_id: string | null;
+      videos: VideoApiRow[];
+    }>(`/api/youpd/rest/trending/hot-chart?${params.toString()}`, {
+      method: 'GET',
+    });
+
+    let seedKeywordPageId: string | null = null;
+    if (seed_keyword != null && seed_keyword.trim().length > 0) {
+      seedKeywordPageId = await findPageIdByTitleEquals(
+        notion,
+        keywordsDs,
+        CANONICAL.keywords.title,
+        seed_keyword.trim(),
+      );
+    }
+
+    const collected = ptDateYmd();
+    const channelPageById = new Map<string, string>();
+    const firstByChannel = new Map<string, VideoApiRow>();
+    for (const v of env.data.videos) {
+      if (!firstByChannel.has(v.channelId)) firstByChannel.set(v.channelId, v);
+    }
+    for (const v of firstByChannel.values()) {
+      let chPage = await resolveChannelPageId(notion, channelsDs, v.channelId);
+      if (!chPage) {
+        const u = await upsertChannelRow(notion, channelsDs, {
+          channelId: v.channelId,
+          title: v.channelTitle,
+          subscriberCount: null,
+          viewCount: null,
+          videoCount: null,
+          publishedAt: v.publishedAt,
+          avgLikes: null,
+          url: `https://www.youtube.com/channel/${encodeURIComponent(v.channelId)}`,
+        });
+        chPage = u.pageId;
+      }
+      channelPageById.set(v.channelId, chPage);
+    }
+
+    let hotCreated = 0;
+    let hotUpdated = 0;
+    let rank = 0;
+    for (const v of env.data.videos) {
+      rank += 1;
+      const chPage =
+        channelPageById.get(v.channelId) ??
+        (() => {
+          throw new Error(`Missing channel page for ${v.channelId}`);
+        })();
+      const vr = await upsertVideoRow(
+        notion,
+        videosDs,
+        videoRowFromApi(v),
+        chPage,
+        collected,
+      );
+
+      const rowKey = `${v.videoId}::${collected}::${rc}::${rank}`;
+      const hk = await upsertHotVideoDailyRow(notion, hotDs, {
+        rowKey,
+        entryYmd: collected,
+        chartRank: rank,
+        regionCode: rc,
+        categorySelectName: mapVideoCategoryToHotSelect(v.categoryId ?? null),
+        videoPageId: vr.pageId,
+        viewsAtEntry: v.views,
+        seedKeywordPageId,
+      });
+      if (hk === 'created') hotCreated += 1;
+      else hotUpdated += 1;
+    }
+
+    return {
+      entries: env.data.videos.length,
+      hot_created: hotCreated,
+      hot_updated: hotUpdated,
+      videos_touched: env.data.videos.length,
+      quota_session_id: env.meta.jobId ?? null,
+    };
+  },
+});
+
+worker.tool('channelAllVideos', {
+  title: 'Import full channel uploads into Notion',
+  description:
+    'Calls YouPD REST channels/{id}/videos?all=true, upserts the channel row then all video rows.',
+  schema: j.object({
+    channel_id: j.string().describe('YouTube channel id (UC...).'),
+    max_videos: j
+      .number()
+      .describe('Optional max videos cap.')
+      .nullable(),
+  }),
+  outputSchema: j.object({
+    upserted: j.number(),
+    created_videos: j.number(),
+    updated_videos: j.number(),
+    channel_upserted: j.boolean(),
+    quota_session_id: j.string().nullable(),
+  }),
+  execute: async ({ channel_id, max_videos }, { notion }) => {
+    const videosDs = requireEnv('YOUPD_VIDEOS_DATA_SOURCE_ID');
+    const channelsDs = requireEnv('YOUPD_CHANNELS_DATA_SOURCE_ID');
+
+    const vs = await dataSourceSchema(notion, videosDs);
+    const cs = await dataSourceSchema(notion, channelsDs);
+    const vv = validateCanonicalSchema('videos', vs);
+    if (!vv.ok) throw new Error(vv.message);
+    const cv = validateCanonicalSchema('channels', cs);
+    if (!cv.ok) throw new Error(cv.message);
+
+    const params = new URLSearchParams({ all: 'true' });
+    if (max_videos != null) params.set('max_videos', String(max_videos));
+
+    await paceYoupdRest();
     const env = await youpdRestJson<{
       channel: {
         channelId: string;
         title: string;
-        uploadsPlaylistId: string | null;
+        publishedAt: string;
+        subscriberCount: number | null;
+        videoCount: number | null;
+        viewCount: number | null;
+        url: string;
       } | null;
-      videos: VideoLike[];
-      uploads_playlist_id: string | null;
-      playlist_next_page_token: string | null;
-      playlist_done: boolean;
-    }>(path);
-    const changes = env.data.videos.map(videoChange);
-    const nextToken = env.data.playlist_next_page_token;
-    const uploadsId =
-      env.data.uploads_playlist_id ??
-      state?.uploadsPlaylistId ??
-      undefined;
-    const hasMore = Boolean(nextToken) && !env.data.playlist_done;
-    return {
-      changes,
-      hasMore,
-      nextState: hasMore
-        ? {
-            token: nextToken ?? undefined,
-            uploadsPlaylistId: uploadsId,
-            channelId,
-          }
-        : undefined,
-    };
-  },
-});
-
-worker.sync('dailySnapshots', {
-  database: snapshotsDb,
-  mode: 'incremental',
-  schedule: '1d',
-  execute: async (
-    state: DailySnapshotsState | undefined,
-    context: CapabilityContext,
-  ) => {
-    const { ids, nextCursor } = await trackedVideoIdsFromNotion(
-      context,
-      state?.cursor,
+      videos: VideoApiRow[];
+    }>(
+      `/api/youpd/rest/channels/${encodeURIComponent(channel_id)}/videos?${params.toString()}`,
     );
 
-    if (ids.length === 0) {
-      return {
-        changes: [],
-        hasMore: Boolean(nextCursor),
-        nextState: nextCursor ? { cursor: nextCursor } : undefined,
-      };
+    if (!env.data.channel) {
+      throw new Error(`Channel not found: ${channel_id}`);
     }
 
-    await apiPacer.wait();
-    const env = await youpdRestJson<{
-      snapshots: {
-        video_id: string;
-        snapshot_date: string;
-        views: number | null;
-        likes: number | null;
-        comments: number | null;
-      }[];
-    }>('/api/youpd/rest/snapshots/now', {
-      method: 'POST',
-      body: JSON.stringify({ video_ids: ids }),
+    const ch = env.data.channel;
+    const { pageId: chPage } = await upsertChannelRow(notion, channelsDs, {
+      channelId: ch.channelId,
+      title: ch.title,
+      subscriberCount: ch.subscriberCount,
+      viewCount: ch.viewCount,
+      videoCount: ch.videoCount,
+      publishedAt: ch.publishedAt,
+      avgLikes: null,
+      url: ch.url,
     });
-    const changes = env.data.snapshots.map((s) => {
-      const rowKey = `${s.video_id}::${s.snapshot_date}`;
-      return {
-        type: 'upsert' as const,
-        key: rowKey,
-        properties: {
-          rowKey: Builder.richText(rowKey),
-          videoId: Builder.richText(s.video_id),
-          snapshotDate: Builder.date(s.snapshot_date),
-          views: Builder.number(s.views ?? 0),
-          likes: Builder.number(s.likes ?? 0),
-          comments: Builder.number(s.comments ?? 0),
-        },
-      };
-    });
+
+    const collected = ptDateYmd();
+    let created = 0;
+    let updated = 0;
+    for (const v of env.data.videos) {
+      const row = await upsertVideoRow(
+        notion,
+        videosDs,
+        videoRowFromApi(v),
+        chPage,
+        collected,
+      );
+      if (row.kind === 'created') created += 1;
+      else updated += 1;
+    }
+
     return {
-      changes,
-      hasMore: Boolean(nextCursor),
-      nextState: nextCursor ? { cursor: nextCursor } : undefined,
+      upserted: env.data.videos.length,
+      created_videos: created,
+      updated_videos: updated,
+      channel_upserted: true,
+      quota_session_id: env.meta.jobId ?? null,
     };
   },
 });
 
-worker.sync('hotVideoDaily', {
-  database: hotDailyDb,
-  mode: 'incremental',
-  schedule: '1d',
-  execute: async () => {
-    const region = process.env.HOT_REGION ?? 'KR';
-    await apiPacer.wait();
-    const env = await youpdRestJson<{
-      videos: VideoLike[];
-      region_code: string;
-    }>(
-      `/api/youpd/rest/trending/hot-chart?region_code=${encodeURIComponent(region)}&limit=50`,
-    );
-    const changes = env.data.videos.map((v, idx) => {
-      const rowKey = `${env.data.region_code ?? region}::${v.videoId}`;
-      return {
-        type: 'upsert' as const,
-        key: rowKey,
-        properties: {
-          rowKey: Builder.richText(rowKey),
-          videoId: Builder.richText(v.videoId),
-          rank: Builder.number(idx + 1),
-          regionCode: Builder.richText(env.data.region_code ?? region),
-          title: Builder.title(v.title),
-        },
-      };
-    });
-    return { changes, hasMore: false };
-  },
-});
+worker.tool('videoComments', {
+  title: 'Import video comments into Notion',
+  description:
+    'Calls YouPD REST videos/{id}/comments and upserts rows into the Comments DB (relation to Videos).',
+  schema: j.object({
+    video_id: j.string().describe('YouTube video id.'),
+    top_n: j.number().describe('1–100.').nullable(),
+  }),
+  outputSchema: j.object({
+    upserted: j.number(),
+    created: j.number(),
+    updated: j.number(),
+    comments_disabled: j.boolean(),
+    quota_session_id: j.string().nullable(),
+  }),
+  execute: async ({ video_id, top_n }, { notion }) => {
+    const videosDs = requireEnv('YOUPD_VIDEOS_DATA_SOURCE_ID');
+    const commentsDs = requireEnv('YOUPD_COMMENTS_DATA_SOURCE_ID');
 
-worker.sync('videoComments', {
-  database: commentsDb,
-  mode: 'incremental',
-  schedule: 'manual',
-  execute: async () => {
-    const videoId = process.env.COMMENT_VIDEO_ID;
-    if (!videoId) return { changes: [], hasMore: false };
-    await apiPacer.wait();
+    const vschema = await dataSourceSchema(notion, videosDs);
+    const cschema = await dataSourceSchema(notion, commentsDs);
+    const vx = validateCanonicalSchema('videos', vschema);
+    if (!vx.ok) throw new Error(vx.message);
+    const cx = validateCanonicalSchema('comments', cschema);
+    if (!cx.ok) throw new Error(cx.message);
+
+    const videoPageId = await resolveVideoPageId(notion, videosDs, video_id);
+    if (!videoPageId) {
+      throw new Error(
+        `No Videos DB row for video_id ${video_id}. Import the video first.`,
+      );
+    }
+
+    await paceYoupdRest();
+    const qs =
+      top_n != null ? `?top_n=${encodeURIComponent(String(top_n))}` : '';
     const env = await youpdRestJson<{
       video_id: string;
       top_comments: {
@@ -389,122 +619,208 @@ worker.sync('videoComments', {
         likeCount: number;
         publishedAt: string;
       }[];
-    }>(
-      `/api/youpd/rest/videos/${encodeURIComponent(videoId)}/comments?top_n=50`,
-    );
-    const changes = env.data.top_comments.map((c) => ({
-      type: 'upsert' as const,
-      key: c.commentId,
-      properties: {
-        commentId: Builder.richText(c.commentId),
-        videoId: Builder.richText(c.videoId),
-        text: Builder.richText(c.text),
-        likeCount: Builder.number(c.likeCount),
-        publishedAt: Builder.date(c.publishedAt.slice(0, 10)),
-      },
-    }));
-    return { changes, hasMore: false };
-  },
-});
-
-worker.tool('videosByKeyword', {
-  title: 'Videos by keyword — instant preview (sync twin)',
-  description:
-    'Same REST path as sync `videosByKeyword`: keyword 검색 결과 요약만 반환한다. 관리형 Videos DB 적재는同名 sync 스케줄/수동 실행.',
-  schema: j.object({
-    keyword: j.string().describe('YouTube search query.'),
-    max_results: j.number().describe('1–50 results.').nullable(),
-  }),
-  hints: { readOnlyHint: true },
-  execute: async ({ keyword, max_results }) => {
-    await apiPacer.wait();
-    const env = await youpdRestJson<{
-      videos: { title: string; videoId: string }[];
-      channels: { title: string }[];
-    }>('/api/youpd/rest/search/keyword', {
-      method: 'POST',
-      body: JSON.stringify({
-        keyword,
-        max_results: max_results ?? 50,
-      }),
-    });
-    return {
-      video_count: env.data.videos.length,
-      channel_count: env.data.channels.length,
-      preview_titles: env.data.videos.slice(0, 5).map((v) => v.title),
-      ...(env.meta.jobId ? { quota_session_id: env.meta.jobId } : {}),
-    };
-  },
-});
-
-worker.tool('channelAllVideos', {
-  title: 'Channel all videos — instant preview (sync twin)',
-  description:
-    'REST `GET …/channels/{id}/videos?all=true` 한 번으로 채널 업로드 목록을 가져와 요약만 반환한다. 관리형 DB 대량 적재는同名 sync.',
-  schema: j.object({
-    channel_id: j.string().describe('YouTube channel id (UC...).'),
-    max_videos: j
-      .number()
-      .describe('Optional cap (default 웹 라우트 기본값과 동일).')
-      .nullable(),
-  }),
-  hints: { readOnlyHint: true },
-  execute: async ({ channel_id, max_videos }) => {
-    await apiPacer.wait();
-    const params = new URLSearchParams({ all: 'true' });
-    if (max_videos != null) params.set('max_videos', String(max_videos));
-    const env = await youpdRestJson<{
-      channel: { title: string; channelId: string } | null;
-      videos: VideoLike[];
-    }>(
-      `/api/youpd/rest/channels/${encodeURIComponent(channel_id)}/videos?${params.toString()}`,
-    );
-    return {
-      channel_title: env.data.channel?.title ?? null,
-      video_count: env.data.videos.length,
-      preview_titles: env.data.videos.slice(0, 5).map((v) => v.title),
-      ...(env.meta.jobId ? { quota_session_id: env.meta.jobId } : {}),
-    };
-  },
-});
-
-worker.tool('videoComments', {
-  title: 'Video comments — instant preview (sync twin)',
-  description:
-    'REST로 영상 TOP-N 댓글을 조회해 개수·상위 일부 스니펫만 반환한다. 관리형 Comments DB 적재는同名 sync.',
-  schema: j.object({
-    video_id: j.string().describe('YouTube video id.'),
-    top_n: j.number().describe('1–100, 기본 웹 라우트와 동일.').nullable(),
-  }),
-  hints: { readOnlyHint: true },
-  execute: async ({ video_id, top_n }) => {
-    await apiPacer.wait();
-    const qs =
-      top_n != null
-        ? `?top_n=${encodeURIComponent(String(top_n))}`
-        : '';
-    const env = await youpdRestJson<{
-      video_id: string;
-      top_comments: {
-        commentId: string;
-        text: string;
-        likeCount: number;
-      }[];
       comments_disabled: boolean;
-    }>(
-      `/api/youpd/rest/videos/${encodeURIComponent(video_id)}/comments${qs}`,
-    );
-    const tops = env.data.top_comments;
+    }>(`/api/youpd/rest/videos/${encodeURIComponent(video_id)}/comments${qs}`);
+
+    let created = 0;
+    let updated = 0;
+    if (!env.data.comments_disabled) {
+      for (const c of env.data.top_comments) {
+        const kind = await upsertCommentRow(
+          notion,
+          commentsDs,
+          {
+            commentId: c.commentId,
+            videoId: c.videoId,
+            text: c.text,
+            likeCount: c.likeCount,
+            publishedAt: c.publishedAt,
+          },
+          videoPageId,
+        );
+        if (kind === 'created') created += 1;
+        else updated += 1;
+      }
+    }
     return {
-      video_id: env.data.video_id,
+      upserted: env.data.top_comments.length,
+      created,
+      updated,
       comments_disabled: env.data.comments_disabled,
-      comment_count: tops.length,
-      top_preview: tops.slice(0, 5).map((c) => ({
-        likes: c.likeCount,
-        snippet:
-          c.text.length > 160 ? `${c.text.slice(0, 157)}...` : c.text,
-      })),
-      ...(env.meta.jobId ? { quota_session_id: env.meta.jobId } : {}),
+      quota_session_id: env.meta.jobId ?? null,
+    };
+  },
+});
+
+worker.tool('snapshotVideos', {
+  title: 'Snapshot videos into Notion',
+  description:
+    'Reads video ids from the Videos data source, calls REST snapshots/now, writes Video Snapshots rows linked to each video page.',
+  schema: j.object({}),
+  outputSchema: j.object({
+    video_ids_processed: j.number(),
+    snapshot_rows_upserted: j.number(),
+    created: j.number(),
+    updated: j.number(),
+    batches: j.number(),
+    quota_session_ids: j.array(j.string()),
+  }),
+  execute: async (_input, { notion }) => {
+    const videosDs = requireEnv('YOUPD_VIDEOS_DATA_SOURCE_ID');
+    const snapsDs = requireEnv('YOUPD_SNAPSHOTS_DATA_SOURCE_ID');
+
+    const vschema = await dataSourceSchema(notion, videosDs);
+    const sschema = await dataSourceSchema(notion, snapsDs);
+    const vv = validateCanonicalSchema('videos', vschema);
+    if (!vv.ok) throw new Error(vv.message);
+    const sv = validateCanonicalSchema('videoSnapshots', sschema);
+    if (!sv.ok) throw new Error(sv.message);
+
+    const vidProp = requireProp(vschema, CANONICAL.videos.videoId);
+    const videoIds = await collectVideoIdsFromDataSource(
+      notion,
+      videosDs,
+      vidProp.id,
+    );
+
+    let created = 0;
+    let updated = 0;
+    let rows = 0;
+    const quotaSessionIds: string[] = [];
+    const batches = chunks(videoIds, 50);
+    let batchIndex = 0;
+
+    for (const batch of batches) {
+      if (batch.length === 0) continue;
+      await paceYoupdRest();
+      const env = await youpdRestJson<{
+        snapshots: {
+          video_id: string;
+          snapshot_date: string;
+          views: number | null;
+          likes: number | null;
+          comments: number | null;
+        }[];
+      }>('/api/youpd/rest/snapshots/now', {
+        method: 'POST',
+        body: JSON.stringify({ video_ids: batch }),
+      });
+      batchIndex += 1;
+      if (env.meta.jobId) quotaSessionIds.push(env.meta.jobId);
+
+      for (const s of env.data.snapshots) {
+        const videoPageId = await resolveVideoPageId(notion, videosDs, s.video_id);
+        if (!videoPageId) continue;
+        const kind = await upsertSnapshotRow(notion, snapsDs, {
+          ...s,
+          delta: null,
+        }, videoPageId);
+        if (kind === 'created') created += 1;
+        else updated += 1;
+        rows += 1;
+      }
+    }
+
+    return {
+      video_ids_processed: videoIds.length,
+      snapshot_rows_upserted: rows,
+      created,
+      updated,
+      batches: batchIndex,
+      quota_session_ids: quotaSessionIds,
+    };
+  },
+});
+
+worker.tool('snapshotChannels', {
+  title: 'Snapshot tracked channels into Notion',
+  description:
+    'Reads channelId values from the Channels data source, fetches metrics via REST, upserts Channel Snapshots rows.',
+  schema: j.object({}),
+  outputSchema: j.object({
+    channel_ids_processed: j.number(),
+    snapshot_rows_upserted: j.number(),
+    created: j.number(),
+    updated: j.number(),
+    batches: j.number(),
+    quota_session_ids: j.array(j.string()),
+  }),
+  execute: async (_input, { notion }) => {
+    const channelsDs = requireEnv('YOUPD_CHANNELS_DATA_SOURCE_ID');
+    const chSnapDs = requireEnv('YOUPD_CHANNEL_SNAPSHOTS_DATA_SOURCE_ID');
+
+    const cschema = await dataSourceSchema(notion, channelsDs);
+    const sschema = await dataSourceSchema(notion, chSnapDs);
+    const cv = validateCanonicalSchema('channels', cschema);
+    if (!cv.ok) throw new Error(cv.message);
+    const sv = validateCanonicalSchema('channelSnapshots', sschema);
+    if (!sv.ok) throw new Error(sv.message);
+
+    const idProp = requireProp(cschema, CANONICAL.channels.channelId);
+    const channelIds = await collectChannelIdsFromDataSource(
+      notion,
+      channelsDs,
+      idProp.id,
+    );
+
+    let created = 0;
+    let updated = 0;
+    let rows = 0;
+    const quotaSessionIds: string[] = [];
+    const batches = chunks(channelIds, 50);
+    let batchIndex = 0;
+
+    for (const batch of batches) {
+      if (batch.length === 0) continue;
+      await paceYoupdRest();
+      const env = await youpdRestJson<{
+        snapshots: {
+          channel_id: string;
+          snapshot_date: string;
+          subscribers: number | null;
+          view_count: number | null;
+          video_count: number | null;
+        }[];
+      }>('/api/youpd/rest/snapshots/channels', {
+        method: 'POST',
+        body: JSON.stringify({ channel_ids: batch }),
+      });
+      batchIndex += 1;
+      if (env.meta.jobId) quotaSessionIds.push(env.meta.jobId);
+
+      for (const s of env.data.snapshots) {
+        const chPage = await resolveChannelPageId(
+          notion,
+          channelsDs,
+          s.channel_id,
+        );
+        if (!chPage) continue;
+        const kind = await upsertChannelSnapshotRow(
+          notion,
+          chSnapDs,
+          {
+            channel_id: s.channel_id,
+            snapshot_date: s.snapshot_date,
+            subscribers: s.subscribers,
+            view_count: s.view_count,
+            video_count: s.video_count,
+            subscriber_delta: null,
+          },
+          chPage,
+        );
+        if (kind === 'created') created += 1;
+        else updated += 1;
+        rows += 1;
+      }
+    }
+
+    return {
+      channel_ids_processed: channelIds.length,
+      snapshot_rows_upserted: rows,
+      created,
+      updated,
+      batches: batchIndex,
+      quota_session_ids: quotaSessionIds,
     };
   },
 });
