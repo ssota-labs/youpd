@@ -102,6 +102,20 @@ describe('validateCanonicalSchema', () => {
     }
   });
 
+  it('flags missing 초기 캐치업 대상 on Keyword Ideas', () => {
+    const s = minimalValidSchema('keywordIdeas');
+    const key = Object.keys(s).find(
+      (k) => s[k]!.name === CANONICAL.keywordIdeas.initialCatchupTarget,
+    );
+    expect(key).toBeDefined();
+    delete s[key!];
+    const r = validateCanonicalSchema('keywordIdeas', s);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.message).toContain(CANONICAL.keywordIdeas.initialCatchupTarget);
+    }
+  });
+
   it('accepts 다음 검색 예정일 as either formula or date', () => {
     const s = minimalValidSchema('keywordIdeas');
     const key = Object.keys(s).find(

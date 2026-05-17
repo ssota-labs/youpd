@@ -61,6 +61,7 @@ function typeFor(propName: string, table: keyof typeof CANONICAL): string {
         return 'date';
       case CANONICAL.keywordIdeas.nextSearchAt:
       case CANONICAL.keywordIdeas.dueForScheduler:
+      case CANONICAL.keywordIdeas.initialCatchupTarget:
         return 'formula';
       case CANONICAL.keywordIdeas.trackingKeywordsRelation:
         return 'relation';
@@ -122,6 +123,14 @@ const FAKE_IDEAS = [
   },
 ];
 
+// Toggleable per-formula values so individual phases can simulate Notion
+// returning a row whose target formula is false (which v0.8 worker should
+// throw on, not silently process).
+const formulaOverrides = {
+  initialCatchupTarget: true as boolean,
+  dueForScheduler: true as boolean,
+};
+
 function notionIdeaRow(idea: (typeof FAKE_IDEAS)[number]) {
   return {
     object: 'page',
@@ -156,6 +165,21 @@ function notionIdeaRow(idea: (typeof FAKE_IDEAS)[number]) {
         id: 'prop_prio',
         type: 'select',
         select: { name: '높음' },
+      },
+      [CANONICAL.keywordIdeas.status]: {
+        id: 'prop_idea_status',
+        type: 'status',
+        status: { name: '대기' },
+      },
+      [CANONICAL.keywordIdeas.initialCatchupTarget]: {
+        id: 'prop_init_target',
+        type: 'formula',
+        formula: { type: 'boolean', boolean: formulaOverrides.initialCatchupTarget },
+      },
+      [CANONICAL.keywordIdeas.dueForScheduler]: {
+        id: 'prop_due',
+        type: 'formula',
+        formula: { type: 'boolean', boolean: formulaOverrides.dueForScheduler },
       },
     },
   };
@@ -379,7 +403,7 @@ async function main(): Promise<void> {
   };
 
   try {
-    console.log('\n=== Phase 1: dry_run=true ===');
+    console.log('\n=== Phase 1: dry_run=true, mode=initial_catchup ===');
     const dry = await worker.run(
       'trackKeywordIdeasDue',
       {
@@ -395,17 +419,51 @@ async function main(): Promise<void> {
     const dryRes = dry as {
       processed: number;
       dry_run: boolean;
-      ideas: { planned_slot: number | null; planned_period: string | null }[];
+      mode: string;
+      target_formula: string;
+      target_formula_true_count: number;
+      ideas: {
+        planned_slot: number | null;
+        planned_period: string | null;
+        target_formula: string;
+        target_formula_value: boolean;
+        tracking_status: string | null;
+        tracking_period: string | null;
+        idea_status: string | null;
+      }[];
       expected_quota_units: number | null;
       slot_distribution: { weekly: unknown[]; monthly: unknown[] };
     };
     assert(dryRes.processed === FAKE_IDEAS.length, `processed=${dryRes.processed}`);
     assert(dryRes.dry_run === true, 'dry_run flag');
+    assert(dryRes.mode === 'initial_catchup', `mode=${dryRes.mode}`);
+    assert(
+      dryRes.target_formula === CANONICAL.keywordIdeas.initialCatchupTarget,
+      `target_formula=${dryRes.target_formula}`,
+    );
+    assert(
+      dryRes.target_formula_true_count === FAKE_IDEAS.length,
+      `target_formula_true_count=${dryRes.target_formula_true_count}`,
+    );
     assert(
       typeof dryRes.expected_quota_units === 'number' && dryRes.expected_quota_units > 0,
       'expected_quota_units',
     );
     assert(dryRes.ideas.every((i) => typeof i.planned_slot === 'number'), 'planned_slot set');
+    assert(
+      dryRes.ideas.every(
+        (i) =>
+          i.target_formula === CANONICAL.keywordIdeas.initialCatchupTarget &&
+          i.target_formula_value === true,
+      ),
+      'per-idea target_formula echo',
+    );
+    assert(
+      dryRes.ideas.every(
+        (i) => i.tracking_status === '활성' && i.idea_status === '대기',
+      ),
+      'per-idea tracking_status + idea_status passthrough',
+    );
     assert(
       dryRes.slot_distribution.weekly.length + dryRes.slot_distribution.monthly.length > 0,
       'distribution non-empty',
@@ -429,6 +487,8 @@ async function main(): Promise<void> {
       processed: number;
       succeeded: number;
       failed: number;
+      mode: string;
+      target_formula: string;
       ideas: { planned_slot: number | null; status: string }[];
     };
     // Notion stub returns BOTH ideas regardless of page_size; the worker
@@ -437,6 +497,11 @@ async function main(): Promise<void> {
     // one PATCH back to an idea page.
     assert(liveRes.succeeded >= 1, `succeeded=${liveRes.succeeded}`);
     assert(liveRes.failed === 0, `failed=${liveRes.failed}`);
+    assert(liveRes.mode === 'scheduled', `mode=${liveRes.mode}`);
+    assert(
+      liveRes.target_formula === CANONICAL.keywordIdeas.dueForScheduler,
+      `target_formula=${liveRes.target_formula}`,
+    );
     const idealPagePatches = callLog.filter(
       (c) =>
         c.method === 'PATCH' &&
@@ -450,6 +515,61 @@ async function main(): Promise<void> {
       );
     });
     assert(finalPatch, 'a final patch wrote 마지막 검색일');
+
+    console.log('\n=== Phase 3: dry_run=true, mode=scheduled ===');
+    const dry2 = await worker.run(
+      'trackKeywordIdeasDue',
+      {
+        keyword_idea_limit: null,
+        results_per_keyword: null,
+        mode: 'scheduled',
+        force_rebalance: null,
+        dry_run: true,
+      },
+      { concreteOutput: true },
+    );
+    const dry2Res = dry2 as {
+      processed: number;
+      mode: string;
+      target_formula: string;
+      ideas: { target_formula: string }[];
+    };
+    assert(dry2Res.mode === 'scheduled', `mode=${dry2Res.mode}`);
+    assert(
+      dry2Res.target_formula === CANONICAL.keywordIdeas.dueForScheduler,
+      `target_formula=${dry2Res.target_formula}`,
+    );
+    assert(dry2Res.processed === FAKE_IDEAS.length, `processed=${dry2Res.processed}`);
+
+    console.log('\n=== Phase 4: defensive throw on formula=false ===');
+    // Simulate a schema drift / race where Notion's query filter returns rows
+    // whose target formula is actually false. v0.8 worker must abort, not
+    // silently process the wrong cohort.
+    formulaOverrides.initialCatchupTarget = false;
+    const bad = await worker.run(
+      'trackKeywordIdeasDue',
+      {
+        keyword_idea_limit: null,
+        results_per_keyword: null,
+        mode: 'initial_catchup',
+        force_rebalance: null,
+        dry_run: true,
+      },
+      // No `concreteOutput` here — we want the wrapped ToolExecutionError so
+      // we can assert on the message rather than catching a raw Error.
+    );
+    formulaOverrides.initialCatchupTarget = true;
+    const badRes = bad as {
+      _tag?: 'success' | 'error';
+      error?: { message?: string };
+    };
+    assert(badRes._tag === 'error', `expected wrapped error, got _tag=${badRes._tag}`);
+    assert(
+      typeof badRes.error?.message === 'string' &&
+        badRes.error.message.includes(CANONICAL.keywordIdeas.initialCatchupTarget),
+      `unexpected error message: ${badRes.error?.message}`,
+    );
+
     console.log('\n[e2e] all assertions passed.');
 
     console.log('\n=== Stub call summary (Phase 2 only) ===');
