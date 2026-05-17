@@ -831,8 +831,6 @@ worker.tool('snapshotChannels', {
   },
 });
 
-const TRACKING_STATUS_ACTIVE = '활성';
-const TRACKING_PERIOD_EXCLUDE = ['수동', '중지'] as const;
 const DEFAULT_RESULTS_PER_KEYWORD = 300;
 
 type KeywordIdeaRow = {
@@ -841,6 +839,11 @@ type KeywordIdeaRow = {
   searchCount: number;
   trackingSlot: number | null;
   trackingPeriod: string | null;
+  // v0.8: surfaced in dry_run output and used to defensively re-check that
+  // every row Notion returned actually satisfies the mode's target formula.
+  trackingStatus: string | null;
+  status: string | null;
+  targetFormulaValue: boolean;
 };
 
 function readTitleText(
@@ -896,14 +899,43 @@ function readSelectName(
   return select?.name ?? null;
 }
 
+function readStatusName(
+  page: unknown,
+  propertyName: string,
+): string | null {
+  if (!page || typeof page !== 'object' || !('properties' in page)) return null;
+  const props = (page as { properties: Record<string, unknown> }).properties;
+  const prop = props[propertyName];
+  if (!prop || typeof prop !== 'object' || !('type' in prop)) return null;
+  if ((prop as { type: string }).type !== 'status') return null;
+  const status = (prop as { status?: { name?: string } | null }).status;
+  return status?.name ?? null;
+}
+
+function readFormulaCheckbox(
+  page: unknown,
+  propertyName: string,
+): boolean {
+  if (!page || typeof page !== 'object' || !('properties' in page)) return false;
+  const props = (page as { properties: Record<string, unknown> }).properties;
+  const prop = props[propertyName];
+  if (!prop || typeof prop !== 'object' || !('type' in prop)) return false;
+  if ((prop as { type: string }).type !== 'formula') return false;
+  const formula = (
+    prop as { formula?: { type?: string; boolean?: boolean | null } }
+  ).formula;
+  if (!formula || formula.type !== 'boolean') return false;
+  return formula.boolean === true;
+}
+
 worker.tool('trackKeywordIdeasDue', {
   title: 'Run repeat searches for due Keyword Ideas',
   description:
-    'Reads Keyword Ideas rows where Notion formula `다음 스케줄러 추출 = true` and `트래킹 상태 = 활성`, runs the v0.6 keyword search/upsert path with `results_per_keyword` (default 300) pagination, then updates 마지막 검색일·검색 횟수·상태·트래킹 슬롯 and appends Keywords rows to the idea relation. `다음 검색 예정일` is a Notion formula (worker never writes it). `최근 결과 메모` is operator/AI only. Partial failures are tolerated. Modes: steady_state (default) processes formula-due rows; initial_catchup is the same surface but accepts a higher default limit. `force_rebalance` reassigns the slot even when one is already set.',
+    'Reads Keyword Ideas rows where a mode-specific Notion formula is true and runs the v0.6 keyword search/upsert path with `results_per_keyword` (default 300) pagination, then updates 마지막 검색일·검색 횟수·상태·트래킹 슬롯 and appends Keywords rows to the idea relation. v0.8 target formulas (single source of truth — `트래킹 상태=활성` and period exclusion live inside the formulas): mode=`initial_catchup` → `초기 캐치업 대상`; mode=`scheduled` (default) → `다음 스케줄러 추출`. `다음 검색 예정일` is a Notion formula (worker never writes it). `최근 결과 메모` is operator/AI only. Partial failures are tolerated. `force_rebalance` reassigns the slot even when one is already set.',
   schema: j.object({
     keyword_idea_limit: j
       .number()
-      .describe('Max Keyword Ideas to process per run. Default env YOUPD_KEYWORD_IDEA_LIMIT, falls back to 20 (steady_state) / 200 (initial_catchup).')
+      .describe('Max Keyword Ideas to process per run. Default env YOUPD_KEYWORD_IDEA_LIMIT, falls back to 20 (scheduled) / 200 (initial_catchup).')
       .nullable(),
     results_per_keyword: j
       .number()
@@ -913,7 +945,7 @@ worker.tool('trackKeywordIdeasDue', {
       .nullable(),
     mode: j
       .string()
-      .describe('"steady_state" (default) or "initial_catchup".')
+      .describe('"scheduled" (default) or "initial_catchup".')
       .nullable(),
     force_rebalance: j
       .boolean()
@@ -930,6 +962,8 @@ worker.tool('trackKeywordIdeasDue', {
     ok: j.boolean(),
     enabled: j.boolean(),
     mode: j.string(),
+    target_formula: j.string(),
+    target_formula_true_count: j.number(),
     processed: j.number(),
     succeeded: j.number(),
     failed: j.number(),
@@ -950,6 +984,11 @@ worker.tool('trackKeywordIdeasDue', {
         keyword: j.string(),
         planned_slot: j.number().nullable(),
         planned_period: j.string().nullable(),
+        tracking_status: j.string().nullable(),
+        tracking_period: j.string().nullable(),
+        idea_status: j.string().nullable(),
+        target_formula: j.string(),
+        target_formula_value: j.boolean(),
         status: j.string().describe('"ok" | "error" | "dry"'),
         error: j.string().nullable(),
       }),
@@ -965,8 +1004,12 @@ worker.tool('trackKeywordIdeasDue', {
     },
     { notion },
   ) => {
-    const runMode: 'steady_state' | 'initial_catchup' =
-      mode === 'initial_catchup' ? 'initial_catchup' : 'steady_state';
+    const runMode: 'scheduled' | 'initial_catchup' =
+      mode === 'initial_catchup' ? 'initial_catchup' : 'scheduled';
+    const targetFormulaName =
+      runMode === 'initial_catchup'
+        ? CANONICAL.keywordIdeas.initialCatchupTarget
+        : CANONICAL.keywordIdeas.dueForScheduler;
     const forceRebalance = force_rebalance === true;
     const envResults = optionalEnv('YOUPD_RESULTS_PER_KEYWORD');
     const resolvedResultsPerKeyword = Math.min(
@@ -993,6 +1036,8 @@ worker.tool('trackKeywordIdeasDue', {
         ok: true,
         enabled: false,
         mode: runMode,
+        target_formula: targetFormulaName,
+        target_formula_true_count: 0,
         processed: 0,
         succeeded: 0,
         failed: 0,
@@ -1034,24 +1079,15 @@ worker.tool('trackKeywordIdeasDue', {
       ),
     );
 
+    // v0.8: single source of truth is the mode-specific formula. The formula
+    // itself encodes `트래킹 상태 = 활성` + period exclusions, so the worker
+    // no longer composes those AND conditions client-side.
     const query = await notion.dataSources.query({
       data_source_id: ideasDs,
       page_size: limit,
       filter: {
-        and: [
-          {
-            property: CANONICAL.keywordIdeas.dueForScheduler,
-            formula: { checkbox: { equals: true } },
-          },
-          {
-            property: CANONICAL.keywordIdeas.trackingStatus,
-            select: { equals: TRACKING_STATUS_ACTIVE },
-          },
-          ...TRACKING_PERIOD_EXCLUDE.map((name) => ({
-            property: CANONICAL.keywordIdeas.trackingPeriod,
-            select: { does_not_equal: name },
-          })),
-        ],
+        property: targetFormulaName,
+        formula: { checkbox: { equals: true } },
       },
       sorts: [
         {
@@ -1080,12 +1116,29 @@ worker.tool('trackKeywordIdeasDue', {
         r,
         CANONICAL.keywordIdeas.trackingPeriod,
       );
+      const trackingStatus = readSelectName(
+        r,
+        CANONICAL.keywordIdeas.trackingStatus,
+      );
+      const status = readStatusName(r, CANONICAL.keywordIdeas.status);
+      const targetFormulaValue = readFormulaCheckbox(r, targetFormulaName);
+      // Defensive: Notion's filter should already exclude rows where the
+      // target formula is false, but if the schema drifts or the filter is
+      // bypassed, we'd rather abort than silently process the wrong cohort.
+      if (!targetFormulaValue) {
+        throw new Error(
+          `Unexpected Keyword Idea outside ${targetFormulaName}: page_id=${pageId}`,
+        );
+      }
       dueRows.push({
         pageId,
         keyword,
         searchCount,
         trackingSlot,
         trackingPeriod,
+        trackingStatus,
+        status,
+        targetFormulaValue,
       });
     }
 
@@ -1127,6 +1180,8 @@ worker.tool('trackKeywordIdeasDue', {
         ok: true,
         enabled: true,
         mode: runMode,
+        target_formula: targetFormulaName,
+        target_formula_true_count: dueRows.length,
         processed: dueRows.length,
         succeeded: 0,
         failed: 0,
@@ -1144,6 +1199,11 @@ worker.tool('trackKeywordIdeasDue', {
             forceRebalance,
           ),
           planned_period: row.trackingPeriod,
+          tracking_status: row.trackingStatus,
+          tracking_period: row.trackingPeriod,
+          idea_status: row.status,
+          target_formula: targetFormulaName,
+          target_formula_value: row.targetFormulaValue,
           status: 'dry' as const,
           error: null,
         })),
@@ -1157,6 +1217,11 @@ worker.tool('trackKeywordIdeasDue', {
       keyword: string;
       planned_slot: number | null;
       planned_period: string | null;
+      tracking_status: string | null;
+      tracking_period: string | null;
+      idea_status: string | null;
+      target_formula: string;
+      target_formula_value: boolean;
       status: string;
       error: string | null;
     }[] = [];
@@ -1294,6 +1359,11 @@ worker.tool('trackKeywordIdeasDue', {
           keyword: idea.keyword,
           planned_slot: slot,
           planned_period: idea.trackingPeriod,
+          tracking_status: idea.trackingStatus,
+          tracking_period: idea.trackingPeriod,
+          idea_status: idea.status,
+          target_formula: targetFormulaName,
+          target_formula_value: idea.targetFormulaValue,
           status: 'ok',
           error: null,
         });
@@ -1323,6 +1393,11 @@ worker.tool('trackKeywordIdeasDue', {
             forceRebalance,
           ),
           planned_period: idea.trackingPeriod,
+          tracking_status: idea.trackingStatus,
+          tracking_period: idea.trackingPeriod,
+          idea_status: idea.status,
+          target_formula: targetFormulaName,
+          target_formula_value: idea.targetFormulaValue,
           status: 'error',
           error: message,
         });
@@ -1333,6 +1408,8 @@ worker.tool('trackKeywordIdeasDue', {
       ok: failed === 0,
       enabled: true,
       mode: runMode,
+      target_formula: targetFormulaName,
+      target_formula_true_count: dueRows.length,
       processed: dueRows.length,
       succeeded,
       failed,
