@@ -50,6 +50,33 @@ export const CANONICAL = {
     likeCount: '좋아요수',
     publishedAt: '작성일시',
   },
+  keywords: {
+    title: '키워드',
+    nounType: '명사 유형',
+    priority: '우선순위',
+    status: '상태',
+    lastCollected: '마지막 수집일',
+    assignee: '담당 기획자',
+    videosRelation: '연결된 영상',
+    channelsRelation: '연결된 채널',
+    keyCandidatesRelation: '키콘 후보',
+    pullCandidatesRelation: '풀링 후보',
+  },
+  hotVideoDaily: {
+    idTitle: 'ID',
+    entryDate: '진입일',
+    chartRank: '차트 순위',
+    regionCode: 'regionCode',
+    videoCategoryId: 'videoCategoryId',
+    videoRelation: '영상',
+    source: '출처',
+    seedKeywordRelation: '시드 키워드',
+    viewsAtEntry: '차트 진입 시 조회수',
+    delta24h: '24시간 조회수 Δ',
+    titlePatternNote: '제목 패턴 메모',
+    modifiers: '수식어 추출',
+    pullCandidatesRelation: '풀링 후보 연결',
+  },
 } as const;
 
 export type TableKey = keyof typeof CANONICAL;
@@ -109,6 +136,35 @@ export function expectationsForTable(table: TableKey): PropertyExpectation[] {
         { name: CANONICAL.comments.body, types: ['rich_text'] },
         { name: CANONICAL.comments.likeCount, types: ['number'] },
         { name: CANONICAL.comments.publishedAt, types: ['date'] },
+      ];
+    case 'keywords':
+      return [
+        { name: CANONICAL.keywords.title, types: ['title'] },
+        { name: CANONICAL.keywords.nounType, types: ['select'] },
+        { name: CANONICAL.keywords.priority, types: ['select'] },
+        { name: CANONICAL.keywords.status, types: ['status'] },
+        { name: CANONICAL.keywords.lastCollected, types: ['date'] },
+        { name: CANONICAL.keywords.assignee, types: ['people'] },
+        { name: CANONICAL.keywords.videosRelation, types: ['relation'] },
+        { name: CANONICAL.keywords.channelsRelation, types: ['relation'] },
+        { name: CANONICAL.keywords.keyCandidatesRelation, types: ['relation'] },
+        { name: CANONICAL.keywords.pullCandidatesRelation, types: ['relation'] },
+      ];
+    case 'hotVideoDaily':
+      return [
+        { name: CANONICAL.hotVideoDaily.idTitle, types: ['title'] },
+        { name: CANONICAL.hotVideoDaily.entryDate, types: ['date'] },
+        { name: CANONICAL.hotVideoDaily.chartRank, types: ['number'] },
+        { name: CANONICAL.hotVideoDaily.regionCode, types: ['select'] },
+        { name: CANONICAL.hotVideoDaily.videoCategoryId, types: ['select'] },
+        { name: CANONICAL.hotVideoDaily.videoRelation, types: ['relation'] },
+        { name: CANONICAL.hotVideoDaily.source, types: ['select'] },
+        { name: CANONICAL.hotVideoDaily.seedKeywordRelation, types: ['relation'] },
+        { name: CANONICAL.hotVideoDaily.viewsAtEntry, types: ['number'] },
+        { name: CANONICAL.hotVideoDaily.delta24h, types: ['number'] },
+        { name: CANONICAL.hotVideoDaily.titlePatternNote, types: ['rich_text'] },
+        { name: CANONICAL.hotVideoDaily.modifiers, types: ['multi_select'] },
+        { name: CANONICAL.hotVideoDaily.pullCandidatesRelation, types: ['relation'] },
       ];
     default:
       return [];

@@ -197,7 +197,7 @@ export async function upsertVideoRow(
   v: VideoRowPayload,
   channelPageId: string,
   collectedDate: string,
-): Promise<'created' | 'updated'> {
+): Promise<{ kind: 'created' | 'updated'; pageId: string }> {
   const props: Record<string, unknown> = {
     [CANONICAL.videos.title]: titleProp(v.title),
     [CANONICAL.videos.videoId]: richTextProp(v.videoId),
@@ -230,16 +230,16 @@ export async function upsertVideoRow(
       page_id: existingId,
       properties: props as Parameters<Client['pages']['update']>[0]['properties'],
     });
-    return 'updated';
+    return { kind: 'updated' as const, pageId: existingId };
   }
-  await notion.pages.create({
+  const created = await notion.pages.create({
     parent: {
       type: 'data_source_id',
       data_source_id: dataSourceId,
     },
     properties: props as Parameters<Client['pages']['create']>[0]['properties'],
   });
-  return 'created';
+  return { kind: 'created' as const, pageId: created.id };
 }
 
 export async function upsertSnapshotRow(
@@ -395,6 +395,181 @@ export async function upsertCommentRow(
     dataSourceId,
     CANONICAL.comments.commentId,
     c.commentId,
+  );
+  if (existingId) {
+    await notion.pages.update({
+      page_id: existingId,
+      properties: props as Parameters<Client['pages']['update']>[0]['properties'],
+    });
+    return 'updated';
+  }
+  await notion.pages.create({
+    parent: {
+      type: 'data_source_id',
+      data_source_id: dataSourceId,
+    },
+    properties: props as Parameters<Client['pages']['create']>[0]['properties'],
+  });
+  return 'created';
+}
+
+/** Merge related pages into a relation property by display name (keeps existing links). */
+export async function mergeRelationPropertyByName(
+  notion: Client,
+  dsSchema: DataSourceSchema,
+  pageId: string,
+  relationPropertyName: string,
+  addPageIds: string[],
+): Promise<void> {
+  if (addPageIds.length === 0) return;
+  const meta = requireProp(dsSchema, relationPropertyName);
+  const page = await notion.pages.retrieve({
+    page_id: pageId,
+    filter_properties: [meta.id],
+  });
+  if (!('properties' in page) || !page.properties) {
+    throw new Error(`Expected page with properties for merge: ${pageId}`);
+  }
+  const raw = page.properties[meta.id];
+  const cur: string[] = [];
+  if (raw && typeof raw === 'object' && 'type' in raw && raw.type === 'relation') {
+    const rel = (raw as { relation?: { id: string }[] }).relation;
+    if (Array.isArray(rel)) {
+      for (const x of rel) {
+        if (x?.id) cur.push(x.id);
+      }
+    }
+  }
+  const merged = [...new Set([...cur, ...addPageIds])];
+  await notion.pages.update({
+    page_id: pageId,
+    properties: {
+      [relationPropertyName]: relationProp(merged),
+    } as Parameters<Client['pages']['update']>[0]['properties'],
+  });
+}
+
+/** Map YouTube `categoryId` (e.g. `"22"`) to Hot Video Daily `videoCategoryId` select label. */
+export function mapVideoCategoryToHotSelect(categoryId: string | null): string {
+  if (categoryId == null || String(categoryId).length === 0) return '전체';
+  const id = String(categoryId).replace(/\D/g, '');
+  const m: Record<string, string> = {
+    '22': '22 People & Blogs',
+    '24': '24 Entertainment',
+    '25': '25 News & Politics',
+    '26': '26 Howto & Style',
+    '27': '27 Education',
+  };
+  return m[id] ?? '전체';
+}
+
+export async function upsertKeywordRow(
+  notion: Client,
+  dataSourceId: string,
+  keywordText: string,
+  collectedYmd: string,
+): Promise<{ pageId: string; kind: 'created' | 'updated' }> {
+  const titleName = CANONICAL.keywords.title;
+  const existing = await findPageIdByTitleEquals(
+    notion,
+    dataSourceId,
+    titleName,
+    keywordText,
+  );
+  const statusProp = {
+    type: 'status' as const,
+    status: { name: '수집중' },
+  };
+  const dateProp = {
+    type: 'date' as const,
+    date: { start: collectedYmd },
+  };
+  if (existing) {
+    await notion.pages.update({
+      page_id: existing,
+      properties: {
+        [CANONICAL.keywords.lastCollected]: dateProp,
+        [CANONICAL.keywords.status]: statusProp,
+      } as Parameters<Client['pages']['update']>[0]['properties'],
+    });
+    return { pageId: existing, kind: 'updated' };
+  }
+  const created = await notion.pages.create({
+    parent: {
+      type: 'data_source_id',
+      data_source_id: dataSourceId,
+    },
+    properties: {
+      [titleName]: titleProp(keywordText),
+      [CANONICAL.keywords.lastCollected]: dateProp,
+      [CANONICAL.keywords.status]: statusProp,
+      [CANONICAL.keywords.nounType]: {
+        type: 'select',
+        select: { name: '일반' },
+      },
+      [CANONICAL.keywords.priority]: {
+        type: 'select',
+        select: { name: '4순 역검색' },
+      },
+    } as Parameters<Client['pages']['create']>[0]['properties'],
+  });
+  return { pageId: created.id, kind: 'created' };
+}
+
+export async function upsertHotVideoDailyRow(
+  notion: Client,
+  dataSourceId: string,
+  row: {
+    rowKey: string;
+    entryYmd: string;
+    chartRank: number;
+    regionCode: string;
+    categorySelectName: string;
+    videoPageId: string;
+    viewsAtEntry: number | null;
+    seedKeywordPageId: string | null;
+  },
+): Promise<'created' | 'updated'> {
+  const sourceName = 'chart=mostPopular';
+  const props: Record<string, unknown> = {
+    [CANONICAL.hotVideoDaily.idTitle]: titleProp(row.rowKey),
+    [CANONICAL.hotVideoDaily.entryDate]: {
+      type: 'date',
+      date: { start: row.entryYmd },
+    },
+    [CANONICAL.hotVideoDaily.chartRank]: {
+      type: 'number',
+      number: row.chartRank,
+    },
+    [CANONICAL.hotVideoDaily.regionCode]: {
+      type: 'select',
+      select: { name: row.regionCode },
+    },
+    [CANONICAL.hotVideoDaily.videoCategoryId]: {
+      type: 'select',
+      select: { name: row.categorySelectName },
+    },
+    [CANONICAL.hotVideoDaily.videoRelation]: relationProp([row.videoPageId]),
+    [CANONICAL.hotVideoDaily.source]: {
+      type: 'select',
+      select: { name: sourceName },
+    },
+    [CANONICAL.hotVideoDaily.viewsAtEntry]: {
+      type: 'number',
+      number: row.viewsAtEntry ?? 0,
+    },
+  };
+  if (row.seedKeywordPageId) {
+    props[CANONICAL.hotVideoDaily.seedKeywordRelation] = relationProp([
+      row.seedKeywordPageId,
+    ]);
+  }
+
+  const existingId = await findPageIdByTitleEquals(
+    notion,
+    dataSourceId,
+    CANONICAL.hotVideoDaily.idTitle,
+    row.rowKey,
   );
   if (existingId) {
     await notion.pages.update({
