@@ -5,6 +5,10 @@ import {
   RestAuthError,
   requireYoupdRestToken,
 } from '@youpd/api/rest';
+import {
+  HarvestNotFoundError,
+  HarvestNotReadyError,
+} from '@youpd/api/rest/harvests';
 import { QuotaExceededAtBudgetError } from '@youpd/api/mcp/quota';
 import { YouTubeApiError } from '@youpd/youtube';
 
@@ -24,6 +28,25 @@ export async function withYoupdRest(
 export function youpdRestError(err: unknown): NextResponse {
   if (err instanceof RestAuthError) {
     return NextResponse.json({ error: err.message }, { status: err.status });
+  }
+  if (err instanceof HarvestNotFoundError) {
+    return NextResponse.json(
+      { error: err.message, harvestId: err.harvestId },
+      { status: 404 },
+    );
+  }
+  if (err instanceof HarvestNotReadyError) {
+    return NextResponse.json(
+      {
+        error: err.message,
+        harvestId: err.harvestId,
+        unpublished: {
+          videos: err.unpublishedVideos,
+          channels: err.unpublishedChannels,
+        },
+      },
+      { status: 409 },
+    );
   }
   if (err instanceof QuotaExceededAtBudgetError) {
     return NextResponse.json(

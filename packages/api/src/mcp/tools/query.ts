@@ -176,28 +176,34 @@ function gradeMeets(grade: ScoreGrade, min: ScoreGrade): boolean {
 }
 
 function toQueryVideo(row: VideoWithChannel): QueryVideoResult {
+  const channelAverageViewCount =
+    row.channel.viewCount != null &&
+    row.channel.videoCount != null &&
+    row.channel.videoCount > 0
+      ? Math.floor(row.channel.viewCount / row.channel.videoCount)
+      : null;
   const score = scoreVideo({
-    viewCount: row.video.viewCount,
+    viewCount: row.video.views,
     subscriberCount: row.channel.subscriberCount,
-    averageViewCount: row.channel.averageViewCount,
+    averageViewCount: channelAverageViewCount,
     durationSec: row.video.durationSec,
   });
 
   return {
     videoId: row.video.videoId,
-    title: row.video.title,
-    thumbnailUrl: pickThumbnailUrl(row.video.thumbnails),
-    videoUrl: row.video.url,
-    viewCount: row.video.viewCount,
-    likeCount: row.video.likeCount,
-    commentCount: row.video.commentCount,
+    title: row.video.title ?? '',
+    thumbnailUrl: null,
+    videoUrl: row.video.url ?? '',
+    viewCount: row.video.views,
+    likeCount: row.video.likes,
+    commentCount: row.video.comments,
     publishedAt: isoOrNull(row.video.publishedAt),
     durationSec: row.video.durationSec,
     channel: {
       channelId: row.channel.channelId,
-      title: row.channel.title,
+      title: row.channel.title ?? '',
       subscriberCount: row.channel.subscriberCount,
-      averageViewCount: row.channel.averageViewCount,
+      averageViewCount: channelAverageViewCount,
     },
     performance: score.performance,
     contribution: score.contribution,

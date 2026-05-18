@@ -5,16 +5,13 @@ const videoRow = {
   videoId: 'v1',
   channelId: 'c1',
   title: 'A strong video',
-  description: '',
-  thumbnails: { high: { url: 'https://img.example/v1.jpg' } },
   durationSec: 300,
-  viewCount: 1_000_000,
-  likeCount: 10_000,
-  commentCount: 500,
-  tags: [],
-  categoryId: null,
-  defaultAudioLanguage: null,
+  views: 1_000_000,
+  likes: 10_000,
+  comments: 500,
   url: 'https://youtube.com/watch?v=v1',
+  notionPageId: null,
+  notionSyncedAt: null,
   publishedAt: new Date('2026-05-01T00:00:00Z'),
   firstSeenAt: new Date('2026-05-18T00:00:00Z'),
   lastSeenAt: new Date('2026-05-18T00:00:00Z'),
@@ -23,16 +20,12 @@ const videoRow = {
 const channelRow = {
   channelId: 'c1',
   title: 'Channel',
-  description: '',
-  thumbnails: {},
   subscriberCount: 50_000,
-  viewCount: 10_000_000,
+  viewCount: 2_500_000,
   videoCount: 100,
-  averageViewCount: 25_000,
-  hiddenSubscriberCount: false,
-  uploadsPlaylistId: null,
-  country: null,
   url: 'https://youtube.com/channel/c1',
+  notionPageId: null,
+  notionSyncedAt: null,
   publishedAt: null,
   firstSeenAt: new Date('2026-05-18T00:00:00Z'),
   lastSeenAt: new Date('2026-05-18T00:00:00Z'),
@@ -65,7 +58,7 @@ describe('queryKeywordSearch', () => {
       sort: 'length_adjusted_score_desc',
     });
     expect(out.keywords[0]!.videos).toHaveLength(1);
-    expect(out.keywords[0]!.videos[0]!.thumbnailUrl).toBe('https://img.example/v1.jpg');
+    expect(out.keywords[0]!.videos[0]!.thumbnailUrl).toBeNull();
     expect(out.keywords[0]!.videos[0]!.performance.grade).toBe('Good');
   });
 });

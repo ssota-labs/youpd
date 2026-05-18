@@ -13,7 +13,7 @@ import {
   type VideoSummary,
   type YouTubeClient,
 } from '@youpd/youtube';
-import { getYouTubeClient } from '../youtube-client';
+import { executeWithKeyRotation } from '../youtube-key-pool';
 import { attachQuotaSession, runWithBudget } from '../quota';
 
 export const GetVideoDetailInputSchema = z
@@ -40,16 +40,18 @@ const COMMENTS_UNITS = UNIT_COST.comment_threads_list;
 
 export async function getVideoDetail(
   input: GetVideoDetailInput,
-  client: YouTubeClient = getYouTubeClient(),
+  injectedClient?: YouTubeClient,
 ): Promise<GetVideoDetailOutput> {
   const wantComments = input.include_comments && input.comments_top_n > 0;
   const totalUnits = VIDEOS_UNITS + CHANNELS_UNITS + (wantComments ? COMMENTS_UNITS : 0);
 
-  const { result, sessionId } = await runWithBudget<GetVideoDetailOutput>({
-    operation: 'video-detail',
-    units: totalUnits,
-    videoIds: [input.video_id],
-    call: async () => {
+  return executeWithKeyRotation(injectedClient ?? null, async (client, keyId) => {
+    const { result, sessionId } = await runWithBudget<GetVideoDetailOutput>({
+      operation: 'video-detail',
+      units: totalUnits,
+      videoIds: [input.video_id],
+      keyId,
+      call: async () => {
       const videosRes = await videosList(client, { ids: [input.video_id] });
       const rawVideo = videosRes.items[0];
       if (!rawVideo) {
@@ -103,4 +105,5 @@ export async function getVideoDetail(
   });
 
   return attachQuotaSession(result, sessionId);
+  });
 }

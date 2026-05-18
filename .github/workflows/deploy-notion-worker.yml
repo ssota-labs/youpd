@@ -1,0 +1,145 @@
+# Auto-deploys apps/notion-worker to Notion when main changes that affect
+# the worker bundle land. Also exposes a workflow_dispatch for manual deploys.
+#
+# Required repository secrets:
+#   NOTION_API_TOKEN — Notion API token for ntn CLI auth + worker context.notion
+#                      (https://www.notion.so/profile/integrations/internal)
+#   YOUPD_API_TOKEN  — Bearer used by the worker to call apps/web REST routes
+#
+# Non-secret env vars (DS IDs, base URLs, tunables) live in
+# apps/notion-worker/env/prod.env and are pushed alongside the deploy. See
+# apps/notion-worker/env/README.md for how to add/change variables.
+#
+# The workers.json in apps/notion-worker/ already pins workerId + workspaceId,
+# so the deploy targets the existing production worker. To deploy to a
+# different worker, change that file (or pass --worker-id at the CLI).
+
+name: Deploy Notion Worker
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - apps/notion-worker/**
+      - .github/workflows/deploy-notion-worker.yml
+  workflow_dispatch:
+    inputs:
+      env_only:
+        description: Push env vars without rebuilding/redeploying the worker bundle.
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-notion-worker
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+          run_install: false
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Worker typecheck
+        if: ${{ inputs.env_only != true }}
+        run: pnpm --filter @youpd/notion-worker typecheck
+
+      - name: Worker tests
+        if: ${{ inputs.env_only != true }}
+        run: pnpm --filter @youpd/notion-worker test
+
+      - name: Worker build
+        if: ${{ inputs.env_only != true }}
+        run: pnpm --filter @youpd/notion-worker build
+
+      - name: Install ntn CLI
+        run: npm install -g ntn@0.14.0
+
+      - name: Verify required secrets are present
+        env:
+          NOTION_API_TOKEN: ${{ secrets.NOTION_API_TOKEN }}
+          YOUPD_API_TOKEN: ${{ secrets.YOUPD_API_TOKEN }}
+        run: |
+          missing=()
+          [ -z "$NOTION_API_TOKEN" ] && missing+=(NOTION_API_TOKEN)
+          [ -z "$YOUPD_API_TOKEN" ] && missing+=(YOUPD_API_TOKEN)
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing required secrets: ${missing[*]}"
+            exit 1
+          fi
+
+      - name: Compose env file (plaintext + secrets)
+        env:
+          NOTION_API_TOKEN: ${{ secrets.NOTION_API_TOKEN }}
+          YOUPD_API_TOKEN: ${{ secrets.YOUPD_API_TOKEN }}
+        run: |
+          # ntn workers env push replaces the remote env, so we have to ship
+          # every var the worker needs in one shot. Take the tracked file as
+          # base, then append the secrets (kept out of git on purpose).
+          set -euo pipefail
+          target="${RUNNER_TEMP}/prod.env"
+          cp apps/notion-worker/env/prod.env "$target"
+          {
+            echo ""
+            echo "# --- secrets injected from GitHub Actions ---"
+            printf 'NOTION_API_TOKEN=%s\n' "$NOTION_API_TOKEN"
+            printf 'YOUPD_API_TOKEN=%s\n' "$YOUPD_API_TOKEN"
+          } >> "$target"
+          # Diagnostic: list keys only (never values) so we can verify in logs
+          # that nothing got dropped.
+          echo "::group::env keys being pushed"
+          grep -E '^[A-Z_][A-Z0-9_]*=' "$target" | sed 's/=.*$//'
+          echo "::endgroup::"
+          echo "ENV_FILE=$target" >> "$GITHUB_ENV"
+
+      - name: Push worker env
+        working-directory: apps/notion-worker
+        env:
+          NOTION_API_TOKEN: ${{ secrets.NOTION_API_TOKEN }}
+        run: ntn workers env push --file "$ENV_FILE" --yes
+
+      - name: Deploy notion worker
+        if: ${{ inputs.env_only != true }}
+        working-directory: apps/notion-worker
+        env:
+          # `ntn` reads NOTION_API_TOKEN to authenticate non-interactively.
+          # Workspace + worker ID come from apps/notion-worker/workers.json.
+          NOTION_API_TOKEN: ${{ secrets.NOTION_API_TOKEN }}
+        run: ntn workers deploy
+
+      - name: Worker healthcheck
+        working-directory: apps/notion-worker
+        env:
+          NOTION_API_TOKEN: ${{ secrets.NOTION_API_TOKEN }}
+        run: |
+          # Surface a non-OK healthcheck as a deploy failure so we don't
+          # silently leave the worker with a schema drift after a deploy.
+          out=$(ntn workers exec healthcheck -d '{}')
+          echo "$out"
+          echo "$out" | grep -q '"ok": true' || {
+            echo "::error::healthcheck reported not-ok after deploy"
+            exit 1
+          }

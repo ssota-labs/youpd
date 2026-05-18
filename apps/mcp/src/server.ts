@@ -1,5 +1,4 @@
 import 'server-only';
-import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import {
   ComputeMetricsInputSchema,
@@ -22,32 +21,6 @@ import {
   searchKeyword,
   searchSessionsSummary,
   snapshotNow,
-  ThumbnailAddLayerInputSchema,
-  ThumbnailApplyTemplateInputSchema,
-  ThumbnailCreateInputSchema,
-  ThumbnailDeleteLayerInputSchema,
-  ThumbnailExportPngInputSchema,
-  ThumbnailGetEmbedUrlInputSchema,
-  ThumbnailHistoryStateInputSchema,
-  ThumbnailListInputSchema,
-  ThumbnailRedoInputSchema,
-  ThumbnailReorderLayersInputSchema,
-  ThumbnailSetLayerInputSchema,
-  ThumbnailSuggestTitlesInputSchema,
-  ThumbnailUndoInputSchema,
-  thumbnailAddLayer,
-  thumbnailApplyTemplate,
-  thumbnailCreate,
-  thumbnailDeleteLayer,
-  thumbnailExportPng,
-  thumbnailGetEmbedUrl,
-  thumbnailHistoryState,
-  thumbnailList,
-  thumbnailRedo,
-  thumbnailReorderLayers,
-  thumbnailSetLayer,
-  thumbnailSuggestTitlesFromComments,
-  thumbnailUndo,
 } from '@youpd/api/mcp/tools';
 import { QuotaExceededAtBudgetError } from '@youpd/api/mcp/quota';
 import { QuotaExceededError, YouTubeApiError } from '@youpd/youtube';
@@ -74,32 +47,6 @@ const TOOL_SHORT_DESCRIPTIONS: Record<string, string> = {
     '기여도/성과도/노출확률 순수 함수 계산. 0 quota.',
   search_sessions_summary:
     'MCP search_sessions 감사 로그 집계 (server-wide). 0 quota.',
-  thumbnail_create:
-    'Create thumbnail row. 0 quota.',
-  thumbnail_list:
-    'List thumbnails by candidate. 0 quota.',
-  thumbnail_set_layer:
-    'Patch one layer with optimistic version lock. 0 quota.',
-  thumbnail_add_layer:
-    'Append a layer to a thumbnail. 0 quota.',
-  thumbnail_apply_template:
-    'Apply a template with fillers. 0 quota.',
-  thumbnail_suggest_titles_from_comments:
-    'Suggest thumbnail copy from comments. 0 quota.',
-  thumbnail_export_png:
-    'Render PNG via satori + upload to Supabase Storage. 0 quota.',
-  thumbnail_get_embed_url:
-    'Build designer iframe URL. 0 quota.',
-  thumbnail_reorder_layers:
-    'Reorder thumbnail layers. 0 quota.',
-  thumbnail_delete_layer:
-    'Delete a thumbnail layer. 0 quota.',
-  thumbnail_undo:
-    'Undo last thumbnail edit. 0 quota.',
-  thumbnail_redo:
-    'Redo a thumbnail edit. 0 quota.',
-  thumbnail_history_state:
-    'Check undo/redo availability. 0 quota.',
 };
 
 function shortDescription(name: string, fallback: string): string {
@@ -120,147 +67,6 @@ export function registerTools(server: McpServer): void {
   registerSnapshotNow(server);
   registerComputeMetrics(server);
   registerSearchSessionsSummary(server);
-  registerThumbnailTools(server);
-}
-
-function registerThumbnailTools(server: McpServer): void {
-  registerSimpleTool(server, {
-    name: 'thumbnail_create',
-    title: 'Create a thumbnail design (template or document)',
-    inputSchema: ThumbnailCreateInputSchema,
-    handler: thumbnailCreate,
-    fallback: 'Create thumbnail row. 0 quota.',
-  });
-  registerSimpleTool(server, {
-    name: 'thumbnail_list',
-    title: 'List thumbnails for a Notion candidate',
-    inputSchema: ThumbnailListInputSchema,
-    handler: thumbnailList,
-    fallback: 'List thumbnails by candidate. 0 quota.',
-    readOnly: true,
-    idempotent: true,
-  });
-  registerSimpleTool(server, {
-    name: 'thumbnail_set_layer',
-    title: 'Patch a single layer on a thumbnail',
-    inputSchema: ThumbnailSetLayerInputSchema,
-    handler: thumbnailSetLayer,
-    fallback: 'Patch one layer with optimistic version lock. 0 quota.',
-  });
-  registerSimpleTool(server, {
-    name: 'thumbnail_add_layer',
-    title: 'Append a layer to a thumbnail',
-    inputSchema: ThumbnailAddLayerInputSchema,
-    handler: thumbnailAddLayer,
-    fallback: 'Append a layer to a thumbnail. 0 quota.',
-  });
-  registerSimpleTool(server, {
-    name: 'thumbnail_apply_template',
-    title: 'Create a thumbnail from a template + fillers',
-    inputSchema: ThumbnailApplyTemplateInputSchema,
-    handler: thumbnailApplyTemplate,
-    fallback: 'Apply a template with fillers. 0 quota.',
-  });
-  registerSimpleTool(server, {
-    name: 'thumbnail_suggest_titles_from_comments',
-    title: 'Suggest thumbnail copy from comment texts',
-    inputSchema: ThumbnailSuggestTitlesInputSchema,
-    handler: thumbnailSuggestTitlesFromComments,
-    fallback: 'Suggest thumbnail copy from comments. 0 quota.',
-    readOnly: true,
-    idempotent: true,
-  });
-  registerSimpleTool(server, {
-    name: 'thumbnail_export_png',
-    title: 'Render and upload a thumbnail PNG',
-    inputSchema: ThumbnailExportPngInputSchema,
-    handler: thumbnailExportPng,
-    fallback: 'Render PNG via satori + upload to Supabase Storage. 0 quota.',
-  });
-  registerSimpleTool(server, {
-    name: 'thumbnail_get_embed_url',
-    title: 'Get the iframe embed URL for a thumbnail',
-    inputSchema: ThumbnailGetEmbedUrlInputSchema,
-    handler: thumbnailGetEmbedUrl,
-    fallback: 'Build designer iframe URL. 0 quota.',
-    readOnly: true,
-    idempotent: true,
-  });
-  registerSimpleTool(server, {
-    name: 'thumbnail_reorder_layers',
-    title: 'Reorder z-order of layers on a thumbnail',
-    inputSchema: ThumbnailReorderLayersInputSchema,
-    handler: thumbnailReorderLayers,
-    fallback: 'Reorder thumbnail layers. 0 quota.',
-  });
-  registerSimpleTool(server, {
-    name: 'thumbnail_delete_layer',
-    title: 'Delete a single layer from a thumbnail',
-    inputSchema: ThumbnailDeleteLayerInputSchema,
-    handler: thumbnailDeleteLayer,
-    fallback: 'Delete a thumbnail layer. 0 quota.',
-  });
-  registerSimpleTool(server, {
-    name: 'thumbnail_undo',
-    title: 'Undo the most recent edit on a thumbnail',
-    inputSchema: ThumbnailUndoInputSchema,
-    handler: thumbnailUndo,
-    fallback: 'Undo last thumbnail edit. 0 quota.',
-  });
-  registerSimpleTool(server, {
-    name: 'thumbnail_redo',
-    title: 'Redo a previously undone thumbnail edit',
-    inputSchema: ThumbnailRedoInputSchema,
-    handler: thumbnailRedo,
-    fallback: 'Redo a thumbnail edit. 0 quota.',
-  });
-  registerSimpleTool(server, {
-    name: 'thumbnail_history_state',
-    title: 'Inspect undo/redo availability for a thumbnail',
-    inputSchema: ThumbnailHistoryStateInputSchema,
-    handler: thumbnailHistoryState,
-    fallback: 'Check undo/redo availability. 0 quota.',
-    readOnly: true,
-    idempotent: true,
-  });
-}
-
-// Lightweight registration helper for tools that match the shared
-// "Zod input → async handler → json/error content" shape so each new tool
-// doesn't need a bespoke wrapper.
-function registerSimpleTool<TIn extends z.ZodObject<z.ZodRawShape>>(
-  server: McpServer,
-  spec: {
-    name: string;
-    title: string;
-    inputSchema: TIn;
-    handler: (params: z.infer<TIn>) => Promise<unknown>;
-    fallback: string;
-    readOnly?: boolean;
-    idempotent?: boolean;
-  },
-): void {
-  server.registerTool(
-    spec.name,
-    {
-      title: spec.title,
-      description: shortDescription(spec.name, spec.fallback),
-      inputSchema: spec.inputSchema.shape,
-      annotations: {
-        readOnlyHint: spec.readOnly ?? false,
-        destructiveHint: false,
-        idempotentHint: spec.idempotent ?? false,
-        openWorldHint: false,
-      },
-    },
-    async (params) => {
-      try {
-        return jsonContent(await spec.handler(params as z.infer<TIn>));
-      } catch (err) {
-        return errorContent(err);
-      }
-    },
-  );
 }
 
 function registerSearchKeyword(server: McpServer): void {
@@ -558,21 +364,7 @@ function errorCodeFor(err: unknown): string {
   if (err instanceof QuotaExceededError) return 'youtube_quota_exceeded';
   if (err instanceof YouTubeApiError) return `youtube_${err.reason}`;
   if (err instanceof Error) {
-    // Map domain errors to stable wire codes per spec §4-2/§4-3.
-    switch (err.name) {
-      case 'InvalidLayerPatchError':
-        return 'INVALID_LAYER_PATCH';
-      case 'ThumbnailVersionConflictError':
-        return 'VERSION_CONFLICT';
-      case 'ThumbnailNotFoundError':
-        return 'THUMBNAIL_NOT_FOUND';
-      case 'TemplateNotFoundError':
-        return 'TEMPLATE_NOT_FOUND';
-      case 'LayerNotFoundError':
-        return 'LAYER_NOT_FOUND';
-      default:
-        return err.name;
-    }
+    return err.name;
   }
   return 'unknown';
 }

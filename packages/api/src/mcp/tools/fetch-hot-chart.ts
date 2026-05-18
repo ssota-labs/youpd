@@ -7,11 +7,11 @@ import {
   type YouTubeClient,
 } from '@youpd/youtube';
 import {
-  upsertCanonicalChannels,
-  upsertCanonicalVideos,
+  upsertChannels,
+  upsertVideos,
   upsertHotVideos,
 } from '@youpd/supabase/repositories/youtube';
-import { getYouTubeClient } from '../youtube-client';
+import { executeWithKeyRotation } from '../youtube-key-pool';
 import { attachQuotaSession, runWithBudget } from '../quota';
 
 export const FetchHotChartInputSchema = z
@@ -36,37 +36,49 @@ export type FetchHotChartOutput = {
 // videos.list?chart=mostPopular is 1 unit. The result is YouTube's "trending"
 // chart for the region (+ optional category). Agent decides whether each
 // entry seeds Hot Video Daily and/or which title patterns to extract.
+function dateOrNull(iso: string): Date | null {
+  if (!iso) return null;
+  const t = Date.parse(iso);
+  return Number.isNaN(t) ? null : new Date(t);
+}
+
 export async function fetchHotChart(
   input: FetchHotChartInput,
-  client: YouTubeClient = getYouTubeClient(),
+  injectedClient?: YouTubeClient,
 ): Promise<FetchHotChartOutput> {
   const totalUnits = UNIT_COST.videos_list;
 
-  const { result, sessionId } = await runWithBudget<FetchHotChartOutput>({
-    operation: 'hot-chart',
-    units: totalUnits,
-    call: async () => {
-      const res = await videosList(client, {
-        chart: 'mostPopular',
-        regionCode: input.region_code,
-        videoCategoryId: input.category_id,
-        maxResults: input.limit,
+  return executeWithKeyRotation(
+    injectedClient ?? null,
+    async (client, keyId) => {
+      const { result, sessionId } = await runWithBudget<FetchHotChartOutput>({
+        operation: 'hot-chart',
+        units: totalUnits,
+        keyId,
+        call: async () => {
+          const res = await videosList(client, {
+            chart: 'mostPopular',
+            regionCode: input.region_code,
+            videoCategoryId: input.category_id,
+            maxResults: input.limit,
+          });
+          const videos = res.items.map(normaliseVideo);
+          const payload: FetchHotChartOutput = {
+            region_code: input.region_code,
+            category_id: input.category_id ?? null,
+            fetched_at: new Date().toISOString(),
+            source: 'chart=mostPopular',
+            videos,
+            units_consumed: totalUnits,
+          };
+          return { resultCount: videos.length, payload };
+        },
       });
-      const videos = res.items.map(normaliseVideo);
-      const payload: FetchHotChartOutput = {
-        region_code: input.region_code,
-        category_id: input.category_id ?? null,
-        fetched_at: new Date().toISOString(),
-        source: 'chart=mostPopular',
-        videos,
-        units_consumed: totalUnits,
-      };
-      return { resultCount: videos.length, payload };
-    },
-  });
 
-  await persistHotChartResult(result);
-  return attachQuotaSession(result, sessionId);
+      await persistHotChartResult(result);
+      return attachQuotaSession(result, sessionId);
+    },
+  );
 }
 
 async function persistHotChartResult(result: FetchHotChartOutput): Promise<void> {
@@ -77,32 +89,28 @@ async function persistHotChartResult(result: FetchHotChartOutput): Promise<void>
     for (const video of result.videos) {
       if (!firstByChannel.has(video.channelId)) firstByChannel.set(video.channelId, video);
     }
-    await upsertCanonicalChannels(
+    await upsertChannels(
       [...firstByChannel.values()].map((video) => ({
         channelId: video.channelId,
         title: video.channelTitle,
-        description: '',
-        thumbnails: {},
+        subscriberCount: null,
+        viewCount: null,
+        videoCount: null,
         url: `https://www.youtube.com/channel/${encodeURIComponent(video.channelId)}`,
         publishedAt: null,
       })),
     );
-    await upsertCanonicalVideos(
+    await upsertVideos(
       result.videos.map((video) => ({
         videoId: video.videoId,
         channelId: video.channelId,
         title: video.title,
-        description: video.description,
-        thumbnails: video.thumbnails,
-        durationSeconds: video.durationSeconds,
+        durationSec: video.durationSeconds,
         views: video.views,
         likes: video.likes,
         comments: video.comments,
-        tags: video.tags,
-        categoryId: video.categoryId,
-        defaultAudioLanguage: video.defaultAudioLanguage,
         url: video.url,
-        publishedAt: video.publishedAt,
+        publishedAt: dateOrNull(video.publishedAt),
       })),
     );
     await upsertHotVideos(

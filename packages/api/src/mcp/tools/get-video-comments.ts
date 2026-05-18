@@ -8,7 +8,7 @@ import {
   type YouTubeClient,
 } from '@youpd/youtube';
 import { upsertCanonicalComments } from '@youpd/supabase/repositories/youtube';
-import { getYouTubeClient } from '../youtube-client';
+import { executeWithKeyRotation } from '../youtube-key-pool';
 import { attachQuotaSession, runWithBudget } from '../quota';
 
 export const GetVideoCommentsInputSchema = z
@@ -36,15 +36,17 @@ export type GetVideoCommentsOutput = {
 // + topic tagging downstream.
 export async function getVideoComments(
   input: GetVideoCommentsInput,
-  client: YouTubeClient = getYouTubeClient(),
+  injectedClient?: YouTubeClient,
 ): Promise<GetVideoCommentsOutput> {
   const totalUnits = UNIT_COST.comment_threads_list;
 
-  const { result, sessionId } = await runWithBudget<GetVideoCommentsOutput>({
-    operation: 'video-comments',
-    units: totalUnits,
-    videoIds: [input.video_id],
-    call: async () => {
+  return executeWithKeyRotation(injectedClient ?? null, async (client, keyId) => {
+    const { result, sessionId } = await runWithBudget<GetVideoCommentsOutput>({
+      operation: 'video-comments',
+      units: totalUnits,
+      videoIds: [input.video_id],
+      keyId,
+      call: async () => {
       try {
         const threads = await commentThreadsList(client, {
           videoId: input.video_id,
@@ -82,6 +84,7 @@ export async function getVideoComments(
 
   await persistVideoComments(result);
   return attachQuotaSession(result, sessionId);
+  });
 }
 
 async function persistVideoComments(result: GetVideoCommentsOutput): Promise<void> {
