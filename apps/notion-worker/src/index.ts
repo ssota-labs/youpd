@@ -6,16 +6,13 @@ import type { CapabilityContext } from '@notionhq/workers';
 import { createLocalTokenBucket } from './lib/pacer-local-fallback.js';
 import { youpdRestJson } from './lib/youpd-rest.js';
 import { CANONICAL, validateCanonicalSchema, type TableKey } from './lib/schema.js';
-import {
-  TRACKING_PERIOD_MONTHLY,
-  TRACKING_PERIOD_WEEKLY,
-  plannedSlot,
-} from './lib/tracking-slots.js';
+import { plannedSlot } from './lib/tracking-slots.js';
 import {
   chunks,
   collectChannelIdsFromDataSource,
   collectVideoIdsFromDataSource,
   findPageIdByTitleEquals,
+  findPageIdsByRichTextIn,
   mapVideoCategoryToHotSelect,
   mergeRelationPropertyByName,
   requireProp,
@@ -28,6 +25,8 @@ import {
   upsertKeywordRow,
   upsertSnapshotRow,
   upsertVideoRow,
+  writeChannelRow,
+  writeVideoRow,
   type VideoRowPayload,
   resolveVideoPageId,
 } from './lib/notion-upsert.js';
@@ -831,25 +830,29 @@ worker.tool('snapshotChannels', {
   },
 });
 
-const DEFAULT_RESULTS_PER_KEYWORD = 300;
+// ---------------------------------------------------------------------------
+// Supabase-staged keyword harvest flow.
+//
+// Replaces the legacy `trackKeywordIdeasDue` which tried to do a full keyword
+// search + Notion upsert pass in one capability call. That model breaks the
+// 60s Notion Worker timeout for any keyword with >50 results because Notion
+// API enforces ~3 req/sec.
+//
+// The flow is now split into two tools:
+//
+//   harvestKeywordIdea     — POST /api/youpd/rest/harvests
+//                            Fetches YouTube once and parks 300 videos in
+//                            canonical Supabase tables. ~9s.
+//
+//   publishHarvestToNotion — Drains the harvest into Notion in chunks. Each
+//                            invocation handles ~`batch_size` items (default
+//                            30) and reports `has_more`. The Notion Custom
+//                            Agent loops until `has_more === false`, at which
+//                            point this tool finalizes (merges relations,
+//                            stamps Keyword Ideas status, calls /finalize).
+// ---------------------------------------------------------------------------
 
-type KeywordIdeaRow = {
-  pageId: string;
-  keyword: string;
-  searchCount: number;
-  trackingSlot: number | null;
-  trackingPeriod: string | null;
-  // v0.8: surfaced in dry_run output and used to defensively re-check that
-  // every row Notion returned actually satisfies the mode's target formula.
-  trackingStatus: string | null;
-  status: string | null;
-  targetFormulaValue: boolean;
-};
-
-function readTitleText(
-  page: unknown,
-  propertyName: string,
-): string {
+function readTitleText(page: unknown, propertyName: string): string {
   if (!page || typeof page !== 'object' || !('properties' in page)) return '';
   const props = (page as { properties: Record<string, unknown> }).properties;
   const prop = props[propertyName];
@@ -860,10 +863,7 @@ function readTitleText(
   return title.map((t) => t?.plain_text ?? '').join('').trim();
 }
 
-function readNumber(
-  page: unknown,
-  propertyName: string,
-): number {
+function readNumber(page: unknown, propertyName: string): number {
   if (!page || typeof page !== 'object' || !('properties' in page)) return 0;
   const props = (page as { properties: Record<string, unknown> }).properties;
   const prop = props[propertyName];
@@ -873,10 +873,7 @@ function readNumber(
   return typeof n === 'number' ? n : 0;
 }
 
-function readNumberOrNull(
-  page: unknown,
-  propertyName: string,
-): number | null {
+function readNumberOrNull(page: unknown, propertyName: string): number | null {
   if (!page || typeof page !== 'object' || !('properties' in page)) return null;
   const props = (page as { properties: Record<string, unknown> }).properties;
   const prop = props[propertyName];
@@ -886,10 +883,7 @@ function readNumberOrNull(
   return typeof n === 'number' ? n : null;
 }
 
-function readSelectName(
-  page: unknown,
-  propertyName: string,
-): string | null {
+function readSelectName(page: unknown, propertyName: string): string | null {
   if (!page || typeof page !== 'object' || !('properties' in page)) return null;
   const props = (page as { properties: Record<string, unknown> }).properties;
   const prop = props[propertyName];
@@ -899,525 +893,478 @@ function readSelectName(
   return select?.name ?? null;
 }
 
-function readStatusName(
-  page: unknown,
-  propertyName: string,
-): string | null {
-  if (!page || typeof page !== 'object' || !('properties' in page)) return null;
-  const props = (page as { properties: Record<string, unknown> }).properties;
-  const prop = props[propertyName];
-  if (!prop || typeof prop !== 'object' || !('type' in prop)) return null;
-  if ((prop as { type: string }).type !== 'status') return null;
-  const status = (prop as { status?: { name?: string } | null }).status;
-  return status?.name ?? null;
-}
+type HarvestRestEnvelope = {
+  harvest_id: string;
+  keyword: string;
+  total_videos: number;
+  total_channels: number;
+  units_consumed: number;
+  search_pages: number | null;
+  quota_session_id: string | null;
+};
 
-function readFormulaCheckbox(
-  page: unknown,
-  propertyName: string,
-): boolean {
-  if (!page || typeof page !== 'object' || !('properties' in page)) return false;
-  const props = (page as { properties: Record<string, unknown> }).properties;
-  const prop = props[propertyName];
-  if (!prop || typeof prop !== 'object' || !('type' in prop)) return false;
-  if ((prop as { type: string }).type !== 'formula') return false;
-  const formula = (
-    prop as { formula?: { type?: string; boolean?: boolean | null } }
-  ).formula;
-  if (!formula || formula.type !== 'boolean') return false;
-  return formula.boolean === true;
-}
+type HarvestStatusRestEnvelope = {
+  id: string;
+  keyword: string;
+  keyword_idea_page_id: string;
+  status: string;
+  total_videos: number;
+  total_channels: number;
+  unpublished_videos: number;
+  unpublished_channels: number;
+  finalized: boolean;
+  notion_keyword_page_id: string | null;
+  created_at: string;
+  finished_at: string | null;
+};
 
-worker.tool('trackKeywordIdeasDue', {
-  title: 'Run repeat searches for due Keyword Ideas',
+type HarvestVideoItem = {
+  video_id: string;
+  position: number;
+  channel_id: string;
+  title: string | null;
+  views: number | null;
+  likes: number | null;
+  comments: number | null;
+  duration_sec: number | null;
+  published_at: string | null;
+  url: string | null;
+  notion_page_id: string | null;
+};
+
+type HarvestChannelItem = {
+  channel_id: string;
+  title: string | null;
+  subscriber_count: number | null;
+  view_count: number | null;
+  video_count: number | null;
+  published_at: string | null;
+  url: string | null;
+  notion_page_id: string | null;
+};
+
+type HarvestItemsResponse = {
+  harvest_id: string;
+  kind: 'video' | 'channel';
+  videos?: HarvestVideoItem[];
+  channels?: HarvestChannelItem[];
+  synced_video_page_ids?: string[];
+  synced_channel_page_ids?: string[];
+};
+
+worker.tool('harvestKeywordIdea', {
+  title: 'Harvest a Keyword Idea into Supabase',
   description:
-    'Reads Keyword Ideas rows where a mode-specific Notion formula is true and runs the v0.6 keyword search/upsert path with `results_per_keyword` (default 300) pagination, then updates 마지막 검색일·검색 횟수·상태·트래킹 슬롯 and appends Keywords rows to the idea relation. v0.8 target formulas (single source of truth — `트래킹 상태=활성` and period exclusion live inside the formulas): mode=`initial_catchup` → `초기 캐치업 대상`; mode=`scheduled` (default) → `다음 스케줄러 추출`. `다음 검색 예정일` is a Notion formula (worker never writes it). `최근 결과 메모` is operator/AI only. Partial failures are tolerated. `force_rebalance` reassigns the slot even when one is already set.',
+    'Reads the keyword text from a Keyword Ideas row, sets 상태=검색 중, calls POST /api/youpd/rest/harvests to fetch up to results_per_keyword (default 300, max 500) videos from YouTube and stage them in canonical Supabase videos / channels + search_harvests tables. Returns harvest_id which the agent passes to publishHarvestToNotion. This tool itself never writes videos/channels to Notion — the publish tool drains them in chunks under the 60s capability ceiling.',
   schema: j.object({
-    keyword_idea_limit: j
-      .number()
-      .describe('Max Keyword Ideas to process per run. Default env YOUPD_KEYWORD_IDEA_LIMIT, falls back to 20 (scheduled) / 200 (initial_catchup).')
-      .nullable(),
+    keyword_idea_page_id: j
+      .string()
+      .describe('Notion Keyword Ideas page id to harvest.'),
     results_per_keyword: j
       .number()
-      .describe(
-        'YouTube results to collect per keyword via REST pagination. Default env YOUPD_RESULTS_PER_KEYWORD, falls back to 300. Use 50 for cheap probes.',
-      )
-      .nullable(),
-    mode: j
-      .string()
-      .describe('"scheduled" (default) or "initial_catchup".')
-      .nullable(),
-    force_rebalance: j
-      .boolean()
-      .describe('When true, reassign 트래킹 슬롯 even if a value already exists.')
-      .nullable(),
-    dry_run: j
-      .boolean()
-      .describe(
-        'If true, list due ideas, planned slot, and expected quota without writing.',
-      )
+      .describe('1–500, default 300.')
       .nullable(),
   }),
   outputSchema: j.object({
-    ok: j.boolean(),
-    enabled: j.boolean(),
-    mode: j.string(),
-    target_formula: j.string(),
-    target_formula_true_count: j.number(),
-    processed: j.number(),
-    succeeded: j.number(),
-    failed: j.number(),
-    dry_run: j.boolean(),
-    results_per_keyword: j.number(),
-    expected_quota_units: j.number().nullable(),
-    slot_distribution: j.object({
-      weekly: j.array(
-        j.object({ slot: j.number(), count: j.number() }),
-      ),
-      monthly: j.array(
-        j.object({ slot: j.number(), count: j.number() }),
-      ),
-    }),
-    ideas: j.array(
-      j.object({
-        page_id: j.string(),
-        keyword: j.string(),
-        planned_slot: j.number().nullable(),
-        planned_period: j.string().nullable(),
-        tracking_status: j.string().nullable(),
-        tracking_period: j.string().nullable(),
-        idea_status: j.string().nullable(),
-        target_formula: j.string(),
-        target_formula_value: j.boolean(),
-        status: j.string().describe('"ok" | "error" | "dry"'),
-        error: j.string().nullable(),
-      }),
-    ),
+    harvest_id: j.string(),
+    keyword: j.string(),
+    total_videos: j.number(),
+    total_channels: j.number(),
+    units_consumed: j.number(),
+    search_pages: j.number().nullable(),
+    quota_session_id: j.string().nullable(),
   }),
-  execute: async (
-    {
-      keyword_idea_limit,
-      results_per_keyword,
-      mode,
-      force_rebalance,
-      dry_run,
-    },
-    { notion },
-  ) => {
-    const runMode: 'scheduled' | 'initial_catchup' =
-      mode === 'initial_catchup' ? 'initial_catchup' : 'scheduled';
-    const targetFormulaName =
-      runMode === 'initial_catchup'
-        ? CANONICAL.keywordIdeas.initialCatchupTarget
-        : CANONICAL.keywordIdeas.dueForScheduler;
-    const forceRebalance = force_rebalance === true;
-    const envResults = optionalEnv('YOUPD_RESULTS_PER_KEYWORD');
-    const resolvedResultsPerKeyword = Math.min(
-      500,
-      Math.max(
-        1,
-        results_per_keyword ??
-          (envResults ? Number(envResults) : DEFAULT_RESULTS_PER_KEYWORD),
-      ),
-    );
-    const emptyDistribution = () => ({
-      weekly: [] as { slot: number; count: number }[],
-      monthly: [] as { slot: number; count: number }[],
+  execute: async ({ keyword_idea_page_id, results_per_keyword }, { notion }) => {
+    const keywordIdeasDs = requireEnv('YOUPD_KEYWORD_IDEAS_DATA_SOURCE_ID');
+    // Schema sanity — agent gets a clear error if env points at the wrong DB.
+    const ideaSchema = await dataSourceSchema(notion, keywordIdeasDs);
+    const ideaCheck = validateCanonicalSchema('keywordIdeas', ideaSchema);
+    if (!ideaCheck.ok) throw new Error(ideaCheck.message);
+
+    const ideaPage = await notion.pages.retrieve({
+      page_id: keyword_idea_page_id,
     });
-    const distFromCounts = (
-      counts: Record<number, number>,
-    ): { slot: number; count: number }[] =>
-      Object.entries(counts)
-        .map(([k, v]) => ({ slot: Number(k), count: v }))
-        .sort((a, b) => a.slot - b.slot);
-    const enabledFlag = optionalEnv('YOUPD_KEYWORD_TRACKING_ENABLED');
-    if (enabledFlag != null && enabledFlag.toLowerCase() === 'false') {
-      return {
-        ok: true,
-        enabled: false,
-        mode: runMode,
-        target_formula: targetFormulaName,
-        target_formula_true_count: 0,
-        processed: 0,
-        succeeded: 0,
-        failed: 0,
-        dry_run: dry_run ?? false,
-        results_per_keyword: resolvedResultsPerKeyword,
-        expected_quota_units: null,
-        slot_distribution: emptyDistribution(),
-        ideas: [],
-      };
+    const keyword = readTitleText(ideaPage, CANONICAL.keywordIdeas.title);
+    if (!keyword) {
+      throw new Error(
+        `Keyword Ideas row ${keyword_idea_page_id} has no keyword title.`,
+      );
     }
 
-    const ideasDs = requireEnv('YOUPD_KEYWORD_IDEAS_DATA_SOURCE_ID');
-    const videosDs = requireEnv('YOUPD_VIDEOS_DATA_SOURCE_ID');
-    const channelsDs = requireEnv('YOUPD_CHANNELS_DATA_SOURCE_ID');
-    const keywordsDs = requireEnv('YOUPD_KEYWORDS_DATA_SOURCE_ID');
+    // Flip Notion status to '검색 중' so humans see the row is in flight.
+    // Tool B will move it to '검색 완료' on finalize.
+    await notion.pages.update({
+      page_id: keyword_idea_page_id,
+      properties: {
+        [CANONICAL.keywordIdeas.status]: {
+          type: 'status',
+          status: { name: '검색 중' },
+        },
+      } as Parameters<typeof notion.pages.update>[0]['properties'],
+    });
 
-    const ideasSchema = await dataSourceSchema(notion, ideasDs);
-    const vs = await dataSourceSchema(notion, videosDs);
-    const cs = await dataSourceSchema(notion, channelsDs);
-    const ks = await dataSourceSchema(notion, keywordsDs);
-    for (const [tbl, sch] of [
-      ['keywordIdeas', ideasSchema],
-      ['videos', vs],
-      ['channels', cs],
-      ['keywords', ks],
-    ] as [TableKey, DataSourceSchema][]) {
-      const r = validateCanonicalSchema(tbl, sch);
-      if (!r.ok) throw new Error(r.message);
-    }
-
-    const envLimit = optionalEnv('YOUPD_KEYWORD_IDEA_LIMIT');
-    const defaultLimit = runMode === 'initial_catchup' ? 200 : 20;
-    const upperLimit = runMode === 'initial_catchup' ? 200 : 50;
-    const limit = Math.min(
-      upperLimit,
-      Math.max(
-        1,
-        keyword_idea_limit ?? (envLimit ? Number(envLimit) : defaultLimit),
-      ),
-    );
-
-    // v0.8: single source of truth is the mode-specific formula. The formula
-    // itself encodes `트래킹 상태 = 활성` + period exclusions, so the worker
-    // no longer composes those AND conditions client-side.
-    const query = await notion.dataSources.query({
-      data_source_id: ideasDs,
-      page_size: limit,
-      filter: {
-        property: targetFormulaName,
-        formula: { checkbox: { equals: true } },
+    const env = await youpdRestJson<HarvestRestEnvelope>(
+      '/api/youpd/rest/harvests',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          keyword,
+          keyword_idea_page_id,
+          results_per_keyword:
+            results_per_keyword == null ? 300 : results_per_keyword,
+        }),
       },
-      sorts: [
-        {
-          property: CANONICAL.keywordIdeas.priority,
-          direction: 'ascending',
-        },
-        {
-          property: CANONICAL.keywordIdeas.lastSearchedAt,
-          direction: 'ascending',
-        },
-      ],
-    });
-
-    const dueRows: KeywordIdeaRow[] = [];
-    for (const r of query.results) {
-      if (typeof r !== 'object' || r === null || !('id' in r)) continue;
-      const pageId = (r as { id: string }).id;
-      const keyword = readTitleText(r, CANONICAL.keywordIdeas.title);
-      if (!keyword) continue;
-      const searchCount = readNumber(r, CANONICAL.keywordIdeas.searchCount);
-      const trackingSlot = readNumberOrNull(
-        r,
-        CANONICAL.keywordIdeas.trackingSlot,
-      );
-      const trackingPeriod = readSelectName(
-        r,
-        CANONICAL.keywordIdeas.trackingPeriod,
-      );
-      const trackingStatus = readSelectName(
-        r,
-        CANONICAL.keywordIdeas.trackingStatus,
-      );
-      const status = readStatusName(r, CANONICAL.keywordIdeas.status);
-      const targetFormulaValue = readFormulaCheckbox(r, targetFormulaName);
-      // Defensive: Notion's filter should already exclude rows where the
-      // target formula is false, but if the schema drifts or the filter is
-      // bypassed, we'd rather abort than silently process the wrong cohort.
-      if (!targetFormulaValue) {
-        throw new Error(
-          `Unexpected Keyword Idea outside ${targetFormulaName}: page_id=${pageId}`,
-        );
-      }
-      dueRows.push({
-        pageId,
-        keyword,
-        searchCount,
-        trackingSlot,
-        trackingPeriod,
-        trackingStatus,
-        status,
-        targetFormulaValue,
-      });
-    }
-
-    // YouTube units per keyword: ceil(N/50) search.list pages + same many
-    // videos.list, plus 1 channels.list at the end → roughly 2*pages + 1.
-    const pagesPerKeyword = Math.max(
-      1,
-      Math.ceil(resolvedResultsPerKeyword / 50),
     );
-    const unitsPerKeyword = pagesPerKeyword * 2 + 1;
-
-    const buildDistribution = (
-      rows: { pageId: string; trackingPeriod: string | null; trackingSlot: number | null }[],
-    ) => {
-      const weekly: Record<number, number> = {};
-      const monthly: Record<number, number> = {};
-      for (const row of rows) {
-        const slot = plannedSlot(
-          row.pageId,
-          row.trackingPeriod,
-          row.trackingSlot,
-          forceRebalance,
-        );
-        if (slot == null) continue;
-        const bucket =
-          row.trackingPeriod === TRACKING_PERIOD_MONTHLY ? monthly : weekly;
-        bucket[slot] = (bucket[slot] ?? 0) + 1;
-      }
-      return {
-        weekly: distFromCounts(weekly),
-        monthly: distFromCounts(monthly),
-      };
-    };
-
-    const isDry = dry_run === true;
-    if (isDry) {
-      const dist = buildDistribution(dueRows);
-      return {
-        ok: true,
-        enabled: true,
-        mode: runMode,
-        target_formula: targetFormulaName,
-        target_formula_true_count: dueRows.length,
-        processed: dueRows.length,
-        succeeded: 0,
-        failed: 0,
-        dry_run: true,
-        results_per_keyword: resolvedResultsPerKeyword,
-        expected_quota_units: dueRows.length * unitsPerKeyword,
-        slot_distribution: dist,
-        ideas: dueRows.map((row) => ({
-          page_id: row.pageId,
-          keyword: row.keyword,
-          planned_slot: plannedSlot(
-            row.pageId,
-            row.trackingPeriod,
-            row.trackingSlot,
-            forceRebalance,
-          ),
-          planned_period: row.trackingPeriod,
-          tracking_status: row.trackingStatus,
-          tracking_period: row.trackingPeriod,
-          idea_status: row.status,
-          target_formula: targetFormulaName,
-          target_formula_value: row.targetFormulaValue,
-          status: 'dry' as const,
-          error: null,
-        })),
-      };
-    }
-
-    let succeeded = 0;
-    let failed = 0;
-    const ideaReports: {
-      page_id: string;
-      keyword: string;
-      planned_slot: number | null;
-      planned_period: string | null;
-      tracking_status: string | null;
-      tracking_period: string | null;
-      idea_status: string | null;
-      target_formula: string;
-      target_formula_value: boolean;
-      status: string;
-      error: string | null;
-    }[] = [];
-
-    for (const idea of dueRows) {
-      try {
-        await notion.pages.update({
-          page_id: idea.pageId,
-          properties: {
-            [CANONICAL.keywordIdeas.status]: {
-              type: 'status',
-              status: { name: '검색 중' },
-            },
-          } as Parameters<typeof notion.pages.update>[0]['properties'],
-        });
-
-        await paceYoupdRest();
-        const body: Record<string, unknown> = {
-          keyword: idea.keyword,
-          max_results: 50,
-          max_total_results: resolvedResultsPerKeyword,
-        };
-        const env = await youpdRestJson<{
-          keyword: string;
-          videos: VideoApiRow[];
-          channels: {
-            channelId: string;
-            title: string;
-            publishedAt: string;
-            subscriberCount: number | null;
-            videoCount: number | null;
-            viewCount: number | null;
-            url: string;
-          }[];
-        }>('/api/youpd/rest/search/keyword', {
-          method: 'POST',
-          body: JSON.stringify(body),
-        });
-
-        const collected = ptDateYmd();
-        const channelPageById = new Map<string, string>();
-        for (const ch of env.data.channels) {
-          const u = await upsertChannelRow(notion, channelsDs, {
-            channelId: ch.channelId,
-            title: ch.title,
-            subscriberCount: ch.subscriberCount,
-            viewCount: ch.viewCount,
-            videoCount: ch.videoCount,
-            publishedAt: ch.publishedAt,
-            avgLikes: null,
-            url: ch.url,
-          });
-          channelPageById.set(ch.channelId, u.pageId);
-        }
-        const videoPageIds: string[] = [];
-        for (const v of env.data.videos) {
-          const chPage = channelPageById.get(v.channelId);
-          if (!chPage) continue;
-          const row = await upsertVideoRow(
-            notion,
-            videosDs,
-            videoRowFromApi(v),
-            chPage,
-            collected,
-          );
-          videoPageIds.push(row.pageId);
-        }
-
-        const kw = await upsertKeywordRow(
-          notion,
-          keywordsDs,
-          idea.keyword.trim(),
-          collected,
-        );
-        await mergeRelationPropertyByName(
-          notion,
-          ks,
-          kw.pageId,
-          CANONICAL.keywords.videosRelation,
-          videoPageIds,
-        );
-        await mergeRelationPropertyByName(
-          notion,
-          ks,
-          kw.pageId,
-          CANONICAL.keywords.channelsRelation,
-          [...new Set(channelPageById.values())],
-        );
-
-        await mergeRelationPropertyByName(
-          notion,
-          ideasSchema,
-          idea.pageId,
-          CANONICAL.keywordIdeas.trackingKeywordsRelation,
-          [kw.pageId],
-        );
-
-        const slot = plannedSlot(
-          idea.pageId,
-          idea.trackingPeriod,
-          idea.trackingSlot,
-          forceRebalance,
-        );
-        const successProperties: Record<string, unknown> = {
-          [CANONICAL.keywordIdeas.searchCount]: {
-            type: 'number',
-            number: idea.searchCount + 1,
-          },
-          [CANONICAL.keywordIdeas.lastSearchedAt]: {
-            type: 'date',
-            date: { start: collected },
-          },
-          [CANONICAL.keywordIdeas.status]: {
-            type: 'status',
-            status: { name: '검색 완료' },
-          },
-        };
-        // Only write trackingSlot when we have a value: clearing it would
-        // accidentally promote 수동/중지 ideas back into the daily catch-up.
-        if (slot != null) {
-          successProperties[CANONICAL.keywordIdeas.trackingSlot] = {
-            type: 'number',
-            number: slot,
-          };
-        }
-        await notion.pages.update({
-          page_id: idea.pageId,
-          properties:
-            successProperties as Parameters<typeof notion.pages.update>[0]['properties'],
-        });
-
-        succeeded += 1;
-        ideaReports.push({
-          page_id: idea.pageId,
-          keyword: idea.keyword,
-          planned_slot: slot,
-          planned_period: idea.trackingPeriod,
-          tracking_status: idea.trackingStatus,
-          tracking_period: idea.trackingPeriod,
-          idea_status: idea.status,
-          target_formula: targetFormulaName,
-          target_formula_value: idea.targetFormulaValue,
-          status: 'ok',
-          error: null,
-        });
-      } catch (e) {
-        failed += 1;
-        const message = e instanceof Error ? e.message : String(e);
-        try {
-          await notion.pages.update({
-            page_id: idea.pageId,
-            properties: {
-              [CANONICAL.keywordIdeas.status]: {
-                type: 'status',
-                status: { name: '검토' },
-              },
-            } as Parameters<typeof notion.pages.update>[0]['properties'],
-          });
-        } catch {
-          // Swallow status-revert failure so we still report the original error.
-        }
-        ideaReports.push({
-          page_id: idea.pageId,
-          keyword: idea.keyword,
-          planned_slot: plannedSlot(
-            idea.pageId,
-            idea.trackingPeriod,
-            idea.trackingSlot,
-            forceRebalance,
-          ),
-          planned_period: idea.trackingPeriod,
-          tracking_status: idea.trackingStatus,
-          tracking_period: idea.trackingPeriod,
-          idea_status: idea.status,
-          target_formula: targetFormulaName,
-          target_formula_value: idea.targetFormulaValue,
-          status: 'error',
-          error: message,
-        });
-      }
-    }
 
     return {
-      ok: failed === 0,
-      enabled: true,
-      mode: runMode,
-      target_formula: targetFormulaName,
-      target_formula_true_count: dueRows.length,
-      processed: dueRows.length,
-      succeeded,
-      failed,
-      dry_run: false,
-      results_per_keyword: resolvedResultsPerKeyword,
-      expected_quota_units: dueRows.length * unitsPerKeyword,
-      slot_distribution: buildDistribution(dueRows),
-      ideas: ideaReports,
+      harvest_id: env.data.harvest_id,
+      keyword: env.data.keyword,
+      total_videos: env.data.total_videos,
+      total_channels: env.data.total_channels,
+      units_consumed: env.data.units_consumed,
+      search_pages: env.data.search_pages,
+      quota_session_id: env.data.quota_session_id,
     };
   },
 });
+
+worker.tool('publishHarvestToNotion', {
+  title: 'Publish a harvest into Notion (chunked)',
+  description:
+    'Drains a search_harvests session into Notion in chunks. Each call writes up to batch_size (default 30) channels and batch_size videos, then reports has_more. Re-invoke while has_more === true. On the call that empties the harvest, finalizes by upserting the Keywords row, merging Keywords↔Videos / Keywords↔Channels relations, linking the Keyword Ideas row to the Keywords row, updating Keyword Ideas 상태=검색 완료 / 마지막 검색일 / 검색 횟수 / 트래킹 슬롯, and stamping the harvest published in Supabase. Idempotent: a second finalize call is a no-op.',
+  schema: j.object({
+    harvest_id: j.string(),
+    batch_size: j.number().describe('Per-call chunk size, 1–100, default 30.').nullable(),
+  }),
+  outputSchema: j.object({
+    harvest_id: j.string(),
+    processed_videos: j.number(),
+    processed_channels: j.number(),
+    has_more: j.boolean(),
+    finalized: j.boolean(),
+    keyword_idea_page_id: j.string().nullable(),
+    keyword_page_id: j.string().nullable(),
+    remaining_unpublished_videos: j.number(),
+    remaining_unpublished_channels: j.number(),
+  }),
+  execute: async ({ harvest_id, batch_size }, { notion }) => {
+    const batch =
+      batch_size != null && batch_size > 0 ? Math.min(batch_size, 100) : 30;
+    const channelsDs = requireEnv('YOUPD_CHANNELS_DATA_SOURCE_ID');
+    const videosDs = requireEnv('YOUPD_VIDEOS_DATA_SOURCE_ID');
+    const keywordsDs = requireEnv('YOUPD_KEYWORDS_DATA_SOURCE_ID');
+    const keywordIdeasDs = requireEnv('YOUPD_KEYWORD_IDEAS_DATA_SOURCE_ID');
+
+    // Validate canonical schemas up-front so we fail fast with a clear error.
+    const cs = await dataSourceSchema(notion, channelsDs);
+    const vs = await dataSourceSchema(notion, videosDs);
+    const ks = await dataSourceSchema(notion, keywordsDs);
+    const ideaSchema = await dataSourceSchema(notion, keywordIdeasDs);
+    const cCheck = validateCanonicalSchema('channels', cs);
+    if (!cCheck.ok) throw new Error(cCheck.message);
+    const vCheck = validateCanonicalSchema('videos', vs);
+    if (!vCheck.ok) throw new Error(vCheck.message);
+    const kCheck = validateCanonicalSchema('keywords', ks);
+    if (!kCheck.ok) throw new Error(kCheck.message);
+    const iCheck = validateCanonicalSchema('keywordIdeas', ideaSchema);
+    if (!iCheck.ok) throw new Error(iCheck.message);
+
+    const collected = ptDateYmd();
+    let processedChannels = 0;
+    let processedVideos = 0;
+
+    // === 1. Channels chunk ===
+    // Drain channels first because Videos rows relate to the Channels page
+    // id; a video can only be linked once its channel row exists.
+    {
+      const env = await youpdRestJson<HarvestItemsResponse>(
+        `/api/youpd/rest/harvests/${harvest_id}/items?kind=channel&size=${batch}`,
+      );
+      const list = env.data.channels ?? [];
+      if (list.length > 0) {
+        // Batch lookup: resolve any channels we don't already have a cached
+        // page id for, in ONE Notion query instead of N per-row finds.
+        const unresolved = list
+          .filter((c) => !c.notion_page_id)
+          .map((c) => c.channel_id);
+        const lookup =
+          unresolved.length > 0
+            ? await findPageIdsByRichTextIn(
+                notion,
+                channelsDs,
+                CANONICAL.channels.channelId,
+                unresolved,
+              )
+            : new Map<string, string>();
+        const marks: {
+          kind: 'channel';
+          id: string;
+          notion_page_id: string;
+        }[] = [];
+        for (const ch of list) {
+          const existing =
+            ch.notion_page_id ?? lookup.get(ch.channel_id) ?? null;
+          const w = await writeChannelRow(
+            notion,
+            channelsDs,
+            {
+              channelId: ch.channel_id,
+              title: ch.title ?? '',
+              subscriberCount: ch.subscriber_count,
+              viewCount: ch.view_count,
+              videoCount: ch.video_count,
+              publishedAt: ch.published_at ?? '',
+              avgLikes: null,
+              url: ch.url ?? '',
+            },
+            existing,
+          );
+          marks.push({
+            kind: 'channel',
+            id: ch.channel_id,
+            notion_page_id: w.pageId,
+          });
+          processedChannels += 1;
+        }
+        if (marks.length > 0) {
+          await youpdRestJson(
+            `/api/youpd/rest/harvests/${harvest_id}/mark-published`,
+            {
+              method: 'POST',
+              body: JSON.stringify({ items: marks }),
+            },
+          );
+        }
+      }
+    }
+
+    // === 2. Videos chunk ===
+    {
+      const env = await youpdRestJson<HarvestItemsResponse>(
+        `/api/youpd/rest/harvests/${harvest_id}/items?kind=video&size=${batch}`,
+      );
+      const list = env.data.videos ?? [];
+      if (list.length > 0) {
+        // Channel page ids: we drained channels above so they should all be
+        // in Supabase now, but the items endpoint returns canonical video rows
+        // joined with their channel_id only. Look up the matching channel
+        // pages in one batch query.
+        const chanIds = Array.from(new Set(list.map((v) => v.channel_id)));
+        const channelLookup = await findPageIdsByRichTextIn(
+          notion,
+          channelsDs,
+          CANONICAL.channels.channelId,
+          chanIds,
+        );
+
+        const unresolved = list
+          .filter((v) => !v.notion_page_id)
+          .map((v) => v.video_id);
+        const videoLookup =
+          unresolved.length > 0
+            ? await findPageIdsByRichTextIn(
+                notion,
+                videosDs,
+                CANONICAL.videos.videoId,
+                unresolved,
+              )
+            : new Map<string, string>();
+
+        const marks: {
+          kind: 'video';
+          id: string;
+          notion_page_id: string;
+        }[] = [];
+        for (const v of list) {
+          const chPage = channelLookup.get(v.channel_id);
+          if (!chPage) {
+            // Channel for this video hasn't landed yet — leave junction
+            // unpublished so the next invocation retries.
+            continue;
+          }
+          const existing =
+            v.notion_page_id ?? videoLookup.get(v.video_id) ?? null;
+          const w = await writeVideoRow(
+            notion,
+            videosDs,
+            {
+              title: v.title ?? '',
+              videoId: v.video_id,
+              channelId: v.channel_id,
+              channelTitle: '',
+              publishedAt: v.published_at ?? '',
+              views: v.views,
+              likes: v.likes,
+              comments: v.comments,
+              url: v.url ?? '',
+            },
+            chPage,
+            collected,
+            existing,
+          );
+          marks.push({
+            kind: 'video',
+            id: v.video_id,
+            notion_page_id: w.pageId,
+          });
+          processedVideos += 1;
+        }
+        if (marks.length > 0) {
+          await youpdRestJson(
+            `/api/youpd/rest/harvests/${harvest_id}/mark-published`,
+            {
+              method: 'POST',
+              body: JSON.stringify({ items: marks }),
+            },
+          );
+        }
+      }
+    }
+
+    // === 3. Status check / decide whether to finalize ===
+    const statusEnv = await youpdRestJson<HarvestStatusRestEnvelope>(
+      `/api/youpd/rest/harvests/${harvest_id}`,
+    );
+    const remainingV = statusEnv.data.unpublished_videos;
+    const remainingC = statusEnv.data.unpublished_channels;
+
+    if (remainingV > 0 || remainingC > 0) {
+      return {
+        harvest_id,
+        processed_videos: processedVideos,
+        processed_channels: processedChannels,
+        has_more: true,
+        finalized: false,
+        keyword_idea_page_id: statusEnv.data.keyword_idea_page_id,
+        keyword_page_id: statusEnv.data.notion_keyword_page_id,
+        remaining_unpublished_videos: remainingV,
+        remaining_unpublished_channels: remainingC,
+      };
+    }
+
+    if (statusEnv.data.finalized) {
+      // Re-invocation after finalize — return cached page ids as a no-op.
+      return {
+        harvest_id,
+        processed_videos: processedVideos,
+        processed_channels: processedChannels,
+        has_more: false,
+        finalized: true,
+        keyword_idea_page_id: statusEnv.data.keyword_idea_page_id,
+        keyword_page_id: statusEnv.data.notion_keyword_page_id,
+        remaining_unpublished_videos: 0,
+        remaining_unpublished_channels: 0,
+      };
+    }
+
+    // === 4. Finalize: relations + Keyword Ideas mark complete ===
+    // Collect every synced Notion page id for this harvest so we can merge
+    // Keywords-DB relations in one call per relation.
+    const syncedEnv = await youpdRestJson<HarvestItemsResponse>(
+      `/api/youpd/rest/harvests/${harvest_id}/items?kind=video&include_published=true&size=1`,
+    );
+    const videoPageIds = syncedEnv.data.synced_video_page_ids ?? [];
+    const channelPageIds = syncedEnv.data.synced_channel_page_ids ?? [];
+
+    const kw = await upsertKeywordRow(
+      notion,
+      keywordsDs,
+      statusEnv.data.keyword.trim(),
+      collected,
+    );
+
+    await mergeRelationPropertyByName(
+      notion,
+      ks,
+      kw.pageId,
+      CANONICAL.keywords.videosRelation,
+      videoPageIds,
+    );
+    await mergeRelationPropertyByName(
+      notion,
+      ks,
+      kw.pageId,
+      CANONICAL.keywords.channelsRelation,
+      channelPageIds,
+    );
+    await mergeRelationPropertyByName(
+      notion,
+      ideaSchema,
+      statusEnv.data.keyword_idea_page_id,
+      CANONICAL.keywordIdeas.trackingKeywordsRelation,
+      [kw.pageId],
+    );
+
+    // Recompute tracking slot (only writes when we have a value — clearing
+    // it would accidentally promote 수동/중지 ideas back into the daily
+    // catch-up filter).
+    const ideaPage = await notion.pages.retrieve({
+      page_id: statusEnv.data.keyword_idea_page_id,
+    });
+    const trackingPeriod = readSelectName(
+      ideaPage,
+      CANONICAL.keywordIdeas.trackingPeriod,
+    );
+    const existingSlot = readNumberOrNull(
+      ideaPage,
+      CANONICAL.keywordIdeas.trackingSlot,
+    );
+    const existingCount = readNumber(
+      ideaPage,
+      CANONICAL.keywordIdeas.searchCount,
+    );
+    const slot = plannedSlot(
+      statusEnv.data.keyword_idea_page_id,
+      trackingPeriod,
+      existingSlot,
+      false,
+    );
+
+    const props: Record<string, unknown> = {
+      [CANONICAL.keywordIdeas.searchCount]: {
+        type: 'number',
+        number: existingCount + 1,
+      },
+      [CANONICAL.keywordIdeas.lastSearchedAt]: {
+        type: 'date',
+        date: { start: collected },
+      },
+      [CANONICAL.keywordIdeas.status]: {
+        type: 'status',
+        status: { name: '검색 완료' },
+      },
+    };
+    if (slot != null) {
+      props[CANONICAL.keywordIdeas.trackingSlot] = {
+        type: 'number',
+        number: slot,
+      };
+    }
+    await notion.pages.update({
+      page_id: statusEnv.data.keyword_idea_page_id,
+      properties: props as Parameters<typeof notion.pages.update>[0]['properties'],
+    });
+
+    await youpdRestJson(
+      `/api/youpd/rest/harvests/${harvest_id}/finalize`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ notion_keyword_page_id: kw.pageId }),
+      },
+    );
+
+    return {
+      harvest_id,
+      processed_videos: processedVideos,
+      processed_channels: processedChannels,
+      has_more: false,
+      finalized: true,
+      keyword_idea_page_id: statusEnv.data.keyword_idea_page_id,
+      keyword_page_id: kw.pageId,
+      remaining_unpublished_videos: 0,
+      remaining_unpublished_channels: 0,
+    };
+  },
+});
+
+

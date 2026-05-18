@@ -13,6 +13,7 @@
     "./mcp/quota": "./src/mcp/quota.ts",
     "./collection": "./src/collection/index.ts",
     "./rest": "./src/rest/index.ts",
+    "./rest/harvests": "./src/rest/harvests/index.ts",
     "./thumbnail": "./src/thumbnail/index.ts"
   },
   "scripts": {
