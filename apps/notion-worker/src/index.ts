@@ -4,6 +4,7 @@ import { j } from '@notionhq/workers/schema-builder';
 import type { CapabilityContext } from '@notionhq/workers';
 
 import { createLocalTokenBucket } from './lib/pacer-local-fallback.js';
+import { normalizeNotionPageId } from './lib/notion-id.js';
 import { youpdRestJson } from './lib/youpd-rest.js';
 import { CANONICAL, validateCanonicalSchema, type TableKey } from './lib/schema.js';
 import { plannedSlot } from './lib/tracking-slots.js';
@@ -13,6 +14,7 @@ import {
   collectVideoIdsFromDataSource,
   findPageIdByTitleEquals,
   findPageIdsByRichTextIn,
+  findPageIdsByTitleEquals,
   mapVideoCategoryToHotSelect,
   mergeRelationPropertyByName,
   requireProp,
@@ -955,11 +957,20 @@ type HarvestItemsResponse = {
 worker.tool('harvestKeywordIdea', {
   title: 'Harvest a Keyword Idea into Supabase',
   description:
-    'Reads the keyword text from a Keyword Ideas row, sets 상태=검색 중, calls POST /api/youpd/rest/harvests to fetch up to results_per_keyword (default 300, max 500) videos from YouTube and stage them in canonical Supabase videos / channels + search_harvests tables. Returns harvest_id which the agent passes to publishHarvestToNotion. This tool itself never writes videos/channels to Notion — the publish tool drains them in chunks under the 60s capability ceiling.',
+    "Identifies a Keyword Ideas row (by page id OR by the row's title text), sets 상태=검색 중, calls POST /api/youpd/rest/harvests to fetch up to results_per_keyword (default 300, max 500) videos from YouTube, and stages them in canonical Supabase videos / channels + search_harvests tables. Returns harvest_id which the agent passes to publishHarvestToNotion. This tool itself never writes videos/channels to Notion — the publish tool drains them in chunks under the 60s capability ceiling. Pass either keyword_idea_page_id (any form: dashed UUID, 32-char hex, or any notion.so page URL) OR keyword (the row's title text). If both are passed, keyword_idea_page_id wins. If keyword resolves to more than one row the call fails with an ambiguity error.",
   schema: j.object({
     keyword_idea_page_id: j
       .string()
-      .describe('Notion Keyword Ideas page id to harvest.'),
+      .describe(
+        'Optional — Notion Keyword Ideas page identifier. Accepts dashed UUID, 32-char hex, or any notion.so URL containing the id.',
+      )
+      .nullable(),
+    keyword: j
+      .string()
+      .describe(
+        "Optional alternative — the Keyword Ideas row's title text (e.g. '복지용구 반품 교환'). The worker queries the Keyword Ideas DB by title equals.",
+      )
+      .nullable(),
     results_per_keyword: j
       .number()
       .describe('1–500, default 300.')
@@ -974,12 +985,52 @@ worker.tool('harvestKeywordIdea', {
     search_pages: j.number().nullable(),
     quota_session_id: j.string().nullable(),
   }),
-  execute: async ({ keyword_idea_page_id, results_per_keyword }, { notion }) => {
+  execute: async (
+    {
+      keyword_idea_page_id: rawIdeaId,
+      keyword: keywordTitleInput,
+      results_per_keyword,
+    },
+    { notion },
+  ) => {
     const keywordIdeasDs = requireEnv('YOUPD_KEYWORD_IDEAS_DATA_SOURCE_ID');
     // Schema sanity — agent gets a clear error if env points at the wrong DB.
     const ideaSchema = await dataSourceSchema(notion, keywordIdeasDs);
     const ideaCheck = validateCanonicalSchema('keywordIdeas', ideaSchema);
     if (!ideaCheck.ok) throw new Error(ideaCheck.message);
+
+    // Resolve the Keyword Ideas row. Either side of (page id, title) is
+    // sufficient; if both are supplied we trust the explicit page id.
+    let keyword_idea_page_id: string;
+    if (rawIdeaId && rawIdeaId.trim().length > 0) {
+      keyword_idea_page_id = normalizeNotionPageId(rawIdeaId);
+    } else if (keywordTitleInput && keywordTitleInput.trim().length > 0) {
+      const title = keywordTitleInput.trim();
+      const matches = await findPageIdsByTitleEquals(
+        notion,
+        keywordIdeasDs,
+        CANONICAL.keywordIdeas.title,
+        title,
+        5,
+      );
+      if (matches.length === 0) {
+        throw new Error(
+          `No Keyword Ideas row found with title "${title}". ` +
+            'Pass keyword_idea_page_id (page URL or UUID) if the title contains hidden whitespace or emoji prefixes.',
+        );
+      }
+      if (matches.length > 1) {
+        throw new Error(
+          `Multiple Keyword Ideas rows match title "${title}" (${matches.length} found). ` +
+            'Pass keyword_idea_page_id (page URL or UUID) to disambiguate.',
+        );
+      }
+      keyword_idea_page_id = matches[0]!;
+    } else {
+      throw new Error(
+        'Provide either keyword_idea_page_id (URL/UUID) or keyword (row title).',
+      );
+    }
 
     const ideaPage = await notion.pages.retrieve({
       page_id: keyword_idea_page_id,
