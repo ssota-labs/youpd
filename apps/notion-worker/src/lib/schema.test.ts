@@ -30,6 +30,7 @@ const TABLES: TableKey[] = [
   'comments',
   'keywords',
   'hotVideoDaily',
+  'selectedVideoCandidates',
   'keywordIdeas',
 ];
 

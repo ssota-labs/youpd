@@ -25,6 +25,7 @@ import {
   upsertCommentRow,
   upsertHotVideoDailyRow,
   upsertKeywordRow,
+  upsertSelectedVideoCandidateRow,
   upsertSnapshotRow,
   upsertVideoRow,
   writeChannelRow,
@@ -133,6 +134,7 @@ const HEALTH_TABLES: { env: string; table: TableKey }[] = [
   { env: 'YOUPD_CHANNEL_SNAPSHOTS_DATA_SOURCE_ID', table: 'channelSnapshots' },
   { env: 'YOUPD_COMMENTS_DATA_SOURCE_ID', table: 'comments' },
   { env: 'YOUPD_HOT_VIDEO_DAILY_DATA_SOURCE_ID', table: 'hotVideoDaily' },
+  { env: 'YOUPD_VIDEO_CANDIDATES_DATA_SOURCE_ID', table: 'selectedVideoCandidates' },
   { env: 'YOUPD_KEYWORD_IDEAS_DATA_SOURCE_ID', table: 'keywordIdeas' },
 ];
 
@@ -349,6 +351,93 @@ worker.tool('videosByKeyword', {
       quota_session_id: env.meta.jobId ?? null,
       keyword_page_id: kw.pageId,
       keyword_row_kind: kw.kind,
+    };
+  },
+});
+
+worker.tool('saveVideoCandidatesToNotion', {
+  title: 'Save selected video candidates to Notion',
+  description:
+    'v0.11 curation capability: accepts small video ids + context, fetches canonical candidate details from YouPD REST, and upserts selected video candidate rows into Notion.',
+  schema: j.object({
+    videoIds: j
+      .array(j.string())
+      .describe('Selected YouTube video ids. Keep this small; max 20 recommended.'),
+    useCase: j.string().describe('Selection context, e.g. key_content_research.'),
+    keyword: j.string().describe('Keyword or topic that led to this selection.'),
+    note: j.string().nullable().describe('Short agent/user note explaining why saved.'),
+  }),
+  outputSchema: j.object({
+    requested: j.number(),
+    saved: j.number(),
+    created: j.number(),
+    updated: j.number(),
+    missing_video_ids: j.array(j.string()),
+  }),
+  execute: async ({ videoIds, useCase, keyword, note }, { notion }) => {
+    const candidateDs = requireEnv('YOUPD_VIDEO_CANDIDATES_DATA_SOURCE_ID');
+    const videosDs = requireEnv('YOUPD_VIDEOS_DATA_SOURCE_ID');
+
+    const candidateSchema = await dataSourceSchema(notion, candidateDs);
+    const videosSchema = await dataSourceSchema(notion, videosDs);
+    const cv = validateCanonicalSchema('selectedVideoCandidates', candidateSchema);
+    if (!cv.ok) throw new Error(cv.message);
+    const vv = validateCanonicalSchema('videos', videosSchema);
+    if (!vv.ok) throw new Error(vv.message);
+
+    const uniqueVideoIds = [...new Set(videoIds.map((id) => id.trim()).filter(Boolean))];
+    const cappedVideoIds = uniqueVideoIds.slice(0, 20);
+    await paceYoupdRest();
+    const env = await youpdRestJson<{
+      videos: {
+        videoId: string;
+        title: string;
+        videoUrl: string;
+        performance: { ratio: number | null; grade: string };
+        contribution: { ratio: number | null; grade: string };
+        lengthAdjustment: { adjustedScore: number | null };
+      }[];
+    }>('/api/youpd/rest/query/video-candidates', {
+      method: 'POST',
+      body: JSON.stringify({ videoIds: cappedVideoIds }),
+    });
+
+    const found = new Set(env.data.videos.map((video) => video.videoId));
+    const missing = cappedVideoIds.filter((id) => !found.has(id));
+    const savedYmd = ptDateYmd();
+    const cleanKeyword = keyword.trim();
+    const cleanUseCase = useCase.trim() || 'general';
+    let created = 0;
+    let updated = 0;
+
+    for (const video of env.data.videos) {
+      const videoPageId = await resolveVideoPageId(notion, videosDs, video.videoId);
+      const kind = await upsertSelectedVideoCandidateRow(notion, candidateDs, {
+        rowKey: `${cleanKeyword}::${cleanUseCase}::${video.videoId}`,
+        title: video.title,
+        videoId: video.videoId,
+        videoPageId,
+        keyword: cleanKeyword,
+        useCase: cleanUseCase,
+        note: note?.trim() || null,
+        performanceRatio: video.performance.ratio,
+        performanceGrade: video.performance.grade,
+        contributionRatio: video.contribution.ratio,
+        contributionGrade: video.contribution.grade,
+        lengthAdjustedScore: video.lengthAdjustment.adjustedScore,
+        videoUrl: video.videoUrl,
+        savedYmd,
+      });
+      if (kind === 'created') created += 1;
+      else updated += 1;
+    }
+
+    return {
+      requested: cappedVideoIds.length,
+      saved: env.data.videos.length,
+      created,
+      updated,
+      missing_video_ids: missing,
     };
   },
 });

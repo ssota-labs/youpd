@@ -6,6 +6,11 @@ import {
   type VideoSummary,
   type YouTubeClient,
 } from '@youpd/youtube';
+import {
+  upsertChannels,
+  upsertVideos,
+  upsertHotVideos,
+} from '@youpd/supabase/repositories/youtube';
 import { executeWithKeyRotation } from '../youtube-key-pool';
 import { attachQuotaSession, runWithBudget } from '../quota';
 
@@ -31,6 +36,12 @@ export type FetchHotChartOutput = {
 // videos.list?chart=mostPopular is 1 unit. The result is YouTube's "trending"
 // chart for the region (+ optional category). Agent decides whether each
 // entry seeds Hot Video Daily and/or which title patterns to extract.
+function dateOrNull(iso: string): Date | null {
+  if (!iso) return null;
+  const t = Date.parse(iso);
+  return Number.isNaN(t) ? null : new Date(t);
+}
+
 export async function fetchHotChart(
   input: FetchHotChartInput,
   injectedClient?: YouTubeClient,
@@ -64,7 +75,55 @@ export async function fetchHotChart(
         },
       });
 
+      await persistHotChartResult(result);
       return attachQuotaSession(result, sessionId);
     },
   );
+}
+
+async function persistHotChartResult(result: FetchHotChartOutput): Promise<void> {
+  if (!process.env.DATABASE_URL) return;
+  const hotDate = result.fetched_at.slice(0, 10);
+  try {
+    const firstByChannel = new Map<string, VideoSummary>();
+    for (const video of result.videos) {
+      if (!firstByChannel.has(video.channelId)) firstByChannel.set(video.channelId, video);
+    }
+    await upsertChannels(
+      [...firstByChannel.values()].map((video) => ({
+        channelId: video.channelId,
+        title: video.channelTitle,
+        subscriberCount: null,
+        viewCount: null,
+        videoCount: null,
+        url: `https://www.youtube.com/channel/${encodeURIComponent(video.channelId)}`,
+        publishedAt: null,
+      })),
+    );
+    await upsertVideos(
+      result.videos.map((video) => ({
+        videoId: video.videoId,
+        channelId: video.channelId,
+        title: video.title,
+        durationSec: video.durationSeconds,
+        views: video.views,
+        likes: video.likes,
+        comments: video.comments,
+        url: video.url,
+        publishedAt: dateOrNull(video.publishedAt),
+      })),
+    );
+    await upsertHotVideos(
+      result.videos.map((video, index) => ({
+        hotDate,
+        videoId: video.videoId,
+        source: result.source,
+        regionCode: result.region_code,
+        categoryId: result.category_id,
+        chartRank: index + 1,
+      })),
+    );
+  } catch (err) {
+    console.warn('[youpd] failed to persist hot chart', err);
+  }
 }

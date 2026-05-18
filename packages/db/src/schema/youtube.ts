@@ -1,10 +1,13 @@
 import {
   bigint,
+  date,
   index,
   integer,
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
+  uuid,
 } from 'drizzle-orm/pg-core';
 
 // Canonical YouTube channel. One row per `channel_id`; new harvests update
@@ -69,3 +72,61 @@ export const videos = pgTable(
 );
 
 export type VideoRow = typeof videos.$inferSelect;
+
+export const videoComments = pgTable(
+  'video_comments',
+  {
+    commentId: text('comment_id').primaryKey(),
+    videoId: text('video_id')
+      .notNull()
+      .references(() => videos.videoId, { onDelete: 'cascade' }),
+    authorDisplayName: text('author_display_name').notNull().default(''),
+    authorChannelId: text('author_channel_id'),
+    body: text('body').notNull(),
+    likeCount: integer('like_count').notNull().default(0),
+    totalReplyCount: integer('total_reply_count').notNull().default(0),
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }),
+    firstSeenAt: timestamp('first_seen_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    videoIdx: index('video_comments_video_id_idx').on(table.videoId),
+    likeCountIdx: index('video_comments_like_count_idx').on(table.likeCount),
+  }),
+);
+
+export type VideoCommentRow = typeof videoComments.$inferSelect;
+
+export const hotVideos = pgTable(
+  'hot_videos',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    hotDate: date('hot_date').notNull(),
+    videoId: text('video_id')
+      .notNull()
+      .references(() => videos.videoId, { onDelete: 'cascade' }),
+    source: text('source').notNull().default('chart=mostPopular'),
+    regionCode: text('region_code'),
+    categoryId: text('category_id'),
+    chartRank: integer('chart_rank'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    uniqueDailyVideo: uniqueIndex('hot_videos_hot_date_video_id_source_unique').on(
+      table.hotDate,
+      table.videoId,
+      table.source,
+    ),
+    hotDateIdx: index('hot_videos_hot_date_idx').on(table.hotDate),
+    videoIdx: index('hot_videos_video_id_idx').on(table.videoId),
+  }),
+);
+
+export type HotVideoRow = typeof hotVideos.$inferSelect;

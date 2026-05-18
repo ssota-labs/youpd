@@ -71,6 +71,29 @@ export {
 // REST routes (apps/web/src/app/api/mcp/thumbnail/*) and e2e scripts that
 // reuse the same handlers.
 export {
+  keywordSummary,
+  KeywordSummaryInputSchema,
+  queryComments,
+  QueryCommentsInputSchema,
+  queryHotVideos,
+  QueryHotVideosInputSchema,
+  queryKeywordSearch,
+  QueryKeywordSearchInputSchema,
+  videoCandidateLookup,
+  VideoCandidateLookupInputSchema,
+  type KeywordSummaryInput,
+  type KeywordSummaryOutput,
+  type QueryCommentsInput,
+  type QueryCommentsOutput,
+  type QueryHotVideosInput,
+  type QueryHotVideosOutput,
+  type QueryKeywordSearchInput,
+  type QueryKeywordSearchOutput,
+  type QueryVideoResult,
+  type VideoCandidateLookupInput,
+  type VideoCandidateLookupOutput,
+} from './query';
+export {
   thumbnailCreate,
   ThumbnailCreateInputSchema,
   type ThumbnailCreateInput,

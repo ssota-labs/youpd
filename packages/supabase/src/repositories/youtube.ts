@@ -1,4 +1,5 @@
-import { eq, getDbClient, channels, videos, sql } from '@youpd/db';
+import { and, asc, desc, eq, getDbClient, gte, hotVideos, lte, channels, videoComments, videos, searchHarvests, searchHarvestVideos, sql, type ChannelRow, type HotVideoRow, type VideoCommentRow, type VideoRow } from '@youpd/db';
+import { inArray } from 'drizzle-orm';
 
 export type UpsertChannelInput = {
   channelId: string;
@@ -21,6 +22,39 @@ export type UpsertVideoInput = {
   publishedAt: Date | null;
   url: string | null;
 };
+
+export type UpsertCommentInput = {
+  commentId: string;
+  videoId: string;
+  authorDisplayName?: string;
+  authorChannelId?: string | null;
+  text: string;
+  likeCount: number;
+  totalReplyCount?: number;
+  publishedAt?: string | null;
+  updatedAt?: string | null;
+};
+
+export type UpsertHotVideoInput = {
+  hotDate: string;
+  videoId: string;
+  source?: string;
+  regionCode?: string | null;
+  categoryId?: string | null;
+  chartRank?: number | null;
+};
+
+export type VideoWithChannel = {
+  video: VideoRow;
+  channel: ChannelRow;
+  position?: number;
+};
+
+function dateOrNull(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isFinite(d.getTime()) ? d : null;
+}
 
 /**
  * Batch upsert canonical channel rows. Existing rows refresh stats + bump
@@ -151,4 +185,165 @@ export async function markVideoNotionSynced(
       notionSyncedAt: new Date(),
     })
     .where(eq(videos.videoId, videoId));
+}
+
+export async function upsertCanonicalComments(
+  rows: UpsertCommentInput[],
+): Promise<void> {
+  if (rows.length === 0) return;
+  const seen = new Set<string>();
+  const unique = rows.filter((r) => {
+    if (seen.has(r.commentId)) return false;
+    seen.add(r.commentId);
+    return true;
+  });
+  if (unique.length === 0) return;
+  const db = getDbClient();
+  await db
+    .insert(videoComments)
+    .values(
+      unique.map((r) => ({
+        commentId: r.commentId,
+        videoId: r.videoId,
+        authorDisplayName: r.authorDisplayName ?? '',
+        authorChannelId: r.authorChannelId ?? null,
+        body: r.text,
+        likeCount: r.likeCount,
+        totalReplyCount: r.totalReplyCount ?? 0,
+        publishedAt: dateOrNull(r.publishedAt),
+        updatedAt: dateOrNull(r.updatedAt),
+      })),
+    )
+    .onConflictDoUpdate({
+      target: videoComments.commentId,
+      set: {
+        videoId: sql`excluded.video_id`,
+        authorDisplayName: sql`excluded.author_display_name`,
+        authorChannelId: sql`excluded.author_channel_id`,
+        body: sql`excluded.body`,
+        likeCount: sql`excluded.like_count`,
+        totalReplyCount: sql`excluded.total_reply_count`,
+        publishedAt: sql`excluded.published_at`,
+        updatedAt: sql`excluded.updated_at`,
+        lastSeenAt: new Date(),
+      },
+    });
+}
+
+export async function upsertHotVideos(rows: UpsertHotVideoInput[]): Promise<void> {
+  if (rows.length === 0) return;
+  const db = getDbClient();
+  await db
+    .insert(hotVideos)
+    .values(
+      rows.map((row) => ({
+        hotDate: row.hotDate,
+        videoId: row.videoId,
+        source: row.source ?? 'chart=mostPopular',
+        regionCode: row.regionCode ?? null,
+        categoryId: row.categoryId ?? null,
+        chartRank: row.chartRank ?? null,
+      })),
+    )
+    .onConflictDoUpdate({
+      target: [hotVideos.hotDate, hotVideos.videoId, hotVideos.source],
+      set: {
+        regionCode: sql`excluded.region_code`,
+        categoryId: sql`excluded.category_id`,
+        chartRank: sql`excluded.chart_rank`,
+      },
+    });
+}
+
+export async function getLatestKeywordVideos(input: {
+  keyword: string;
+  limit: number;
+}): Promise<VideoWithChannel[]> {
+  const db = getDbClient();
+  const [harvest] = await db
+    .select()
+    .from(searchHarvests)
+    .where(eq(searchHarvests.keyword, input.keyword))
+    .orderBy(desc(searchHarvests.createdAt))
+    .limit(1);
+  if (!harvest) return [];
+
+  return db
+    .select({
+      video: videos,
+      channel: channels,
+      position: searchHarvestVideos.position,
+    })
+    .from(searchHarvestVideos)
+    .innerJoin(videos, eq(searchHarvestVideos.videoId, videos.videoId))
+    .innerJoin(channels, eq(videos.channelId, channels.channelId))
+    .where(eq(searchHarvestVideos.harvestId, harvest.id))
+    .orderBy(asc(searchHarvestVideos.position))
+    .limit(input.limit);
+}
+
+export async function getVideosByIds(videoIds: string[]): Promise<VideoWithChannel[]> {
+  if (videoIds.length === 0) return [];
+  const db = getDbClient();
+  return db
+    .select({
+      video: videos,
+      channel: channels,
+    })
+    .from(videos)
+    .innerJoin(channels, eq(videos.channelId, channels.channelId))
+    .where(inArray(videos.videoId, videoIds));
+}
+
+export async function getHotVideos(input: {
+  date?: string | null;
+  dateEnd?: string | null;
+  limit: number;
+}): Promise<(VideoWithChannel & { hotVideo: HotVideoRow })[]> {
+  const db = getDbClient();
+  const dateFilter =
+    input.date && input.dateEnd
+      ? sql`${hotVideos.hotDate} between ${input.date} and ${input.dateEnd}`
+      : input.date
+        ? eq(hotVideos.hotDate, input.date)
+        : input.dateEnd
+          ? lte(hotVideos.hotDate, input.dateEnd)
+          : gte(hotVideos.hotDate, '0001-01-01');
+
+  return db
+    .select({
+      hotVideo: hotVideos,
+      video: videos,
+      channel: channels,
+    })
+    .from(hotVideos)
+    .innerJoin(videos, eq(hotVideos.videoId, videos.videoId))
+    .innerJoin(channels, eq(videos.channelId, channels.channelId))
+    .where(dateFilter)
+    .orderBy(desc(hotVideos.hotDate), asc(hotVideos.chartRank))
+    .limit(input.limit);
+}
+
+export async function getCommentsByVideoIds(input: {
+  videoIds: string[];
+  minLikeCount?: number;
+  limit: number;
+}): Promise<VideoCommentRow[]> {
+  if (input.videoIds.length === 0) return [];
+  const db = getDbClient();
+  const likeFilter =
+    input.minLikeCount != null
+      ? gte(videoComments.likeCount, input.minLikeCount)
+      : undefined;
+
+  return db
+    .select()
+    .from(videoComments)
+    .where(
+      likeFilter
+        ? and(inArray(videoComments.videoId, input.videoIds), likeFilter)
+        : inArray(videoComments.videoId, input.videoIds),
+    )
+    .orderBy(desc(videoComments.likeCount), desc(videoComments.publishedAt))
+    .limit(input.limit);
 }
