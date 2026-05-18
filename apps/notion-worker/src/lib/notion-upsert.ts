@@ -124,6 +124,35 @@ export async function findPageIdsByRichTextIn(
   return out;
 }
 
+/**
+ * Multi-match variant of `findPageIdByTitleEquals`. Returns up to
+ * `maxResults` page ids whose title property equals the given string.
+ * Callers can decide how to handle 0 / 1 / N — e.g. tools that resolve a
+ * Keyword Ideas row by title will treat N>1 as ambiguous and ask for an
+ * explicit page id.
+ */
+export async function findPageIdsByTitleEquals(
+  notion: Client,
+  dataSourceId: string,
+  titlePropertyName: string,
+  equals: string,
+  maxResults = 5,
+): Promise<string[]> {
+  const res = await notion.dataSources.query({
+    data_source_id: dataSourceId,
+    page_size: maxResults,
+    filter: {
+      property: titlePropertyName,
+      title: { equals },
+    },
+  });
+  const out: string[] = [];
+  for (const r of res.results) {
+    if (isFullPage(r)) out.push(r.id);
+  }
+  return out;
+}
+
 export async function findPageIdByTitleEquals(
   notion: Client,
   dataSourceId: string,
