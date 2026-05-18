@@ -72,6 +72,58 @@ export async function findPageIdByRichTextEquals(
   return null;
 }
 
+/**
+ * Batched lookup: resolve N rich_text values to page ids in a single
+ * `data_sources.query` per chunk. Notion supports up to ~100 OR conditions
+ * per filter; we cap each chunk at 50 to stay well under that and to keep
+ * the response under the 100-row default page size.
+ *
+ * Returns a `Map<value, pageId>` keyed by the rich_text plain text of the
+ * lookup property. Values not present in the data source are simply absent
+ * from the map.
+ */
+export async function findPageIdsByRichTextIn(
+  notion: Client,
+  dataSourceId: string,
+  propertyName: string,
+  values: string[],
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const unique = Array.from(new Set(values.filter((s) => s.length > 0)));
+  if (unique.length === 0) return out;
+  const CHUNK = 50;
+  for (let i = 0; i < unique.length; i += CHUNK) {
+    const slice = unique.slice(i, i + CHUNK);
+    const filter =
+      slice.length === 1
+        ? {
+            property: propertyName,
+            type: 'rich_text' as const,
+            rich_text: { equals: slice[0]! },
+          }
+        : {
+            or: slice.map((v) => ({
+              property: propertyName,
+              type: 'rich_text' as const,
+              rich_text: { equals: v },
+            })),
+          };
+    const res = await notion.dataSources.query({
+      data_source_id: dataSourceId,
+      page_size: 100,
+      filter,
+    });
+    for (const r of res.results) {
+      if (!isFullPage(r)) continue;
+      const props = (r as { properties?: Record<string, unknown> }).properties;
+      if (!props) continue;
+      const text = extractRichTextFromProperty(props[propertyName]);
+      if (text && slice.includes(text)) out.set(text, r.id);
+    }
+  }
+  return out;
+}
+
 export async function findPageIdByTitleEquals(
   notion: Client,
   dataSourceId: string,
@@ -125,20 +177,21 @@ export type VideoRowPayload = {
   url: string;
 };
 
-export async function upsertChannelRow(
-  notion: Client,
-  dataSourceId: string,
-  row: {
-    channelId: string;
-    title: string;
-    subscriberCount: number | null;
-    viewCount: number | null;
-    videoCount: number | null;
-    publishedAt: string;
-    avgLikes: number | null;
-    url: string;
-  },
-): Promise<{ kind: 'created' | 'updated'; pageId: string }> {
+export type ChannelRowPayload = {
+  channelId: string;
+  title: string;
+  subscriberCount: number | null;
+  viewCount: number | null;
+  videoCount: number | null;
+  publishedAt: string;
+  avgLikes: number | null;
+  url: string;
+};
+
+/** Build the Notion `properties` blob for a Channels-DB row. */
+export function buildChannelProps(
+  row: ChannelRowPayload,
+): Record<string, unknown> {
   const idName = CANONICAL.channels.channelId;
   const props: Record<string, unknown> = {
     [CANONICAL.channels.title]: titleProp(row.title),
@@ -167,38 +220,16 @@ export async function upsertChannelRow(
   if (row.avgLikes != null) {
     props[CANONICAL.channels.avgLikes] = { type: 'number', number: row.avgLikes };
   }
-
-  const existingId = await findPageIdByRichTextEquals(
-    notion,
-    dataSourceId,
-    idName,
-    row.channelId,
-  );
-  if (existingId) {
-    await notion.pages.update({
-      page_id: existingId,
-      properties: props as Parameters<Client['pages']['update']>[0]['properties'],
-    });
-    return { kind: 'updated', pageId: existingId };
-  }
-  const created = await notion.pages.create({
-    parent: {
-      type: 'data_source_id',
-      data_source_id: dataSourceId,
-    },
-    properties: props as Parameters<Client['pages']['create']>[0]['properties'],
-  });
-  return { kind: 'created', pageId: created.id };
+  return props;
 }
 
-export async function upsertVideoRow(
-  notion: Client,
-  dataSourceId: string,
+/** Build the Notion `properties` blob for a Videos-DB row. */
+export function buildVideoProps(
   v: VideoRowPayload,
   channelPageId: string,
   collectedDate: string,
-): Promise<{ kind: 'created' | 'updated'; pageId: string }> {
-  const props: Record<string, unknown> = {
+): Record<string, unknown> {
+  return {
     [CANONICAL.videos.title]: titleProp(v.title),
     [CANONICAL.videos.videoId]: richTextProp(v.videoId),
     [CANONICAL.videos.views]: { type: 'number', number: v.views ?? 0 },
@@ -218,28 +249,96 @@ export async function upsertVideoRow(
       date: { start: collectedDate },
     },
   };
+}
 
+/**
+ * Create-or-update a Channels-DB row when the caller already knows whether
+ * the row exists (e.g. via `findPageIdsByRichTextIn` batch lookup or a
+ * Supabase-cached `notion_page_id`). Skips the per-row find query.
+ */
+export async function writeChannelRow(
+  notion: Client,
+  dataSourceId: string,
+  row: ChannelRowPayload,
+  existingPageId: string | null,
+): Promise<{ kind: 'created' | 'updated'; pageId: string }> {
+  const props = buildChannelProps(row);
+  if (existingPageId) {
+    await notion.pages.update({
+      page_id: existingPageId,
+      properties: props as Parameters<Client['pages']['update']>[0]['properties'],
+    });
+    return { kind: 'updated', pageId: existingPageId };
+  }
+  const created = await notion.pages.create({
+    parent: { type: 'data_source_id', data_source_id: dataSourceId },
+    properties: props as Parameters<Client['pages']['create']>[0]['properties'],
+  });
+  return { kind: 'created', pageId: created.id };
+}
+
+/**
+ * Create-or-update a Videos-DB row with a pre-resolved `existingPageId`.
+ * See `writeChannelRow` for the rationale; same batch-aware pattern.
+ */
+export async function writeVideoRow(
+  notion: Client,
+  dataSourceId: string,
+  v: VideoRowPayload,
+  channelPageId: string,
+  collectedDate: string,
+  existingPageId: string | null,
+): Promise<{ kind: 'created' | 'updated'; pageId: string }> {
+  const props = buildVideoProps(v, channelPageId, collectedDate);
+  if (existingPageId) {
+    await notion.pages.update({
+      page_id: existingPageId,
+      properties: props as Parameters<Client['pages']['update']>[0]['properties'],
+    });
+    return { kind: 'updated', pageId: existingPageId };
+  }
+  const created = await notion.pages.create({
+    parent: { type: 'data_source_id', data_source_id: dataSourceId },
+    properties: props as Parameters<Client['pages']['create']>[0]['properties'],
+  });
+  return { kind: 'created', pageId: created.id };
+}
+
+export async function upsertChannelRow(
+  notion: Client,
+  dataSourceId: string,
+  row: ChannelRowPayload,
+): Promise<{ kind: 'created' | 'updated'; pageId: string }> {
+  const existingId = await findPageIdByRichTextEquals(
+    notion,
+    dataSourceId,
+    CANONICAL.channels.channelId,
+    row.channelId,
+  );
+  return writeChannelRow(notion, dataSourceId, row, existingId);
+}
+
+export async function upsertVideoRow(
+  notion: Client,
+  dataSourceId: string,
+  v: VideoRowPayload,
+  channelPageId: string,
+  collectedDate: string,
+): Promise<{ kind: 'created' | 'updated'; pageId: string }> {
   const existingId = await findPageIdByRichTextEquals(
     notion,
     dataSourceId,
     CANONICAL.videos.videoId,
     v.videoId,
   );
-  if (existingId) {
-    await notion.pages.update({
-      page_id: existingId,
-      properties: props as Parameters<Client['pages']['update']>[0]['properties'],
-    });
-    return { kind: 'updated' as const, pageId: existingId };
-  }
-  const created = await notion.pages.create({
-    parent: {
-      type: 'data_source_id',
-      data_source_id: dataSourceId,
-    },
-    properties: props as Parameters<Client['pages']['create']>[0]['properties'],
-  });
-  return { kind: 'created' as const, pageId: created.id };
+  return writeVideoRow(
+    notion,
+    dataSourceId,
+    v,
+    channelPageId,
+    collectedDate,
+    existingId,
+  );
 }
 
 export async function upsertSnapshotRow(
