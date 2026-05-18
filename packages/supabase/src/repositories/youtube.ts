@@ -26,16 +26,29 @@ export type UpsertVideoInput = {
  * Batch upsert canonical channel rows. Existing rows refresh stats + bump
  * `last_seen_at`; `notion_page_id` cache is preserved (never overwritten by
  * a harvest, only by `markChannelNotionSynced`).
+ *
+ * Dedupes by `channel_id` before insert. Postgres rejects an INSERT ...
+ * ON CONFLICT DO UPDATE that proposes the same conflict-target value
+ * twice in a single statement (`21000`), and upstream pagination can
+ * surface the same channel from two YouTube `channels.list` batches.
+ * First occurrence wins.
  */
 export async function upsertChannels(
   rows: UpsertChannelInput[],
 ): Promise<void> {
   if (rows.length === 0) return;
+  const seen = new Set<string>();
+  const unique = rows.filter((r) => {
+    if (seen.has(r.channelId)) return false;
+    seen.add(r.channelId);
+    return true;
+  });
+  if (unique.length === 0) return;
   const db = getDbClient();
   await db
     .insert(channels)
     .values(
-      rows.map((r) => ({
+      unique.map((r) => ({
         channelId: r.channelId,
         title: r.title,
         subscriberCount: r.subscriberCount,
@@ -62,14 +75,27 @@ export async function upsertChannels(
 /**
  * Batch upsert canonical video rows. Same `notion_page_id` preservation rule
  * as channels — sync metadata is mutated only via `markVideoNotionSynced`.
+ *
+ * Dedupes by `video_id` before insert. YouTube `search.list` pagination is
+ * not guaranteed unique across pages and the same `videoId` can arrive on
+ * two consecutive pages; Postgres rejects the second occurrence of the
+ * conflict target in a single ON CONFLICT DO UPDATE statement (`21000`).
+ * First occurrence wins.
  */
 export async function upsertVideos(rows: UpsertVideoInput[]): Promise<void> {
   if (rows.length === 0) return;
+  const seen = new Set<string>();
+  const unique = rows.filter((r) => {
+    if (seen.has(r.videoId)) return false;
+    seen.add(r.videoId);
+    return true;
+  });
+  if (unique.length === 0) return;
   const db = getDbClient();
   await db
     .insert(videos)
     .values(
-      rows.map((r) => ({
+      unique.map((r) => ({
         videoId: r.videoId,
         channelId: r.channelId,
         title: r.title,

@@ -80,6 +80,13 @@ export async function searchKeyword(
         call: async () => {
       let pageToken: string | undefined;
       const allVideos: VideoSummary[] = [];
+      // YouTube search.list pagination is *not* guaranteed unique across
+      // pages — ranking can shift between calls (milliseconds apart) and the
+      // same videoId may be returned on multiple pages. Track ids we've
+      // already kept so we don't pass duplicates down to the harvest writer,
+      // which would hit `ON CONFLICT DO UPDATE cannot affect row a second
+      // time` on the canonical videos upsert.
+      const seenVideoIds = new Set<string>();
       let searchPages = 0;
       let consumed = 0;
 
@@ -109,7 +116,10 @@ export async function searchKeyword(
         consumed += VIDEOS_UNITS;
         const pageVideos = videosRes.items.map(normaliseVideo);
         for (const v of pageVideos) {
-          if (allVideos.length < totalCap) allVideos.push(v);
+          if (allVideos.length >= totalCap) break;
+          if (seenVideoIds.has(v.videoId)) continue;
+          seenVideoIds.add(v.videoId);
+          allVideos.push(v);
         }
 
         if (!search.nextPageToken) break;

@@ -40,29 +40,48 @@ export async function createHarvest(
   return row;
 }
 
-/** Attach junction rows linking the harvest to canonical channels. */
+/**
+ * Attach junction rows linking the harvest to canonical channels.
+ *
+ * Dedupes channel_ids defensively. The (harvest_id, channel_id) composite
+ * primary key means even ON CONFLICT DO NOTHING cannot rescue a single
+ * INSERT statement that proposes the same row twice — Postgres errors out
+ * before the conflict path runs.
+ */
 export async function linkHarvestChannels(
   harvestId: string,
   channelIds: string[],
 ): Promise<void> {
-  if (channelIds.length === 0) return;
+  const unique = Array.from(new Set(channelIds));
+  if (unique.length === 0) return;
   const db = getDbClient();
   await db
     .insert(searchHarvestChannels)
-    .values(channelIds.map((channelId) => ({ harvestId, channelId })))
+    .values(unique.map((channelId) => ({ harvestId, channelId })))
     .onConflictDoNothing();
 }
 
-/** Attach junction rows linking the harvest to canonical videos, with rank. */
+/**
+ * Attach junction rows linking the harvest to canonical videos, with rank.
+ * Dedupes by videoId (keeping the first occurrence's position) so duplicate
+ * search.list rankings cannot break the INSERT.
+ */
 export async function linkHarvestVideos(
   harvestId: string,
   videoEntries: { videoId: string; position: number }[],
 ): Promise<void> {
   if (videoEntries.length === 0) return;
+  const seen = new Set<string>();
+  const unique = videoEntries.filter((e) => {
+    if (seen.has(e.videoId)) return false;
+    seen.add(e.videoId);
+    return true;
+  });
+  if (unique.length === 0) return;
   const db = getDbClient();
   await db
     .insert(searchHarvestVideos)
-    .values(videoEntries.map((e) => ({ harvestId, ...e })))
+    .values(unique.map((e) => ({ harvestId, ...e })))
     .onConflictDoNothing();
 }
 
