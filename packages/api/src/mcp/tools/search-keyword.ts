@@ -10,6 +10,7 @@ import {
   videosList,
   type YouTubeClient,
 } from '@youpd/youtube';
+import { persistKeywordHarvest } from '@youpd/supabase/repositories/youtube';
 import { getYouTubeClient } from '../youtube-client';
 import { runWithBudget, attachQuotaSession } from '../quota';
 
@@ -143,5 +144,51 @@ export async function searchKeyword(
     },
   });
 
+  await persistKeywordSearchResult(result, sessionId);
   return attachQuotaSession(result, sessionId);
+}
+
+async function persistKeywordSearchResult(
+  result: SearchKeywordOutput,
+  sessionId: string | null,
+): Promise<void> {
+  if (!process.env.DATABASE_URL) return;
+  try {
+    await persistKeywordHarvest({
+      keyword: result.keyword,
+      quotaSessionId: sessionId,
+      channels: result.channels.map((channel) => ({
+        channelId: channel.channelId,
+        title: channel.title,
+        description: channel.description,
+        thumbnails: channel.thumbnails,
+        subscriberCount: channel.subscriberCount,
+        viewCount: channel.viewCount,
+        videoCount: channel.videoCount,
+        hiddenSubscriberCount: channel.hiddenSubscriberCount,
+        uploadsPlaylistId: channel.uploadsPlaylistId,
+        country: channel.country,
+        url: channel.url,
+        publishedAt: channel.publishedAt,
+      })),
+      videos: result.videos.map((video) => ({
+        videoId: video.videoId,
+        channelId: video.channelId,
+        title: video.title,
+        description: video.description,
+        thumbnails: video.thumbnails,
+        durationSeconds: video.durationSeconds,
+        views: video.views,
+        likes: video.likes,
+        comments: video.comments,
+        tags: video.tags,
+        categoryId: video.categoryId,
+        defaultAudioLanguage: video.defaultAudioLanguage,
+        url: video.url,
+        publishedAt: video.publishedAt,
+      })),
+    });
+  } catch (err) {
+    console.warn('[youpd] failed to persist keyword harvest', err);
+  }
 }

@@ -6,6 +6,11 @@ import {
   type VideoSummary,
   type YouTubeClient,
 } from '@youpd/youtube';
+import {
+  upsertCanonicalChannels,
+  upsertCanonicalVideos,
+  upsertHotVideos,
+} from '@youpd/supabase/repositories/youtube';
 import { getYouTubeClient } from '../youtube-client';
 import { attachQuotaSession, runWithBudget } from '../quota';
 
@@ -60,5 +65,57 @@ export async function fetchHotChart(
     },
   });
 
+  await persistHotChartResult(result);
   return attachQuotaSession(result, sessionId);
+}
+
+async function persistHotChartResult(result: FetchHotChartOutput): Promise<void> {
+  if (!process.env.DATABASE_URL) return;
+  const hotDate = result.fetched_at.slice(0, 10);
+  try {
+    const firstByChannel = new Map<string, VideoSummary>();
+    for (const video of result.videos) {
+      if (!firstByChannel.has(video.channelId)) firstByChannel.set(video.channelId, video);
+    }
+    await upsertCanonicalChannels(
+      [...firstByChannel.values()].map((video) => ({
+        channelId: video.channelId,
+        title: video.channelTitle,
+        description: '',
+        thumbnails: {},
+        url: `https://www.youtube.com/channel/${encodeURIComponent(video.channelId)}`,
+        publishedAt: null,
+      })),
+    );
+    await upsertCanonicalVideos(
+      result.videos.map((video) => ({
+        videoId: video.videoId,
+        channelId: video.channelId,
+        title: video.title,
+        description: video.description,
+        thumbnails: video.thumbnails,
+        durationSeconds: video.durationSeconds,
+        views: video.views,
+        likes: video.likes,
+        comments: video.comments,
+        tags: video.tags,
+        categoryId: video.categoryId,
+        defaultAudioLanguage: video.defaultAudioLanguage,
+        url: video.url,
+        publishedAt: video.publishedAt,
+      })),
+    );
+    await upsertHotVideos(
+      result.videos.map((video, index) => ({
+        hotDate,
+        videoId: video.videoId,
+        source: result.source,
+        regionCode: result.region_code,
+        categoryId: result.category_id,
+        chartRank: index + 1,
+      })),
+    );
+  } catch (err) {
+    console.warn('[youpd] failed to persist hot chart', err);
+  }
 }

@@ -113,6 +113,13 @@ function relationProp(pageIds: string[]) {
   };
 }
 
+function selectProp(name: string) {
+  return {
+    type: 'select' as const,
+    select: { name },
+  };
+}
+
 export type VideoRowPayload = {
   title: string;
   videoId: string;
@@ -574,6 +581,97 @@ export async function upsertHotVideoDailyRow(
   if (existingId) {
     await notion.pages.update({
       page_id: existingId,
+      properties: props as Parameters<Client['pages']['update']>[0]['properties'],
+    });
+    return 'updated';
+  }
+  await notion.pages.create({
+    parent: {
+      type: 'data_source_id',
+      data_source_id: dataSourceId,
+    },
+    properties: props as Parameters<Client['pages']['create']>[0]['properties'],
+  });
+  return 'created';
+}
+
+export type SelectedVideoCandidatePayload = {
+  rowKey: string;
+  title: string;
+  videoId: string;
+  videoPageId: string | null;
+  keyword: string;
+  useCase: string;
+  note: string | null;
+  performanceRatio: number | null;
+  performanceGrade: string;
+  contributionRatio: number | null;
+  contributionGrade: string;
+  lengthAdjustedScore: number | null;
+  videoUrl: string;
+  savedYmd: string;
+};
+
+export async function upsertSelectedVideoCandidateRow(
+  notion: Client,
+  dataSourceId: string,
+  row: SelectedVideoCandidatePayload,
+): Promise<'created' | 'updated'> {
+  const props: Record<string, unknown> = {
+    [CANONICAL.selectedVideoCandidates.idTitle]: titleProp(row.rowKey),
+    [CANONICAL.selectedVideoCandidates.title]: richTextProp(row.title),
+    [CANONICAL.selectedVideoCandidates.videoId]: richTextProp(row.videoId),
+    [CANONICAL.selectedVideoCandidates.keyword]: richTextProp(row.keyword),
+    [CANONICAL.selectedVideoCandidates.useCase]: selectProp(row.useCase),
+    [CANONICAL.selectedVideoCandidates.note]: richTextProp(row.note ?? ''),
+    [CANONICAL.selectedVideoCandidates.performanceGrade]: selectProp(
+      row.performanceGrade,
+    ),
+    [CANONICAL.selectedVideoCandidates.contributionGrade]: selectProp(
+      row.contributionGrade,
+    ),
+    [CANONICAL.selectedVideoCandidates.videoUrl]: {
+      type: 'url',
+      url: row.videoUrl.length > 0 ? row.videoUrl : null,
+    },
+    [CANONICAL.selectedVideoCandidates.savedAt]: {
+      type: 'date',
+      date: { start: row.savedYmd },
+    },
+  };
+  if (row.videoPageId != null) {
+    props[CANONICAL.selectedVideoCandidates.videoRelation] = relationProp([
+      row.videoPageId,
+    ]);
+  }
+  if (row.performanceRatio != null) {
+    props[CANONICAL.selectedVideoCandidates.performanceRatio] = {
+      type: 'number',
+      number: row.performanceRatio,
+    };
+  }
+  if (row.contributionRatio != null) {
+    props[CANONICAL.selectedVideoCandidates.contributionRatio] = {
+      type: 'number',
+      number: row.contributionRatio,
+    };
+  }
+  if (row.lengthAdjustedScore != null) {
+    props[CANONICAL.selectedVideoCandidates.lengthAdjustedScore] = {
+      type: 'number',
+      number: row.lengthAdjustedScore,
+    };
+  }
+
+  const existing = await findPageIdByTitleEquals(
+    notion,
+    dataSourceId,
+    CANONICAL.selectedVideoCandidates.idTitle,
+    row.rowKey,
+  );
+  if (existing) {
+    await notion.pages.update({
+      page_id: existing,
       properties: props as Parameters<Client['pages']['update']>[0]['properties'],
     });
     return 'updated';

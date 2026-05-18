@@ -11,6 +11,7 @@
     "./ssr": "./src/ssr.ts",
     "./repositories/healthChecks": "./src/repositories/healthChecks.ts",
     "./repositories/quota": "./src/repositories/quota/index.ts",
+    "./repositories/youtube": "./src/repositories/youtube/index.ts",
     "./repositories/thumbnails": "./src/repositories/thumbnails.ts",
     "./repositories/templates": "./src/repositories/templates.ts",
     "./realtime/thumbnail-channel": "./src/realtime/thumbnail-channel.ts",

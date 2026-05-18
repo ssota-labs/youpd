@@ -77,6 +77,22 @@ export const CANONICAL = {
     modifiers: '수식어 추출',
     pullCandidatesRelation: '풀링 후보 연결',
   },
+  selectedVideoCandidates: {
+    idTitle: 'ID',
+    title: '영상 제목',
+    videoId: 'videoId',
+    videoRelation: '영상',
+    keyword: '키워드',
+    useCase: '유스케이스',
+    note: '메모',
+    performanceRatio: '성과도',
+    performanceGrade: '성과도 등급',
+    contributionRatio: '기여도',
+    contributionGrade: '기여도 등급',
+    lengthAdjustedScore: '길이 보정 점수',
+    videoUrl: 'URL',
+    savedAt: '저장일',
+  },
 } as const;
 
 export type TableKey = keyof typeof CANONICAL;
@@ -165,6 +181,23 @@ export function expectationsForTable(table: TableKey): PropertyExpectation[] {
         { name: CANONICAL.hotVideoDaily.titlePatternNote, types: ['rich_text'] },
         { name: CANONICAL.hotVideoDaily.modifiers, types: ['multi_select'] },
         { name: CANONICAL.hotVideoDaily.pullCandidatesRelation, types: ['relation'] },
+      ];
+    case 'selectedVideoCandidates':
+      return [
+        { name: CANONICAL.selectedVideoCandidates.idTitle, types: ['title'] },
+        { name: CANONICAL.selectedVideoCandidates.title, types: ['rich_text'] },
+        { name: CANONICAL.selectedVideoCandidates.videoId, types: ['rich_text'] },
+        { name: CANONICAL.selectedVideoCandidates.videoRelation, types: ['relation'] },
+        { name: CANONICAL.selectedVideoCandidates.keyword, types: ['rich_text'] },
+        { name: CANONICAL.selectedVideoCandidates.useCase, types: ['select'] },
+        { name: CANONICAL.selectedVideoCandidates.note, types: ['rich_text'] },
+        { name: CANONICAL.selectedVideoCandidates.performanceRatio, types: ['number'] },
+        { name: CANONICAL.selectedVideoCandidates.performanceGrade, types: ['select'] },
+        { name: CANONICAL.selectedVideoCandidates.contributionRatio, types: ['number'] },
+        { name: CANONICAL.selectedVideoCandidates.contributionGrade, types: ['select'] },
+        { name: CANONICAL.selectedVideoCandidates.lengthAdjustedScore, types: ['number'] },
+        { name: CANONICAL.selectedVideoCandidates.videoUrl, types: ['url'] },
+        { name: CANONICAL.selectedVideoCandidates.savedAt, types: ['date'] },
       ];
     default:
       return [];
