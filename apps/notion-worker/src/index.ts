@@ -4,6 +4,7 @@ import { j } from '@notionhq/workers/schema-builder';
 import type { CapabilityContext } from '@notionhq/workers';
 
 import { createLocalTokenBucket } from './lib/pacer-local-fallback.js';
+import { normalizeNotionPageId } from './lib/notion-id.js';
 import { youpdRestJson } from './lib/youpd-rest.js';
 import { CANONICAL, validateCanonicalSchema, type TableKey } from './lib/schema.js';
 import { plannedSlot } from './lib/tracking-slots.js';
@@ -955,11 +956,13 @@ type HarvestItemsResponse = {
 worker.tool('harvestKeywordIdea', {
   title: 'Harvest a Keyword Idea into Supabase',
   description:
-    'Reads the keyword text from a Keyword Ideas row, sets 상태=검색 중, calls POST /api/youpd/rest/harvests to fetch up to results_per_keyword (default 300, max 500) videos from YouTube and stage them in canonical Supabase videos / channels + search_harvests tables. Returns harvest_id which the agent passes to publishHarvestToNotion. This tool itself never writes videos/channels to Notion — the publish tool drains them in chunks under the 60s capability ceiling.',
+    'Reads the keyword text from a Keyword Ideas row, sets 상태=검색 중, calls POST /api/youpd/rest/harvests to fetch up to results_per_keyword (default 300, max 500) videos from YouTube and stage them in canonical Supabase videos / channels + search_harvests tables. Returns harvest_id which the agent passes to publishHarvestToNotion. This tool itself never writes videos/channels to Notion — the publish tool drains them in chunks under the 60s capability ceiling. keyword_idea_page_id accepts any of: the bare 32-char hex id, the dashed UUID form, or a full Notion page URL — the worker normalizes internally.',
   schema: j.object({
     keyword_idea_page_id: j
       .string()
-      .describe('Notion Keyword Ideas page id to harvest.'),
+      .describe(
+        'Notion Keyword Ideas page identifier. Accepts dashed UUID, 32-char hex, or a full notion.so page URL — the worker extracts the id.',
+      ),
     results_per_keyword: j
       .number()
       .describe('1–500, default 300.')
@@ -974,7 +977,12 @@ worker.tool('harvestKeywordIdea', {
     search_pages: j.number().nullable(),
     quota_session_id: j.string().nullable(),
   }),
-  execute: async ({ keyword_idea_page_id, results_per_keyword }, { notion }) => {
+  execute: async (
+    { keyword_idea_page_id: rawIdeaId, results_per_keyword },
+    { notion },
+  ) => {
+    // Accept agent-supplied URLs / hex-32 / dashed UUID interchangeably.
+    const keyword_idea_page_id = normalizeNotionPageId(rawIdeaId);
     const keywordIdeasDs = requireEnv('YOUPD_KEYWORD_IDEAS_DATA_SOURCE_ID');
     // Schema sanity — agent gets a clear error if env points at the wrong DB.
     const ideaSchema = await dataSourceSchema(notion, keywordIdeasDs);
