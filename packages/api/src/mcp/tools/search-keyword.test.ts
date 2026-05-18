@@ -127,6 +127,76 @@ describe('searchKeyword', () => {
     expect(out.units_consumed).toBe(100); // search.list only — videos/channels never called
   });
 
+  it('deduplicates videos that recur across paginated search.list calls', async () => {
+    // YouTube ranking can shift between page fetches, so the same videoId
+    // sometimes appears on consecutive pages. The harvest writer relies on
+    // searchKeyword presenting a unique video set or Postgres rejects the
+    // canonical videos upsert with `ON CONFLICT DO UPDATE cannot affect row
+    // a second time`.
+    let searchPage = 0;
+    const client = makeClient({
+      '/search': () => {
+        searchPage += 1;
+        if (searchPage === 1) {
+          return {
+            items: [
+              { id: { videoId: 'vA' }, snippet: {} },
+              { id: { videoId: 'vB' }, snippet: {} },
+            ],
+            nextPageToken: 'page-2',
+          };
+        }
+        return {
+          items: [
+            // vB repeats here from page 1 — ranking shifted.
+            { id: { videoId: 'vB' }, snippet: {} },
+            { id: { videoId: 'vC' }, snippet: {} },
+          ],
+        };
+      },
+      '/videos': (params) => {
+        const ids = String(params.id ?? '').split(',').filter(Boolean);
+        return {
+          items: ids.map((id) => ({
+            id,
+            snippet: {
+              publishedAt: '2024-01-01T00:00:00Z',
+              channelId: 'c1',
+              title: id,
+              description: '',
+              thumbnails: {},
+              channelTitle: 'C1',
+            },
+            statistics: { viewCount: '1' },
+            contentDetails: { duration: 'PT1M' },
+          })),
+        };
+      },
+      '/channels': () => ({
+        items: [
+          {
+            id: 'c1',
+            snippet: {
+              title: 'C1',
+              description: '',
+              publishedAt: '2023-01-01T00:00:00Z',
+              thumbnails: {},
+            },
+            statistics: {},
+            contentDetails: {},
+          },
+        ],
+      }),
+    });
+    const out = await searchKeyword(
+      { keyword: 'q', max_results: 50, max_total_results: 200, order: 'relevance' },
+      client,
+    );
+    const ids = out.videos.map((v) => v.videoId);
+    expect(ids).toEqual(['vA', 'vB', 'vC']); // vB only once, first-occurrence wins
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
   it('deduplicates channel ids before channels.list', async () => {
     let channelsCalls = 0;
     const client = makeClient({
