@@ -19,7 +19,7 @@ export default defineConfig({
   webServer: [
     {
       command: 'pnpm --filter @youpd/web dev',
-      url: `http://127.0.0.1:${WEB_PORT}/api/health`,
+      url: `http://127.0.0.1:${WEB_PORT}/`,
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
       stdout: 'pipe',

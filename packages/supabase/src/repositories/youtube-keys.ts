@@ -167,6 +167,26 @@ export async function insertKey(
   return row;
 }
 
+export async function upsertKeys(
+  keys: { label: string; key: string }[],
+): Promise<YoutubeApiKeyRow[]> {
+  if (keys.length === 0) return [];
+  const db = getDbClient();
+  return db
+    .insert(youtubeApiKeys)
+    .values(keys.map((item) => ({ label: item.label, key: item.key })))
+    .onConflictDoUpdate({
+      target: youtubeApiKeys.label,
+      set: {
+        key: sql`excluded.key`,
+        status: 'active',
+        disabledReason: null,
+        updatedAt: new Date(),
+      },
+    })
+    .returning();
+}
+
 export async function countKeys(): Promise<number> {
   const db = getDbClient();
   const rows = await db

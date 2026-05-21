@@ -14,6 +14,7 @@
     "./collection": "./src/collection/index.ts",
     "./query": "./src/query/index.ts",
     "./rest": "./src/rest/index.ts",
+    "./youtube": "./src/youtube/index.ts",
     "./rest/harvests": "./src/rest/harvests/index.ts",
     "./thumbnail": "./src/thumbnail/index.ts"
   },
@@ -21,6 +22,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "echo \"(api) no lint configured\"",
     "test": "vitest run",
+    "youtube:keys:sync": "tsx --import ./scripts/register-shim.mjs scripts/sync-youtube-keys.ts",
     "seed:templates": "tsx --import ./scripts/register-shim.mjs scripts/seed-templates.ts",
     "e2e:thumbnail": "tsx --import ./scripts/register-shim.mjs scripts/e2e-thumbnail.ts",
     "youtube-key:add": "tsx --import ./scripts/register-shim.mjs scripts/youtube-key-add.ts"

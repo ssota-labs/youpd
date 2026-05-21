@@ -54,3 +54,4 @@ export const searchSessions = pgTable(
 );
 
 export type SearchSessionRow = typeof searchSessions.$inferSelect;
+

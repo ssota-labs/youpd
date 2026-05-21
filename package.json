@@ -18,6 +18,7 @@
     "db:reset": "supabase db reset --local",
     "db:generate": "pnpm --filter @youpd/db exec drizzle-kit generate",
     "db:push": "node -e \"console.error('drizzle-kit migrate is forbidden by AGENTS.md. Use supabase migration new + pnpm db:reset.'); process.exit(1)\"",
+    "youtube:keys:sync": "pnpm --filter @youpd/api youtube:keys:sync",
     "format": "prettier --write ."
   },
   "devDependencies": {

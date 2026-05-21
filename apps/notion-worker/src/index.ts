@@ -112,6 +112,18 @@ type VideoApiRow = {
   categoryId?: string | null;
 };
 
+type V012Response<T> = {
+  data: T;
+  warnings: { code: string; message: string }[];
+  nextCursor: string | null;
+  harvest: { id: string | null; status: string; resultCount: number } | null;
+  collectedAt: string;
+};
+
+function quotaId<T>(response: V012Response<T>): string | null {
+  return response.harvest?.id ?? null;
+}
+
 function videoRowFromApi(v: VideoApiRow): VideoRowPayload {
   return {
     title: v.title,
@@ -260,13 +272,11 @@ worker.tool('videosByKeyword', {
     await paceYoupdRest();
     const body: Record<string, unknown> = {
       keyword,
-      max_results: max_results ?? 50,
+      limit: Math.min(50, Math.max(1, max_total_results ?? max_results ?? 50)),
+      persist: true,
     };
-    if (max_total_results != null) {
-      body.max_total_results = max_total_results;
-    }
 
-    const env = await youpdRestJson<{
+    const env = await youpdRestJson<V012Response<{
       keyword: string;
       videos: VideoApiRow[];
       channels: {
@@ -278,17 +288,18 @@ worker.tool('videosByKeyword', {
         viewCount: number | null;
         url: string;
       }[];
-      search_pages?: number;
-    }>('/api/youpd/rest/search/keyword', {
+      quotaSessionId: string | null;
+    }>>('/api/youpd/rest/youtube/search/videos', {
       method: 'POST',
       body: JSON.stringify(body),
     });
+    const result = env.data.data;
 
     const collected = ptDateYmd();
     const channelPageById = new Map<string, string>();
 
     let chUpserts = 0;
-    for (const ch of env.data.channels) {
+    for (const ch of result.channels) {
       const u = await upsertChannelRow(notion, channelsDs, {
         channelId: ch.channelId,
         title: ch.title,
@@ -306,7 +317,7 @@ worker.tool('videosByKeyword', {
     let created = 0;
     let updated = 0;
     const videoPageIds: string[] = [];
-    for (const v of env.data.videos) {
+    for (const v of result.videos) {
       const chPage =
         channelPageById.get(v.channelId) ??
         (() => {
@@ -343,12 +354,12 @@ worker.tool('videosByKeyword', {
     );
 
     return {
-      upserted: env.data.videos.length,
+      upserted: result.videos.length,
       created_videos: created,
       updated_videos: updated,
       channels_upserted: chUpserts,
-      search_pages: env.data.search_pages ?? null,
-      quota_session_id: env.meta.jobId ?? null,
+      search_pages: null,
+      quota_session_id: quotaId(env.data),
       keyword_page_id: kw.pageId,
       keyword_row_kind: kw.kind,
     };
@@ -488,21 +499,23 @@ worker.tool('hotVideoDailyFromChart', {
     const rc = (region_code ?? 'KR').trim() || 'KR';
     const lim = limit ?? 50;
     const params = new URLSearchParams({
-      region_code: rc,
+      regionCode: rc,
       limit: String(Math.min(50, Math.max(1, lim))),
     });
     if (category_id != null && String(category_id).trim().length > 0) {
-      params.set('category_id', String(category_id).trim());
+      params.set('categoryId', String(category_id).trim());
     }
+    params.set('persist', 'true');
 
     await paceYoupdRest();
-    const env = await youpdRestJson<{
-      region_code: string;
-      category_id: string | null;
+    const env = await youpdRestJson<V012Response<{
+      regionCode: string;
+      categoryId: string | null;
       videos: VideoApiRow[];
-    }>(`/api/youpd/rest/trending/hot-chart?${params.toString()}`, {
+    }>>(`/api/youpd/rest/youtube/trending/videos?${params.toString()}`, {
       method: 'GET',
     });
+    const result = env.data.data;
 
     let seedKeywordPageId: string | null = null;
     if (seed_keyword != null && seed_keyword.trim().length > 0) {
@@ -517,7 +530,7 @@ worker.tool('hotVideoDailyFromChart', {
     const collected = ptDateYmd();
     const channelPageById = new Map<string, string>();
     const firstByChannel = new Map<string, VideoApiRow>();
-    for (const v of env.data.videos) {
+    for (const v of result.videos) {
       if (!firstByChannel.has(v.channelId)) firstByChannel.set(v.channelId, v);
     }
     for (const v of firstByChannel.values()) {
@@ -541,7 +554,7 @@ worker.tool('hotVideoDailyFromChart', {
     let hotCreated = 0;
     let hotUpdated = 0;
     let rank = 0;
-    for (const v of env.data.videos) {
+    for (const v of result.videos) {
       rank += 1;
       const chPage =
         channelPageById.get(v.channelId) ??
@@ -572,11 +585,11 @@ worker.tool('hotVideoDailyFromChart', {
     }
 
     return {
-      entries: env.data.videos.length,
+      entries: result.videos.length,
       hot_created: hotCreated,
       hot_updated: hotUpdated,
-      videos_touched: env.data.videos.length,
-      quota_session_id: env.meta.jobId ?? null,
+      videos_touched: result.videos.length,
+      quota_session_id: quotaId(env.data),
     };
   },
 });
@@ -610,11 +623,11 @@ worker.tool('channelAllVideos', {
     const cv = validateCanonicalSchema('channels', cs);
     if (!cv.ok) throw new Error(cv.message);
 
-    const params = new URLSearchParams({ all: 'true' });
-    if (max_videos != null) params.set('max_videos', String(max_videos));
+    const params = new URLSearchParams({ persist: 'true' });
+    if (max_videos != null) params.set('limit', String(max_videos));
 
     await paceYoupdRest();
-    const env = await youpdRestJson<{
+    const env = await youpdRestJson<V012Response<{
       channel: {
         channelId: string;
         title: string;
@@ -625,15 +638,16 @@ worker.tool('channelAllVideos', {
         url: string;
       } | null;
       videos: VideoApiRow[];
-    }>(
-      `/api/youpd/rest/channels/${encodeURIComponent(channel_id)}/videos?${params.toString()}`,
+    }>>(
+      `/api/youpd/rest/youtube/channels/${encodeURIComponent(channel_id)}/videos?${params.toString()}`,
     );
+    const result = env.data.data;
 
-    if (!env.data.channel) {
+    if (!result.channel) {
       throw new Error(`Channel not found: ${channel_id}`);
     }
 
-    const ch = env.data.channel;
+    const ch = result.channel;
     const { pageId: chPage } = await upsertChannelRow(notion, channelsDs, {
       channelId: ch.channelId,
       title: ch.title,
@@ -648,7 +662,7 @@ worker.tool('channelAllVideos', {
     const collected = ptDateYmd();
     let created = 0;
     let updated = 0;
-    for (const v of env.data.videos) {
+    for (const v of result.videos) {
       const row = await upsertVideoRow(
         notion,
         videosDs,
@@ -661,11 +675,11 @@ worker.tool('channelAllVideos', {
     }
 
     return {
-      upserted: env.data.videos.length,
+      upserted: result.videos.length,
       created_videos: created,
       updated_videos: updated,
       channel_upserted: true,
-      quota_session_id: env.meta.jobId ?? null,
+      quota_session_id: quotaId(env.data),
     };
   },
 });
@@ -705,23 +719,26 @@ worker.tool('videoComments', {
 
     await paceYoupdRest();
     const qs =
-      top_n != null ? `?top_n=${encodeURIComponent(String(top_n))}` : '';
-    const env = await youpdRestJson<{
-      video_id: string;
-      top_comments: {
+      top_n != null ? `?limit=${encodeURIComponent(String(top_n))}` : '';
+    const env = await youpdRestJson<V012Response<{
+      videoId: string;
+      comments: {
         commentId: string;
         videoId: string;
         text: string;
         likeCount: number;
         publishedAt: string;
       }[];
-      comments_disabled: boolean;
-    }>(`/api/youpd/rest/videos/${encodeURIComponent(video_id)}/comments${qs}`);
+      commentsDisabled: boolean;
+    }>>(
+      `/api/youpd/rest/youtube/videos/${encodeURIComponent(video_id)}/comments${qs}`,
+    );
+    const result = env.data.data;
 
     let created = 0;
     let updated = 0;
-    if (!env.data.comments_disabled) {
-      for (const c of env.data.top_comments) {
+    if (!result.commentsDisabled) {
+      for (const c of result.comments) {
         const kind = await upsertCommentRow(
           notion,
           commentsDs,
@@ -739,11 +756,11 @@ worker.tool('videoComments', {
       }
     }
     return {
-      upserted: env.data.top_comments.length,
+      upserted: result.comments.length,
       created,
       updated,
-      comments_disabled: env.data.comments_disabled,
-      quota_session_id: env.meta.jobId ?? null,
+      comments_disabled: result.commentsDisabled,
+      quota_session_id: quotaId(env.data),
     };
   },
 });
@@ -789,22 +806,23 @@ worker.tool('snapshotVideos', {
     for (const batch of batches) {
       if (batch.length === 0) continue;
       await paceYoupdRest();
-      const env = await youpdRestJson<{
-        snapshots: {
+      const env = await youpdRestJson<V012Response<{
+        videoSnapshots: {
           video_id: string;
           snapshot_date: string;
           views: number | null;
           likes: number | null;
           comments: number | null;
         }[];
-      }>('/api/youpd/rest/snapshots/now', {
+        quotaSessionIds: string[];
+      }>>('/api/youpd/rest/youtube/snapshots/capture', {
         method: 'POST',
-        body: JSON.stringify({ video_ids: batch }),
+        body: JSON.stringify({ videoIds: batch, persist: false }),
       });
       batchIndex += 1;
-      if (env.meta.jobId) quotaSessionIds.push(env.meta.jobId);
+      quotaSessionIds.push(...env.data.data.quotaSessionIds);
 
-      for (const s of env.data.snapshots) {
+      for (const s of env.data.data.videoSnapshots) {
         const videoPageId = await resolveVideoPageId(notion, videosDs, s.video_id);
         if (!videoPageId) continue;
         const kind = await upsertSnapshotRow(notion, snapsDs, {
@@ -869,22 +887,23 @@ worker.tool('snapshotChannels', {
     for (const batch of batches) {
       if (batch.length === 0) continue;
       await paceYoupdRest();
-      const env = await youpdRestJson<{
-        snapshots: {
+      const env = await youpdRestJson<V012Response<{
+        channelSnapshots: {
           channel_id: string;
           snapshot_date: string;
           subscribers: number | null;
           view_count: number | null;
           video_count: number | null;
         }[];
-      }>('/api/youpd/rest/snapshots/channels', {
+        quotaSessionIds: string[];
+      }>>('/api/youpd/rest/youtube/snapshots/capture', {
         method: 'POST',
-        body: JSON.stringify({ channel_ids: batch }),
+        body: JSON.stringify({ channelIds: batch, persist: false }),
       });
       batchIndex += 1;
-      if (env.meta.jobId) quotaSessionIds.push(env.meta.jobId);
+      quotaSessionIds.push(...env.data.data.quotaSessionIds);
 
-      for (const s of env.data.snapshots) {
+      for (const s of env.data.data.channelSnapshots) {
         const chPage = await resolveChannelPageId(
           notion,
           channelsDs,
