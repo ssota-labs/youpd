@@ -77,6 +77,36 @@ export const CANONICAL = {
     modifiers: '수식어 추출',
     pullCandidatesRelation: '풀링 후보 연결',
   },
+  selectedVideoCandidates: {
+    idTitle: 'ID',
+    title: '영상 제목',
+    videoId: 'videoId',
+    videoRelation: '영상',
+    keyword: '키워드',
+    useCase: '유스케이스',
+    note: '메모',
+    performanceRatio: '성과도',
+    performanceGrade: '성과도 등급',
+    contributionRatio: '기여도',
+    contributionGrade: '기여도 등급',
+    lengthAdjustedScore: '길이 보정 점수',
+    videoUrl: 'URL',
+    savedAt: '저장일',
+  },
+  keywordIdeas: {
+    title: '키워드',
+    status: '상태',
+    trackingStatus: '트래킹 상태',
+    trackingPeriod: '트래킹 주기',
+    trackingSlot: '트래킹 슬롯',
+    priority: '우선순위',
+    lastSearchedAt: '마지막 검색일',
+    nextSearchAt: '다음 검색 예정일',
+    initialCatchupTarget: '초기 캐치업 대상',
+    dueForScheduler: '다음 스케줄러 추출',
+    searchCount: '검색 횟수',
+    trackingKeywordsRelation: '연결된 트래킹 키워드',
+  },
 } as const;
 
 export type TableKey = keyof typeof CANONICAL;
@@ -165,6 +195,44 @@ export function expectationsForTable(table: TableKey): PropertyExpectation[] {
         { name: CANONICAL.hotVideoDaily.titlePatternNote, types: ['rich_text'] },
         { name: CANONICAL.hotVideoDaily.modifiers, types: ['multi_select'] },
         { name: CANONICAL.hotVideoDaily.pullCandidatesRelation, types: ['relation'] },
+      ];
+    case 'selectedVideoCandidates':
+      return [
+        { name: CANONICAL.selectedVideoCandidates.idTitle, types: ['title'] },
+        { name: CANONICAL.selectedVideoCandidates.title, types: ['rich_text'] },
+        { name: CANONICAL.selectedVideoCandidates.videoId, types: ['rich_text'] },
+        { name: CANONICAL.selectedVideoCandidates.videoRelation, types: ['relation'] },
+        { name: CANONICAL.selectedVideoCandidates.keyword, types: ['rich_text'] },
+        { name: CANONICAL.selectedVideoCandidates.useCase, types: ['select'] },
+        { name: CANONICAL.selectedVideoCandidates.note, types: ['rich_text'] },
+        { name: CANONICAL.selectedVideoCandidates.performanceRatio, types: ['number'] },
+        { name: CANONICAL.selectedVideoCandidates.performanceGrade, types: ['select'] },
+        { name: CANONICAL.selectedVideoCandidates.contributionRatio, types: ['number'] },
+        { name: CANONICAL.selectedVideoCandidates.contributionGrade, types: ['select'] },
+        { name: CANONICAL.selectedVideoCandidates.lengthAdjustedScore, types: ['number'] },
+        { name: CANONICAL.selectedVideoCandidates.videoUrl, types: ['url'] },
+        { name: CANONICAL.selectedVideoCandidates.savedAt, types: ['date'] },
+      ];
+    case 'keywordIdeas':
+      return [
+        { name: CANONICAL.keywordIdeas.title, types: ['title'] },
+        { name: CANONICAL.keywordIdeas.status, types: ['status'] },
+        { name: CANONICAL.keywordIdeas.trackingStatus, types: ['select'] },
+        { name: CANONICAL.keywordIdeas.trackingPeriod, types: ['select'] },
+        { name: CANONICAL.keywordIdeas.trackingSlot, types: ['number'] },
+        { name: CANONICAL.keywordIdeas.priority, types: ['select'] },
+        { name: CANONICAL.keywordIdeas.lastSearchedAt, types: ['date'] },
+        // `다음 검색 예정일` is a formula in Notion (마지막 검색일 + 트래킹 주기 + 트래킹 슬롯).
+        { name: CANONICAL.keywordIdeas.nextSearchAt, types: ['formula', 'date'] },
+        // v0.8: mode-per-formula target checkbox. The worker only filters on
+        // these — Notion is the single source of truth for "is this row due?".
+        { name: CANONICAL.keywordIdeas.initialCatchupTarget, types: ['formula'] },
+        { name: CANONICAL.keywordIdeas.dueForScheduler, types: ['formula'] },
+        { name: CANONICAL.keywordIdeas.searchCount, types: ['number'] },
+        {
+          name: CANONICAL.keywordIdeas.trackingKeywordsRelation,
+          types: ['relation'],
+        },
       ];
     default:
       return [];

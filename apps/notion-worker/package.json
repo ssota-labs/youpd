@@ -7,7 +7,8 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "lint": "echo \"(notion-worker) no lint configured\"",
-    "test": "vitest run"
+    "test": "vitest run",
+    "e2e:tracking": "tsx scripts/e2e-tracking-due.ts"
   },
   "dependencies": {
     "@notionhq/client": "5.21.0",

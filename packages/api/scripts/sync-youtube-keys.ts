@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { upsertYouTubeApiKeys } from '@youpd/supabase/repositories/youtubeApiKeys';
+import { upsertKeys } from '@youpd/supabase/repositories/youtube-keys';
 
 type EnvMap = Record<string, string>;
 
@@ -62,8 +62,8 @@ function isUsableValue(value: string): boolean {
   );
 }
 
-function keysFromEnv(env: EnvMap): { name: string; keyValue: string }[] {
-  const keys: { name: string; keyValue: string }[] = [];
+function keysFromEnv(env: EnvMap): { label: string; key: string }[] {
+  const keys: { label: string; key: string }[] = [];
   const seenValues = new Set<string>();
 
   for (const [name, value] of Object.entries(env)) {
@@ -72,10 +72,10 @@ function keysFromEnv(env: EnvMap): { name: string; keyValue: string }[] {
         .split(',')
         .map((part) => part.trim())
         .filter(isUsableValue)
-        .forEach((keyValue, index) => {
-          if (seenValues.has(keyValue)) return;
-          seenValues.add(keyValue);
-          keys.push({ name: `YOUTUBE_API_KEYS_${index + 1}`, keyValue });
+        .forEach((key, index) => {
+          if (seenValues.has(key)) return;
+          seenValues.add(key);
+          keys.push({ label: `YOUTUBE_API_KEYS_${index + 1}`, key });
         });
       continue;
     }
@@ -88,7 +88,7 @@ function keysFromEnv(env: EnvMap): { name: string; keyValue: string }[] {
     }
     if (seenValues.has(value)) continue;
     seenValues.add(value);
-    keys.push({ name, keyValue: value });
+    keys.push({ label: name, key: value });
   }
 
   return keys;
@@ -121,7 +121,7 @@ async function main(): Promise<void> {
     throw new Error(`No YOUTUBE_API_KEY* entries found in ${youtubeEnvPath}`);
   }
 
-  const rows = await upsertYouTubeApiKeys(keys);
+  const rows = await upsertKeys(keys);
   console.log(
     `Synced ${rows.length} YouTube API key(s) into Supabase from ${path.relative(
       repoRoot,

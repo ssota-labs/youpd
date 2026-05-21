@@ -10,7 +10,7 @@ import {
   type VideoSummary,
   type YouTubeClient,
 } from '@youpd/youtube';
-import { getYouTubeClient } from '../youtube-client';
+import { executeWithKeyRotation } from '../youtube-key-pool';
 import { attachQuotaSession, runWithBudget } from '../quota';
 
 export const GetChannelAllVideosInputSchema = z
@@ -36,7 +36,7 @@ export type GetChannelAllVideosOutput = {
 // when the daily counter is too low.
 export async function getChannelAllVideos(
   input: GetChannelAllVideosInput,
-  client?: YouTubeClient,
+  injectedClient?: YouTubeClient,
 ): Promise<GetChannelAllVideosOutput> {
   const expectedPages = Math.ceil(input.max_videos / 50);
   const upperBoundUnits =
@@ -44,13 +44,14 @@ export async function getChannelAllVideos(
     expectedPages * UNIT_COST.playlist_items_list +
     expectedPages * UNIT_COST.videos_list;
 
-  const { result, sessionId } = await runWithBudget<GetChannelAllVideosOutput>({
-    operation: 'channel-all-videos',
-    units: upperBoundUnits,
-    channelId: input.channel_id,
-    call: async () => {
-      const youtube = client ?? await getYouTubeClient();
-      const channelsRes = await channelsList(youtube, { ids: [input.channel_id] });
+  return executeWithKeyRotation(injectedClient ?? null, async (client, keyId) => {
+    const { result, sessionId } = await runWithBudget<GetChannelAllVideosOutput>({
+      operation: 'channel-all-videos',
+      units: upperBoundUnits,
+      channelId: input.channel_id,
+      keyId,
+      call: async () => {
+      const channelsRes = await channelsList(client, { ids: [input.channel_id] });
       const rawChannel = channelsRes.items[0];
       if (!rawChannel) {
         const payload: GetChannelAllVideosOutput = {
@@ -73,7 +74,7 @@ export async function getChannelAllVideos(
       }
 
       const { videoIds, pagesFetched } = await playlistAllVideoIds(
-        youtube,
+        client,
         channel.uploadsPlaylistId,
         input.max_videos,
       );
@@ -81,7 +82,7 @@ export async function getChannelAllVideos(
       let videos: VideoSummary[] = [];
       let videosBatches = 0;
       if (videoIds.length > 0) {
-        const videosRes = await videosList(youtube, { ids: videoIds });
+        const videosRes = await videosList(client, { ids: videoIds });
         videos = videosRes.items.map(normaliseVideo);
         videosBatches = videosRes.batches;
       }
@@ -102,4 +103,5 @@ export async function getChannelAllVideos(
   });
 
   return attachQuotaSession(result, sessionId);
+  });
 }

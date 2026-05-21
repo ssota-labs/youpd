@@ -4,7 +4,7 @@ import {
   videosList,
   type YouTubeClient,
 } from '@youpd/youtube';
-import { getYouTubeClient } from '../youtube-client';
+import { executeWithKeyRotation } from '../youtube-key-pool';
 import { attachQuotaSession, runWithBudget } from '../quota';
 
 export const SnapshotNowInputSchema = z
@@ -54,19 +54,20 @@ function toNum(v: string | undefined): number | null {
 // from its tracking list.
 export async function snapshotNow(
   input: SnapshotNowInput,
-  client?: YouTubeClient,
+  injectedClient?: YouTubeClient,
 ): Promise<SnapshotNowOutput> {
   const uniqueIds = Array.from(new Set(input.video_ids));
   const expectedBatches = Math.ceil(uniqueIds.length / 50);
   const upperBoundUnits = expectedBatches * UNIT_COST.videos_list;
 
-  const { result, sessionId } = await runWithBudget<SnapshotNowOutput>({
-    operation: 'daily-snapshot',
-    units: upperBoundUnits,
-    videoIds: uniqueIds,
-    call: async () => {
-      const youtube = client ?? await getYouTubeClient();
-      const res = await videosList(youtube, {
+  return executeWithKeyRotation(injectedClient ?? null, async (client, keyId) => {
+    const { result, sessionId } = await runWithBudget<SnapshotNowOutput>({
+      operation: 'daily-snapshot',
+      units: upperBoundUnits,
+      videoIds: uniqueIds,
+      keyId,
+      call: async () => {
+      const res = await videosList(client, {
         ids: uniqueIds,
         parts: ['statistics'],
       });
@@ -95,4 +96,5 @@ export async function snapshotNow(
   });
 
   return attachQuotaSession(result, sessionId);
+  });
 }

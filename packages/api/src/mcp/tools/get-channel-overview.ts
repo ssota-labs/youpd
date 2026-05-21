@@ -10,7 +10,7 @@ import {
   type VideoSummary,
   type YouTubeClient,
 } from '@youpd/youtube';
-import { getYouTubeClient } from '../youtube-client';
+import { executeWithKeyRotation } from '../youtube-key-pool';
 import { attachQuotaSession, runWithBudget } from '../quota';
 
 export const GetChannelOverviewInputSchema = z
@@ -33,20 +33,21 @@ export type GetChannelOverviewOutput = {
 // 3 units total — much cheaper than search.list (100u) for the same outcome.
 export async function getChannelOverview(
   input: GetChannelOverviewInput,
-  client?: YouTubeClient,
+  injectedClient?: YouTubeClient,
 ): Promise<GetChannelOverviewOutput> {
   const totalUnits =
     UNIT_COST.channels_list +
     UNIT_COST.playlist_items_list +
     UNIT_COST.videos_list;
 
-  const { result, sessionId } = await runWithBudget<GetChannelOverviewOutput>({
-    operation: 'channel-detail',
-    units: totalUnits,
-    channelId: input.channel_id,
-    call: async () => {
-      const youtube = client ?? await getYouTubeClient();
-      const channelsRes = await channelsList(youtube, { ids: [input.channel_id] });
+  return executeWithKeyRotation(injectedClient ?? null, async (client, keyId) => {
+    const { result, sessionId } = await runWithBudget<GetChannelOverviewOutput>({
+      operation: 'channel-detail',
+      units: totalUnits,
+      channelId: input.channel_id,
+      keyId,
+      call: async () => {
+      const channelsRes = await channelsList(client, { ids: [input.channel_id] });
       const rawChannel = channelsRes.items[0];
       if (!rawChannel) {
         const payload: GetChannelOverviewOutput = {
@@ -71,7 +72,7 @@ export async function getChannelOverview(
       // that locally by views surfaces "popular among recent uploads", which
       // is what the agent's "channel analysis" skill wants.
       const { videoIds } = await playlistAllVideoIds(
-        youtube,
+        client,
         channel.uploadsPlaylistId,
         50,
       );
@@ -84,7 +85,7 @@ export async function getChannelOverview(
         return { resultCount: 1, payload };
       }
 
-      const videosRes = await videosList(youtube, { ids: videoIds });
+      const videosRes = await videosList(client, { ids: videoIds });
       const videos = videosRes.items.map(normaliseVideo);
       const topVideos = videos
         .slice()
@@ -101,4 +102,5 @@ export async function getChannelOverview(
   });
 
   return attachQuotaSession(result, sessionId);
+  });
 }

@@ -10,7 +10,8 @@ import {
   videosList,
   type YouTubeClient,
 } from '@youpd/youtube';
-import { getYouTubeClient } from '../youtube-client';
+import { executeWithKeyRotation } from '../youtube-key-pool';
+import { waitBetweenYouTubePages } from '../youtube-throttle';
 import { runWithBudget, attachQuotaSession } from '../quota';
 
 export const SearchKeywordInputSchema = z
@@ -56,7 +57,7 @@ const CHANNELS_UNITS = UNIT_COST.channels_list;
 
 export async function searchKeyword(
   input: SearchKeywordInput,
-  client?: YouTubeClient,
+  injectedClient?: YouTubeClient,
 ): Promise<SearchKeywordOutput> {
   const totalCap =
     input.max_total_results ?? input.max_results;
@@ -68,21 +69,31 @@ export async function searchKeyword(
     maxPages * (SEARCH_UNITS + VIDEOS_UNITS) +
     Math.ceil(totalCap / 50) * CHANNELS_UNITS;
 
-  const { result, sessionId } = await runWithBudget<SearchKeywordOutput>({
-    operation: 'video-search',
-    units: upperBoundUnits,
-    keyword: input.keyword,
-    call: async () => {
-      const youtube = client ?? await getYouTubeClient();
+  return executeWithKeyRotation(
+    injectedClient ?? null,
+    async (client, keyId) => {
+      const { result, sessionId } = await runWithBudget<SearchKeywordOutput>({
+        operation: 'video-search',
+        units: upperBoundUnits,
+        keyword: input.keyword,
+        keyId,
+        call: async () => {
       let pageToken: string | undefined;
       const allVideos: VideoSummary[] = [];
+      // YouTube search.list pagination is *not* guaranteed unique across
+      // pages — ranking can shift between calls (milliseconds apart) and the
+      // same videoId may be returned on multiple pages. Track ids we've
+      // already kept so we don't pass duplicates down to the harvest writer,
+      // which would hit `ON CONFLICT DO UPDATE cannot affect row a second
+      // time` on the canonical videos upsert.
+      const seenVideoIds = new Set<string>();
       let searchPages = 0;
       let consumed = 0;
 
       while (allVideos.length < totalCap) {
         const remaining = totalCap - allVideos.length;
         const batchSize = Math.min(perPage, remaining);
-        const search = await searchList(youtube, {
+        const search = await searchList(client, {
           q: input.keyword,
           maxResults: batchSize,
           order: input.order,
@@ -101,16 +112,22 @@ export async function searchKeyword(
           break;
         }
 
-        const videosRes = await videosList(youtube, { ids: videoIds });
+        const videosRes = await videosList(client, { ids: videoIds });
         consumed += VIDEOS_UNITS;
         const pageVideos = videosRes.items.map(normaliseVideo);
         for (const v of pageVideos) {
-          if (allVideos.length < totalCap) allVideos.push(v);
+          if (allVideos.length >= totalCap) break;
+          if (seenVideoIds.has(v.videoId)) continue;
+          seenVideoIds.add(v.videoId);
+          allVideos.push(v);
         }
 
         if (!search.nextPageToken) break;
         if (allVideos.length >= totalCap) break;
         pageToken = search.nextPageToken;
+        // Inter-page throttle to keep us under YouTube's per-second/minute
+        // rate caps when one keyword needs many pages.
+        await waitBetweenYouTubePages();
       }
 
       if (allVideos.length === 0) {
@@ -128,7 +145,7 @@ export async function searchKeyword(
         new Set(allVideos.map((v) => v.channelId).filter((s) => s.length > 0)),
       );
       const channelsRes = channelIds.length
-        ? await channelsList(youtube, { ids: channelIds })
+        ? await channelsList(client, { ids: channelIds })
         : { items: [], batches: 0 };
       consumed += channelsRes.batches * CHANNELS_UNITS;
       const channels = channelsRes.items.map(normaliseChannel);
@@ -141,8 +158,10 @@ export async function searchKeyword(
         search_pages: searchPages,
       };
       return { resultCount: allVideos.length, payload };
-    },
-  });
+        },
+      });
 
-  return attachQuotaSession(result, sessionId);
+      return attachQuotaSession(result, sessionId);
+    },
+  );
 }

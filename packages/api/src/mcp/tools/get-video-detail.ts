@@ -13,7 +13,7 @@ import {
   type VideoSummary,
   type YouTubeClient,
 } from '@youpd/youtube';
-import { getYouTubeClient } from '../youtube-client';
+import { executeWithKeyRotation } from '../youtube-key-pool';
 import { attachQuotaSession, runWithBudget } from '../quota';
 
 export const GetVideoDetailInputSchema = z
@@ -40,18 +40,19 @@ const COMMENTS_UNITS = UNIT_COST.comment_threads_list;
 
 export async function getVideoDetail(
   input: GetVideoDetailInput,
-  client?: YouTubeClient,
+  injectedClient?: YouTubeClient,
 ): Promise<GetVideoDetailOutput> {
   const wantComments = input.include_comments && input.comments_top_n > 0;
   const totalUnits = VIDEOS_UNITS + CHANNELS_UNITS + (wantComments ? COMMENTS_UNITS : 0);
 
-  const { result, sessionId } = await runWithBudget<GetVideoDetailOutput>({
-    operation: 'video-detail',
-    units: totalUnits,
-    videoIds: [input.video_id],
-    call: async () => {
-      const youtube = client ?? await getYouTubeClient();
-      const videosRes = await videosList(youtube, { ids: [input.video_id] });
+  return executeWithKeyRotation(injectedClient ?? null, async (client, keyId) => {
+    const { result, sessionId } = await runWithBudget<GetVideoDetailOutput>({
+      operation: 'video-detail',
+      units: totalUnits,
+      videoIds: [input.video_id],
+      keyId,
+      call: async () => {
+      const videosRes = await videosList(client, { ids: [input.video_id] });
       const rawVideo = videosRes.items[0];
       if (!rawVideo) {
         const payload: GetVideoDetailOutput = {
@@ -65,7 +66,7 @@ export async function getVideoDetail(
       }
 
       const video = normaliseVideo(rawVideo);
-      const channelsRes = await channelsList(youtube, { ids: [video.channelId] });
+      const channelsRes = await channelsList(client, { ids: [video.channelId] });
       const channel = channelsRes.items[0]
         ? normaliseChannel(channelsRes.items[0])
         : null;
@@ -74,7 +75,7 @@ export async function getVideoDetail(
       let commentsDisabled = false;
       if (wantComments) {
         try {
-          const threads = await commentThreadsList(youtube, {
+          const threads = await commentThreadsList(client, {
             videoId: input.video_id,
             order: 'relevance',
             maxResults: 100,
@@ -104,4 +105,5 @@ export async function getVideoDetail(
   });
 
   return attachQuotaSession(result, sessionId);
+  });
 }

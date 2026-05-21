@@ -5,7 +5,7 @@ import {
   UNIT_COST,
   type YouTubeClient,
 } from '@youpd/youtube';
-import { getYouTubeClient } from '../youtube-client';
+import { executeWithKeyRotation } from '../youtube-key-pool';
 import { attachQuotaSession, runWithBudget } from '../quota';
 
 export const SnapshotChannelsInputSchema = z
@@ -47,19 +47,20 @@ function ptDate(now: Date = new Date()): string {
 /** channels.list in batches of 50; statistics only — 1u per batch. */
 export async function snapshotChannelsNow(
   input: SnapshotChannelsInput,
-  client?: YouTubeClient,
+  injectedClient?: YouTubeClient,
 ): Promise<SnapshotChannelsOutput> {
   const uniqueIds = Array.from(new Set(input.channel_ids));
   const expectedBatches = Math.ceil(uniqueIds.length / 50);
   const upperBoundUnits = expectedBatches * UNIT_COST.channels_list;
 
-  const { result, sessionId } = await runWithBudget<SnapshotChannelsOutput>({
-    operation: 'channel-daily-snapshot',
-    units: upperBoundUnits,
-    videoIds: uniqueIds,
-    call: async () => {
-      const youtube = client ?? await getYouTubeClient();
-      const res = await channelsList(youtube, {
+  return executeWithKeyRotation(injectedClient ?? null, async (client, keyId) => {
+    const { result, sessionId } = await runWithBudget<SnapshotChannelsOutput>({
+      operation: 'channel-daily-snapshot',
+      units: upperBoundUnits,
+      videoIds: uniqueIds,
+      keyId,
+      call: async () => {
+      const res = await channelsList(client, {
         ids: uniqueIds,
         parts: ['snippet', 'statistics', 'contentDetails'],
       });
@@ -89,4 +90,5 @@ export async function snapshotChannelsNow(
   });
 
   return attachQuotaSession(result, sessionId);
+  });
 }

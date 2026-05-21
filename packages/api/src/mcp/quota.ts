@@ -5,6 +5,7 @@ import {
   recordSession,
   type RecordSessionInput,
 } from '@youpd/supabase/repositories/quota';
+import { recordKeyUsage } from '@youpd/supabase/repositories/youtube-keys';
 
 // Thrown when the local budget gate refuses a call before it reaches YouTube.
 // Distinct from YouTube's own QuotaExceededError (which fires after the API
@@ -34,7 +35,10 @@ export class QuotaExceededAtBudgetError extends Error {
 }
 
 export function getDailyLimit(): number {
-  const raw = process.env.QUOTA_DAILY_LIMIT;
+  // YOUPD_DAILY_QUOTA_BUDGET_UNITS is the v0.7 name; QUOTA_DAILY_LIMIT remains
+  // as the legacy alias so existing deployments keep working until rollout.
+  const raw =
+    process.env.YOUPD_DAILY_QUOTA_BUDGET_UNITS ?? process.env.QUOTA_DAILY_LIMIT;
   if (!raw) return 9_000;
   const n = Number(raw);
   if (!Number.isFinite(n) || n < 0) return 9_000;
@@ -59,8 +63,17 @@ export async function assertBudget(units: number): Promise<void> {
   }
 }
 
-export async function commitUnits(units: number): Promise<void> {
+export async function commitUnits(
+  units: number,
+  keyId: string | null = null,
+): Promise<void> {
   if (units <= 0) return;
+  if (keyId) {
+    // recordKeyUsage updates the per-key counter AND the global counter
+    // atomically, so we must not also call incrementDailyUsage on this path.
+    await recordKeyUsage(keyId, currentUsageDay(), units);
+    return;
+  }
   await incrementDailyUsage(units);
 }
 
@@ -79,6 +92,8 @@ export type RunWithBudgetInput<T> = {
   keyword?: string | null;
   videoIds?: string[] | null;
   channelId?: string | null;
+  /** When set, units are attributed to this pool key (per-key + global). */
+  keyId?: string | null;
   call: () => Promise<{ resultCount: number; payload: T }>;
 };
 
@@ -109,7 +124,7 @@ export async function runWithBudget<T>(
 
   try {
     const { resultCount, payload } = await input.call();
-    await commitUnits(input.units);
+    await commitUnits(input.units, input.keyId ?? null);
     const row = await recordSession({
       operation: input.operation,
       keyword: input.keyword ?? null,

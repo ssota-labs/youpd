@@ -7,7 +7,8 @@ import {
   type CommentSummary,
   type YouTubeClient,
 } from '@youpd/youtube';
-import { getYouTubeClient } from '../youtube-client';
+import { upsertCanonicalComments } from '@youpd/supabase/repositories/youtube';
+import { executeWithKeyRotation } from '../youtube-key-pool';
 import { attachQuotaSession, runWithBudget } from '../quota';
 
 export const GetVideoCommentsInputSchema = z
@@ -35,18 +36,19 @@ export type GetVideoCommentsOutput = {
 // + topic tagging downstream.
 export async function getVideoComments(
   input: GetVideoCommentsInput,
-  client?: YouTubeClient,
+  injectedClient?: YouTubeClient,
 ): Promise<GetVideoCommentsOutput> {
   const totalUnits = UNIT_COST.comment_threads_list;
 
-  const { result, sessionId } = await runWithBudget<GetVideoCommentsOutput>({
-    operation: 'video-comments',
-    units: totalUnits,
-    videoIds: [input.video_id],
-    call: async () => {
-      const youtube = client ?? await getYouTubeClient();
+  return executeWithKeyRotation(injectedClient ?? null, async (client, keyId) => {
+    const { result, sessionId } = await runWithBudget<GetVideoCommentsOutput>({
+      operation: 'video-comments',
+      units: totalUnits,
+      videoIds: [input.video_id],
+      keyId,
+      call: async () => {
       try {
-        const threads = await commentThreadsList(youtube, {
+        const threads = await commentThreadsList(client, {
           videoId: input.video_id,
           order: 'relevance',
           maxResults: 100,
@@ -80,7 +82,30 @@ export async function getVideoComments(
     },
   });
 
+  await persistVideoComments(result);
   return attachQuotaSession(result, sessionId);
+  });
+}
+
+async function persistVideoComments(result: GetVideoCommentsOutput): Promise<void> {
+  if (!process.env.DATABASE_URL || result.comments_disabled) return;
+  try {
+    await upsertCanonicalComments(
+      result.top_comments.map((comment) => ({
+        commentId: comment.commentId,
+        videoId: comment.videoId,
+        authorDisplayName: comment.authorDisplayName,
+        authorChannelId: comment.authorChannelId,
+        text: comment.text,
+        likeCount: comment.likeCount,
+        totalReplyCount: comment.totalReplyCount,
+        publishedAt: comment.publishedAt,
+        updatedAt: comment.updatedAt,
+      })),
+    );
+  } catch (err) {
+    console.warn('[youpd] failed to persist video comments', err);
+  }
 }
 
 const HANGUL = /[가-힯ᄀ-ᇿ㄰-㆏]/;
