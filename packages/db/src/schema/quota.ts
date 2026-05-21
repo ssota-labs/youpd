@@ -54,3 +54,38 @@ export const searchSessions = pgTable(
 );
 
 export type SearchSessionRow = typeof searchSessions.$inferSelect;
+
+// Server-side registry for YouTube Data API keys. Keys are never exposed to
+// browser clients; RLS denies anon/authenticated access and server code uses
+// privileged database credentials.
+export const youtubeApiKeys = pgTable(
+  'youtube_api_keys',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    name: text('name').notNull().unique(),
+    keyHash: text('key_hash').notNull().unique(),
+    keyValue: text('key_value').notNull(),
+    status: text('status').notNull().default('active'),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+    quotaExhaustedAt: timestamp('quota_exhausted_at', { withTimezone: true }),
+    failureCount: integer('failure_count').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => ({
+    statusLastUsedIdx: index('youtube_api_keys_status_last_used_idx').on(
+      table.status,
+      table.lastUsedAt,
+    ),
+    statusCheck: check(
+      'youtube_api_keys_status_check',
+      sql`${table.status} in ('active','quota_exhausted','disabled')`,
+    ),
+  }),
+);
+
+export type YouTubeApiKeyRow = typeof youtubeApiKeys.$inferSelect;

@@ -1,16 +1,47 @@
-import { createYouTubeClient, type YouTubeClient } from '@youpd/youtube';
+import {
+  createYouTubeClient,
+  QuotaExceededError,
+  type YouTubeClient,
+} from '@youpd/youtube';
+import {
+  getActiveYouTubeApiKey,
+  markYouTubeApiKeyQuotaExhausted,
+  markYouTubeApiKeyUsed,
+} from '@youpd/supabase/repositories/youtubeApiKeys';
 
 let cached: YouTubeClient | null = null;
 
-// Lazy singleton — process.env is read once on first use so test environments
-// can mutate it before the first tool call.
-export function getYouTubeClient(): YouTubeClient {
+// Lazy singleton. Each request picks the least-recently-used active key from
+// Supabase so key rotation works without coupling callers to secret storage.
+export async function getYouTubeClient(): Promise<YouTubeClient> {
   if (cached) return cached;
-  const apiKey = process.env.YOUTUBE_API_KEY;
-  if (!apiKey) {
-    throw new Error('YOUTUBE_API_KEY is not set');
-  }
-  cached = createYouTubeClient({ apiKey });
+  cached = {
+    request: async (opts) => {
+      let lastQuotaError: unknown;
+
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        const key = await getActiveYouTubeApiKey();
+        if (!key) break;
+
+        try {
+          const result = await createYouTubeClient({
+            apiKey: key.keyValue,
+          }).request(opts);
+          await markYouTubeApiKeyUsed(key.id);
+          return result;
+        } catch (error) {
+          if (!(error instanceof QuotaExceededError)) throw error;
+          lastQuotaError = error;
+          await markYouTubeApiKeyQuotaExhausted(key.id);
+        }
+      }
+
+      if (lastQuotaError) throw lastQuotaError;
+      throw new Error(
+        'No active YouTube API keys found. Run `pnpm youtube:keys:sync` after filling apps/web/.env.youtube.',
+      );
+    },
+  };
   return cached;
 }
 

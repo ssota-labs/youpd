@@ -41,7 +41,7 @@ export type GetChannelVideosPageOutput = {
 
 export async function getChannelVideosPage(
   input: GetChannelVideosPageInput,
-  client: YouTubeClient = getYouTubeClient(),
+  client?: YouTubeClient,
 ): Promise<GetChannelVideosPageOutput> {
   const playlistId = input.uploads_playlist_id;
   const needsChannelLookup = !playlistId;
@@ -57,7 +57,8 @@ export async function getChannelVideosPage(
       units,
       channelId: input.channel_id,
       call: async () => {
-        const channelsRes = await channelsList(client, { ids: [input.channel_id] });
+        const youtube = client ?? await getYouTubeClient();
+        const channelsRes = await channelsList(youtube, { ids: [input.channel_id] });
         const raw = channelsRes.items[0];
         if (!raw) {
           return {
@@ -87,7 +88,7 @@ export async function getChannelVideosPage(
             },
           };
         }
-        const pl = await playlistItemsList(client, {
+        const pl = await playlistItemsList(youtube, {
           playlistId: up,
           maxResults: input.page_size,
           pageToken: input.playlist_page_token,
@@ -101,7 +102,7 @@ export async function getChannelVideosPage(
         let videos: VideoSummary[] = [];
         let vidBatches = 0;
         if (ids.length > 0) {
-          const vr = await videosList(client, { ids });
+          const vr = await videosList(youtube, { ids });
           videos = vr.items.map(normaliseVideo);
           vidBatches = vr.batches;
         }
@@ -138,7 +139,8 @@ export async function getChannelVideosPage(
     units,
     channelId: input.channel_id,
     call: async () => {
-      const pl = await playlistItemsList(client, {
+      const youtube = client ?? await getYouTubeClient();
+      const pl = await playlistItemsList(youtube, {
         playlistId: uploadsId,
         maxResults: input.page_size,
         pageToken: input.playlist_page_token,
@@ -152,7 +154,7 @@ export async function getChannelVideosPage(
       let videos: VideoSummary[] = [];
       let vidBatches = 0;
       if (ids.length > 0) {
-        const vr = await videosList(client, { ids });
+        const vr = await videosList(youtube, { ids });
         videos = vr.items.map(normaliseVideo);
         vidBatches = vr.batches;
       }

@@ -35,7 +35,7 @@ export type GetVideoCommentsOutput = {
 // + topic tagging downstream.
 export async function getVideoComments(
   input: GetVideoCommentsInput,
-  client: YouTubeClient = getYouTubeClient(),
+  client?: YouTubeClient,
 ): Promise<GetVideoCommentsOutput> {
   const totalUnits = UNIT_COST.comment_threads_list;
 
@@ -44,8 +44,9 @@ export async function getVideoComments(
     units: totalUnits,
     videoIds: [input.video_id],
     call: async () => {
+      const youtube = client ?? await getYouTubeClient();
       try {
-        const threads = await commentThreadsList(client, {
+        const threads = await commentThreadsList(youtube, {
           videoId: input.video_id,
           order: 'relevance',
           maxResults: 100,

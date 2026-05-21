@@ -2,104 +2,50 @@ import 'server-only';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import {
-  ComputeMetricsInputSchema,
-  FetchHotChartInputSchema,
-  FetchTrendingByKeywordInputSchema,
-  GetChannelAllVideosInputSchema,
-  GetChannelOverviewInputSchema,
-  GetVideoCommentsInputSchema,
-  GetVideoDetailInputSchema,
-  SearchKeywordInputSchema,
-  SearchSessionsSummaryInputSchema,
-  SnapshotNowInputSchema,
-  computeMetrics,
-  fetchHotChart,
-  fetchTrendingByKeyword,
-  getChannelAllVideos,
-  getChannelOverview,
-  getVideoComments,
-  getVideoDetail,
-  searchKeyword,
-  searchSessionsSummary,
-  snapshotNow,
-  ThumbnailAddLayerInputSchema,
-  ThumbnailApplyTemplateInputSchema,
-  ThumbnailCreateInputSchema,
-  ThumbnailDeleteLayerInputSchema,
-  ThumbnailExportPngInputSchema,
-  ThumbnailGetEmbedUrlInputSchema,
-  ThumbnailHistoryStateInputSchema,
-  ThumbnailListInputSchema,
-  ThumbnailRedoInputSchema,
-  ThumbnailReorderLayersInputSchema,
-  ThumbnailSetLayerInputSchema,
-  ThumbnailSuggestTitlesInputSchema,
-  ThumbnailUndoInputSchema,
-  thumbnailAddLayer,
-  thumbnailApplyTemplate,
-  thumbnailCreate,
-  thumbnailDeleteLayer,
-  thumbnailExportPng,
-  thumbnailGetEmbedUrl,
-  thumbnailHistoryState,
-  thumbnailList,
-  thumbnailRedo,
-  thumbnailReorderLayers,
-  thumbnailSetLayer,
-  thumbnailSuggestTitlesFromComments,
-  thumbnailUndo,
-} from '@youpd/api/mcp/tools';
-import { QuotaExceededAtBudgetError } from '@youpd/api/mcp/quota';
-import { QuotaExceededError, YouTubeApiError } from '@youpd/youtube';
+  BatchYouTubeVideosInputSchema,
+  CaptureYouTubeMetricSnapshotsInputSchema,
+  ChannelSnapshotsQueryInputSchema,
+  ChannelSummaryInputSchema,
+  FetchTrendingYouTubeVideosInputSchema,
+  GetYouTubeChannelInputSchema,
+  GetYouTubeVideoInputSchema,
+  KeywordSummaryInputSchema,
+  ListYouTubeChannelVideosInputSchema,
+  ListYouTubeVideoCommentsInputSchema,
+  QueryHotVideosInputSchema,
+  SearchYouTubeVideosInputSchema,
+  VideoSnapshotsQueryInputSchema,
+} from '@youpd/api/youtube';
+import { restGet, restPost } from './youpd-rest';
 
 /** Short MCP tool descriptions (no progressive routing layer). */
 const TOOL_SHORT_DESCRIPTIONS: Record<string, string> = {
-  search_keyword:
-    'YouTube search.list → videos.list → channels.list. ~102 quota.',
-  get_video_detail:
-    'videos.list + channels.list + top 50 comments. ~3 quota.',
-  get_channel_overview:
-    'channels.list + uploads playlist + videos.list, sorted by view count. ~3 quota.',
-  get_channel_all_videos:
-    'Paginated uploads + videos.list batches. Budget = 1 + 2 × ceil(max/50) quota.',
-  get_video_comments:
-    'commentThreads.list ordered by likeCount → top_n. 1 quota.',
-  fetch_hot_chart:
-    'videos.list?chart=mostPopular for region/category. 1 quota.',
-  fetch_trending_by_keyword:
-    'search.list(publishedAfter=now-Nh) + videos/channels enrich. ~102 quota.',
-  snapshot_now:
-    'videos.list batched 50/call → snapshot row per video. ~ceil(N/50) quota.',
-  compute_metrics:
-    '기여도/성과도/노출확률 순수 함수 계산. 0 quota.',
-  search_sessions_summary:
-    'MCP search_sessions 감사 로그 집계 (server-wide). 0 quota.',
-  thumbnail_create:
-    'Create thumbnail row. 0 quota.',
-  thumbnail_list:
-    'List thumbnails by candidate. 0 quota.',
-  thumbnail_set_layer:
-    'Patch one layer with optimistic version lock. 0 quota.',
-  thumbnail_add_layer:
-    'Append a layer to a thumbnail. 0 quota.',
-  thumbnail_apply_template:
-    'Apply a template with fillers. 0 quota.',
-  thumbnail_suggest_titles_from_comments:
-    'Suggest thumbnail copy from comments. 0 quota.',
-  thumbnail_export_png:
-    'Render PNG via satori + upload to Supabase Storage. 0 quota.',
-  thumbnail_get_embed_url:
-    'Build designer iframe URL. 0 quota.',
-  thumbnail_reorder_layers:
-    'Reorder thumbnail layers. 0 quota.',
-  thumbnail_delete_layer:
-    'Delete a thumbnail layer. 0 quota.',
-  thumbnail_undo:
-    'Undo last thumbnail edit. 0 quota.',
-  thumbnail_redo:
-    'Redo a thumbnail edit. 0 quota.',
-  thumbnail_history_state:
-    'Check undo/redo availability. 0 quota.',
+  searchYouTubeVideos:
+    'v0.12 REST wrapper: keyword search with optional canonical persistence.',
+  getYouTubeVideo:
+    'v0.12 REST wrapper: fetch one video detail by YouTube video ID.',
+  batchYouTubeVideos:
+    'v0.12 REST wrapper: fetch multiple video details by ID.',
+  getYouTubeChannel:
+    'v0.12 REST wrapper: fetch one channel detail and optional average refresh.',
+  listYouTubeChannelVideos:
+    'v0.12 REST wrapper: list a channel uploads catalog.',
+  listYouTubeVideoComments:
+    'v0.12 REST wrapper: list top comments for one video.',
+  fetchTrendingYouTubeVideos:
+    'v0.12 REST wrapper: fetch regional YouTube trending snapshot.',
+  captureYouTubeMetricSnapshots:
+    'v0.12 REST wrapper: capture video/channel metric snapshots.',
+  queryHotVideos:
+    'v0.12 REST wrapper: query persisted hot videos.',
+  summarizeKeywordMarket:
+    'v0.12 REST wrapper: summarize persisted keyword search results.',
+  summarizeChannel:
+    'v0.12 REST wrapper: summarize persisted channel metrics.',
+  queryVideoMetricSnapshots:
+    'v0.12 REST wrapper: query persisted video metric snapshots.',
+  queryChannelMetricSnapshots:
+    'v0.12 REST wrapper: query persisted channel metric snapshots.',
 };
 
 function shortDescription(name: string, fallback: string): string {
@@ -110,116 +56,134 @@ function shortDescription(name: string, fallback: string): string {
 // mcp-handler — the second-arg `extra` parameter carries `authInfo` from
 // withMcpAuth, including the authenticated userId in `authInfo.extra.userId`.
 export function registerTools(server: McpServer): void {
-  registerSearchKeyword(server);
-  registerGetVideoDetail(server);
-  registerGetChannelOverview(server);
-  registerGetChannelAllVideos(server);
-  registerGetVideoComments(server);
-  registerFetchHotChart(server);
-  registerFetchTrendingByKeyword(server);
-  registerSnapshotNow(server);
-  registerComputeMetrics(server);
-  registerSearchSessionsSummary(server);
-  registerThumbnailTools(server);
+  registerYouTubeV012Tools(server);
 }
 
-function registerThumbnailTools(server: McpServer): void {
+function registerYouTubeV012Tools(server: McpServer): void {
   registerSimpleTool(server, {
-    name: 'thumbnail_create',
-    title: 'Create a thumbnail design (template or document)',
-    inputSchema: ThumbnailCreateInputSchema,
-    handler: thumbnailCreate,
-    fallback: 'Create thumbnail row. 0 quota.',
+    name: 'searchYouTubeVideos',
+    title: 'Search YouTube videos through v0.12 REST',
+    inputSchema: SearchYouTubeVideosInputSchema,
+    handler: (params) =>
+      restPost('/api/youpd/rest/youtube/search/videos', params),
+    fallback:
+      'v0.12 REST wrapper: keyword search with optional canonical persistence.',
+    readOnly: false,
   });
   registerSimpleTool(server, {
-    name: 'thumbnail_list',
-    title: 'List thumbnails for a Notion candidate',
-    inputSchema: ThumbnailListInputSchema,
-    handler: thumbnailList,
-    fallback: 'List thumbnails by candidate. 0 quota.',
+    name: 'getYouTubeVideo',
+    title: 'Get YouTube video detail through v0.12 REST',
+    inputSchema: GetYouTubeVideoInputSchema,
+    handler: ({ videoId, ...params }) =>
+      restGet(`/api/youpd/rest/youtube/videos/${encodeURIComponent(videoId)}`, {
+        ...params,
+      }),
+    fallback: 'v0.12 REST wrapper: fetch one video detail by YouTube video ID.',
+  });
+  registerSimpleTool(server, {
+    name: 'batchYouTubeVideos',
+    title: 'Batch-fetch YouTube videos through v0.12 REST',
+    inputSchema: BatchYouTubeVideosInputSchema,
+    handler: (params) =>
+      restPost('/api/youpd/rest/youtube/videos/batch', params),
+    fallback: 'v0.12 REST wrapper: fetch multiple video details by ID.',
+  });
+  registerSimpleTool(server, {
+    name: 'getYouTubeChannel',
+    title: 'Get YouTube channel through v0.12 REST',
+    inputSchema: GetYouTubeChannelInputSchema,
+    handler: ({ channelId, ...params }) =>
+      restGet(
+        `/api/youpd/rest/youtube/channels/${encodeURIComponent(channelId)}`,
+        { ...params },
+      ),
+    fallback:
+      'v0.12 REST wrapper: fetch one channel detail and optional average refresh.',
+  });
+  registerSimpleTool(server, {
+    name: 'listYouTubeChannelVideos',
+    title: 'List channel videos through v0.12 REST',
+    inputSchema: ListYouTubeChannelVideosInputSchema,
+    handler: ({ channelId, ...params }) =>
+      restGet(
+        `/api/youpd/rest/youtube/channels/${encodeURIComponent(channelId)}/videos`,
+        { ...params },
+      ),
+    fallback: 'v0.12 REST wrapper: list a channel uploads catalog.',
+  });
+  registerSimpleTool(server, {
+    name: 'listYouTubeVideoComments',
+    title: 'List video comments through v0.12 REST',
+    inputSchema: ListYouTubeVideoCommentsInputSchema,
+    handler: ({ videoId, ...params }) =>
+      restGet(
+        `/api/youpd/rest/youtube/videos/${encodeURIComponent(videoId)}/comments`,
+        { ...params },
+      ),
+    fallback: 'v0.12 REST wrapper: list top comments for one video.',
+  });
+  registerSimpleTool(server, {
+    name: 'fetchTrendingYouTubeVideos',
+    title: 'Fetch trending YouTube videos through v0.12 REST',
+    inputSchema: FetchTrendingYouTubeVideosInputSchema,
+    handler: (params) =>
+      restPost('/api/youpd/rest/youtube/trending/videos', params),
+    fallback: 'v0.12 REST wrapper: fetch regional YouTube trending snapshot.',
+  });
+  registerSimpleTool(server, {
+    name: 'captureYouTubeMetricSnapshots',
+    title: 'Capture YouTube metric snapshots through v0.12 REST',
+    inputSchema: CaptureYouTubeMetricSnapshotsInputSchema,
+    handler: (params) =>
+      restPost('/api/youpd/rest/youtube/snapshots/capture', params),
+    fallback: 'v0.12 REST wrapper: capture video/channel metric snapshots.',
+  });
+  registerSimpleTool(server, {
+    name: 'queryHotVideos',
+    title: 'Query persisted hot videos through v0.12 REST',
+    inputSchema: QueryHotVideosInputSchema,
+    handler: (params) => restPost('/api/youpd/rest/query/hot-videos', params),
+    fallback: 'v0.12 REST wrapper: query persisted hot videos.',
     readOnly: true,
     idempotent: true,
   });
   registerSimpleTool(server, {
-    name: 'thumbnail_set_layer',
-    title: 'Patch a single layer on a thumbnail',
-    inputSchema: ThumbnailSetLayerInputSchema,
-    handler: thumbnailSetLayer,
-    fallback: 'Patch one layer with optimistic version lock. 0 quota.',
-  });
-  registerSimpleTool(server, {
-    name: 'thumbnail_add_layer',
-    title: 'Append a layer to a thumbnail',
-    inputSchema: ThumbnailAddLayerInputSchema,
-    handler: thumbnailAddLayer,
-    fallback: 'Append a layer to a thumbnail. 0 quota.',
-  });
-  registerSimpleTool(server, {
-    name: 'thumbnail_apply_template',
-    title: 'Create a thumbnail from a template + fillers',
-    inputSchema: ThumbnailApplyTemplateInputSchema,
-    handler: thumbnailApplyTemplate,
-    fallback: 'Apply a template with fillers. 0 quota.',
-  });
-  registerSimpleTool(server, {
-    name: 'thumbnail_suggest_titles_from_comments',
-    title: 'Suggest thumbnail copy from comment texts',
-    inputSchema: ThumbnailSuggestTitlesInputSchema,
-    handler: thumbnailSuggestTitlesFromComments,
-    fallback: 'Suggest thumbnail copy from comments. 0 quota.',
+    name: 'summarizeKeywordMarket',
+    title: 'Summarize keyword market through v0.12 REST',
+    inputSchema: KeywordSummaryInputSchema,
+    handler: (params) =>
+      restPost('/api/youpd/rest/query/keyword-summary', params),
+    fallback: 'v0.12 REST wrapper: summarize persisted keyword search results.',
     readOnly: true,
     idempotent: true,
   });
   registerSimpleTool(server, {
-    name: 'thumbnail_export_png',
-    title: 'Render and upload a thumbnail PNG',
-    inputSchema: ThumbnailExportPngInputSchema,
-    handler: thumbnailExportPng,
-    fallback: 'Render PNG via satori + upload to Supabase Storage. 0 quota.',
-  });
-  registerSimpleTool(server, {
-    name: 'thumbnail_get_embed_url',
-    title: 'Get the iframe embed URL for a thumbnail',
-    inputSchema: ThumbnailGetEmbedUrlInputSchema,
-    handler: thumbnailGetEmbedUrl,
-    fallback: 'Build designer iframe URL. 0 quota.',
+    name: 'summarizeChannel',
+    title: 'Summarize channel through v0.12 REST',
+    inputSchema: ChannelSummaryInputSchema,
+    handler: (params) =>
+      restPost('/api/youpd/rest/query/channel-summary', params),
+    fallback: 'v0.12 REST wrapper: summarize persisted channel metrics.',
     readOnly: true,
     idempotent: true,
   });
   registerSimpleTool(server, {
-    name: 'thumbnail_reorder_layers',
-    title: 'Reorder z-order of layers on a thumbnail',
-    inputSchema: ThumbnailReorderLayersInputSchema,
-    handler: thumbnailReorderLayers,
-    fallback: 'Reorder thumbnail layers. 0 quota.',
+    name: 'queryVideoMetricSnapshots',
+    title: 'Query video metric snapshots through v0.12 REST',
+    inputSchema: VideoSnapshotsQueryInputSchema,
+    handler: (params) =>
+      restPost('/api/youpd/rest/query/video-snapshots', params),
+    fallback: 'v0.12 REST wrapper: query persisted video metric snapshots.',
+    readOnly: true,
+    idempotent: true,
   });
   registerSimpleTool(server, {
-    name: 'thumbnail_delete_layer',
-    title: 'Delete a single layer from a thumbnail',
-    inputSchema: ThumbnailDeleteLayerInputSchema,
-    handler: thumbnailDeleteLayer,
-    fallback: 'Delete a thumbnail layer. 0 quota.',
-  });
-  registerSimpleTool(server, {
-    name: 'thumbnail_undo',
-    title: 'Undo the most recent edit on a thumbnail',
-    inputSchema: ThumbnailUndoInputSchema,
-    handler: thumbnailUndo,
-    fallback: 'Undo last thumbnail edit. 0 quota.',
-  });
-  registerSimpleTool(server, {
-    name: 'thumbnail_redo',
-    title: 'Redo a previously undone thumbnail edit',
-    inputSchema: ThumbnailRedoInputSchema,
-    handler: thumbnailRedo,
-    fallback: 'Redo a thumbnail edit. 0 quota.',
-  });
-  registerSimpleTool(server, {
-    name: 'thumbnail_history_state',
-    title: 'Inspect undo/redo availability for a thumbnail',
-    inputSchema: ThumbnailHistoryStateInputSchema,
-    handler: thumbnailHistoryState,
-    fallback: 'Check undo/redo availability. 0 quota.',
+    name: 'queryChannelMetricSnapshots',
+    title: 'Query channel metric snapshots through v0.12 REST',
+    inputSchema: ChannelSnapshotsQueryInputSchema,
+    handler: (params) =>
+      restPost('/api/youpd/rest/query/channel-snapshots', params),
+    fallback: 'v0.12 REST wrapper: query persisted channel metric snapshots.',
     readOnly: true,
     idempotent: true,
   });
@@ -263,278 +227,6 @@ function registerSimpleTool<TIn extends z.ZodObject<z.ZodRawShape>>(
   );
 }
 
-function registerSearchKeyword(server: McpServer): void {
-  server.registerTool(
-    'search_keyword',
-    {
-      title: 'Search YouTube by keyword',
-      description: shortDescription(
-        'search_keyword',
-        'YouTube search.list → videos.list → channels.list. ~102 quota.',
-      ),
-      inputSchema: SearchKeywordInputSchema.shape,
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: false,
-        openWorldHint: true,
-      },
-    },
-    async (params) => {
-      try {
-        const out = await searchKeyword(params);
-        return jsonContent(out);
-      } catch (err) {
-        return errorContent(err);
-      }
-    },
-  );
-}
-
-function registerGetVideoDetail(server: McpServer): void {
-  server.registerTool(
-    'get_video_detail',
-    {
-      title: 'Get full detail for a single YouTube video',
-      description: shortDescription(
-        'get_video_detail',
-        'videos.list + channels.list + top 50 comments. ~3 quota.',
-      ),
-      inputSchema: GetVideoDetailInputSchema.shape,
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: false,
-        openWorldHint: true,
-      },
-    },
-    async (params) => {
-      try {
-        const out = await getVideoDetail(params);
-        return jsonContent(out);
-      } catch (err) {
-        return errorContent(err);
-      }
-    },
-  );
-}
-
-function registerGetChannelOverview(server: McpServer): void {
-  server.registerTool(
-    'get_channel_overview',
-    {
-      title: 'Get channel overview with top-N popular videos',
-      description: shortDescription(
-        'get_channel_overview',
-        'channels.list + uploads playlist + videos.list, sorted by view count. ~3 quota.',
-      ),
-      inputSchema: GetChannelOverviewInputSchema.shape,
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: false,
-        openWorldHint: true,
-      },
-    },
-    async (params) => {
-      try {
-        return jsonContent(await getChannelOverview(params));
-      } catch (err) {
-        return errorContent(err);
-      }
-    },
-  );
-}
-
-function registerGetChannelAllVideos(server: McpServer): void {
-  server.registerTool(
-    'get_channel_all_videos',
-    {
-      title: 'Bulk-fetch every video in a channel (paginated)',
-      description: shortDescription(
-        'get_channel_all_videos',
-        'Paginated uploads + videos.list batches. Budget = 1 + 2 × ceil(max/50) quota.',
-      ),
-      inputSchema: GetChannelAllVideosInputSchema.shape,
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: false,
-        openWorldHint: true,
-      },
-    },
-    async (params) => {
-      try {
-        return jsonContent(await getChannelAllVideos(params));
-      } catch (err) {
-        return errorContent(err);
-      }
-    },
-  );
-}
-
-function registerGetVideoComments(server: McpServer): void {
-  server.registerTool(
-    'get_video_comments',
-    {
-      title: 'Get TOP N liked comments for a video',
-      description: shortDescription(
-        'get_video_comments',
-        'commentThreads.list ordered by likeCount → top_n. 1 quota.',
-      ),
-      inputSchema: GetVideoCommentsInputSchema.shape,
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: false,
-        openWorldHint: true,
-      },
-    },
-    async (params) => {
-      try {
-        return jsonContent(await getVideoComments(params));
-      } catch (err) {
-        return errorContent(err);
-      }
-    },
-  );
-}
-
-function registerFetchHotChart(server: McpServer): void {
-  server.registerTool(
-    'fetch_hot_chart',
-    {
-      title: 'YouTube most-popular chart for a region/category',
-      description: shortDescription(
-        'fetch_hot_chart',
-        'videos.list?chart=mostPopular for region/category. 1 quota.',
-      ),
-      inputSchema: FetchHotChartInputSchema.shape,
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: false,
-        openWorldHint: true,
-      },
-    },
-    async (params) => {
-      try {
-        return jsonContent(await fetchHotChart(params));
-      } catch (err) {
-        return errorContent(err);
-      }
-    },
-  );
-}
-
-function registerFetchTrendingByKeyword(server: McpServer): void {
-  server.registerTool(
-    'fetch_trending_by_keyword',
-    {
-      title: 'Surface fast-rising videos in the last N hours for a keyword',
-      description: shortDescription(
-        'fetch_trending_by_keyword',
-        'search.list(publishedAfter=now-Nh) + videos/channels enrich. ~102 quota.',
-      ),
-      inputSchema: FetchTrendingByKeywordInputSchema.shape,
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: false,
-        openWorldHint: true,
-      },
-    },
-    async (params) => {
-      try {
-        return jsonContent(await fetchTrendingByKeyword(params));
-      } catch (err) {
-        return errorContent(err);
-      }
-    },
-  );
-}
-
-function registerSnapshotNow(server: McpServer): void {
-  server.registerTool(
-    'snapshot_now',
-    {
-      title: 'Capture today\'s views/likes/comments for tracked videos',
-      description: shortDescription(
-        'snapshot_now',
-        'videos.list batched 50/call → snapshot row per video. ~ceil(N/50) quota.',
-      ),
-      inputSchema: SnapshotNowInputSchema.shape,
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: false,
-        openWorldHint: true,
-      },
-    },
-    async (params) => {
-      try {
-        return jsonContent(await snapshotNow(params));
-      } catch (err) {
-        return errorContent(err);
-      }
-    },
-  );
-}
-
-function registerComputeMetrics(server: McpServer): void {
-  server.registerTool(
-    'compute_metrics',
-    {
-      title: 'Compute 기여도 / 성과도 / 노출확률 from snapshot history',
-      description: shortDescription(
-        'compute_metrics',
-        '기여도/성과도/노출확률 순수 함수 계산. 0 quota.',
-      ),
-      inputSchema: ComputeMetricsInputSchema.shape,
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
-    },
-    async (params) => {
-      try {
-        return jsonContent(await computeMetrics(params));
-      } catch (err) {
-        return errorContent(err);
-      }
-    },
-  );
-}
-
-function registerSearchSessionsSummary(server: McpServer): void {
-  server.registerTool(
-    'search_sessions_summary',
-    {
-      title: 'Aggregate MCP search_sessions for an operator dashboard',
-      description: shortDescription(
-        'search_sessions_summary',
-        'MCP search_sessions 감사 로그 집계 (server-wide). 0 quota.',
-      ),
-      inputSchema: SearchSessionsSummaryInputSchema.shape,
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
-    },
-    async (params) => {
-      try {
-        return jsonContent(await searchSessionsSummary(params));
-      } catch (err) {
-        return errorContent(err);
-      }
-    },
-  );
-}
-
 function jsonContent(output: unknown) {
   return {
     content: [{ type: 'text' as const, text: JSON.stringify(output) }],
@@ -554,25 +246,8 @@ function errorContent(err: unknown) {
 }
 
 function errorCodeFor(err: unknown): string {
-  if (err instanceof QuotaExceededAtBudgetError) return 'budget_exceeded';
-  if (err instanceof QuotaExceededError) return 'youtube_quota_exceeded';
-  if (err instanceof YouTubeApiError) return `youtube_${err.reason}`;
   if (err instanceof Error) {
-    // Map domain errors to stable wire codes per spec §4-2/§4-3.
-    switch (err.name) {
-      case 'InvalidLayerPatchError':
-        return 'INVALID_LAYER_PATCH';
-      case 'ThumbnailVersionConflictError':
-        return 'VERSION_CONFLICT';
-      case 'ThumbnailNotFoundError':
-        return 'THUMBNAIL_NOT_FOUND';
-      case 'TemplateNotFoundError':
-        return 'TEMPLATE_NOT_FOUND';
-      case 'LayerNotFoundError':
-        return 'LAYER_NOT_FOUND';
-      default:
-        return err.name;
-    }
+    return err.name;
   }
   return 'unknown';
 }

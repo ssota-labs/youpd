@@ -54,7 +54,7 @@ function toNum(v: string | undefined): number | null {
 // from its tracking list.
 export async function snapshotNow(
   input: SnapshotNowInput,
-  client: YouTubeClient = getYouTubeClient(),
+  client?: YouTubeClient,
 ): Promise<SnapshotNowOutput> {
   const uniqueIds = Array.from(new Set(input.video_ids));
   const expectedBatches = Math.ceil(uniqueIds.length / 50);
@@ -65,7 +65,8 @@ export async function snapshotNow(
     units: upperBoundUnits,
     videoIds: uniqueIds,
     call: async () => {
-      const res = await videosList(client, {
+      const youtube = client ?? await getYouTubeClient();
+      const res = await videosList(youtube, {
         ids: uniqueIds,
         parts: ['statistics'],
       });

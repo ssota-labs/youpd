@@ -33,7 +33,7 @@ export type GetChannelOverviewOutput = {
 // 3 units total — much cheaper than search.list (100u) for the same outcome.
 export async function getChannelOverview(
   input: GetChannelOverviewInput,
-  client: YouTubeClient = getYouTubeClient(),
+  client?: YouTubeClient,
 ): Promise<GetChannelOverviewOutput> {
   const totalUnits =
     UNIT_COST.channels_list +
@@ -45,7 +45,8 @@ export async function getChannelOverview(
     units: totalUnits,
     channelId: input.channel_id,
     call: async () => {
-      const channelsRes = await channelsList(client, { ids: [input.channel_id] });
+      const youtube = client ?? await getYouTubeClient();
+      const channelsRes = await channelsList(youtube, { ids: [input.channel_id] });
       const rawChannel = channelsRes.items[0];
       if (!rawChannel) {
         const payload: GetChannelOverviewOutput = {
@@ -70,7 +71,7 @@ export async function getChannelOverview(
       // that locally by views surfaces "popular among recent uploads", which
       // is what the agent's "channel analysis" skill wants.
       const { videoIds } = await playlistAllVideoIds(
-        client,
+        youtube,
         channel.uploadsPlaylistId,
         50,
       );
@@ -83,7 +84,7 @@ export async function getChannelOverview(
         return { resultCount: 1, payload };
       }
 
-      const videosRes = await videosList(client, { ids: videoIds });
+      const videosRes = await videosList(youtube, { ids: videoIds });
       const videos = videosRes.items.map(normaliseVideo);
       const topVideos = videos
         .slice()

@@ -40,7 +40,7 @@ export type FetchTrendingByKeywordOutput = {
 // search_keyword but with the time window filter.
 export async function fetchTrendingByKeyword(
   input: FetchTrendingByKeywordInput,
-  client: YouTubeClient = getYouTubeClient(),
+  client?: YouTubeClient,
 ): Promise<FetchTrendingByKeywordOutput> {
   const totalUnits =
     UNIT_COST.search_list + UNIT_COST.videos_list + UNIT_COST.channels_list;
@@ -54,7 +54,8 @@ export async function fetchTrendingByKeyword(
     units: totalUnits,
     keyword: input.keyword,
     call: async () => {
-      const search = await searchList(client, {
+      const youtube = client ?? await getYouTubeClient();
+      const search = await searchList(youtube, {
         q: input.keyword,
         type: 'video',
         order: 'viewCount',
@@ -79,14 +80,14 @@ export async function fetchTrendingByKeyword(
         return { resultCount: 0, payload };
       }
 
-      const videosRes = await videosList(client, { ids: videoIds });
+      const videosRes = await videosList(youtube, { ids: videoIds });
       const videos = videosRes.items.map(normaliseVideo);
 
       const channelIds = Array.from(
         new Set(videos.map((v) => v.channelId).filter((s) => s.length > 0)),
       );
       const channelsRes = channelIds.length
-        ? await channelsList(client, { ids: channelIds })
+        ? await channelsList(youtube, { ids: channelIds })
         : { items: [], batches: 0 };
       const channels = channelsRes.items.map(normaliseChannel);
 

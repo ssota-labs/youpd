@@ -56,7 +56,7 @@ const CHANNELS_UNITS = UNIT_COST.channels_list;
 
 export async function searchKeyword(
   input: SearchKeywordInput,
-  client: YouTubeClient = getYouTubeClient(),
+  client?: YouTubeClient,
 ): Promise<SearchKeywordOutput> {
   const totalCap =
     input.max_total_results ?? input.max_results;
@@ -73,6 +73,7 @@ export async function searchKeyword(
     units: upperBoundUnits,
     keyword: input.keyword,
     call: async () => {
+      const youtube = client ?? await getYouTubeClient();
       let pageToken: string | undefined;
       const allVideos: VideoSummary[] = [];
       let searchPages = 0;
@@ -81,7 +82,7 @@ export async function searchKeyword(
       while (allVideos.length < totalCap) {
         const remaining = totalCap - allVideos.length;
         const batchSize = Math.min(perPage, remaining);
-        const search = await searchList(client, {
+        const search = await searchList(youtube, {
           q: input.keyword,
           maxResults: batchSize,
           order: input.order,
@@ -100,7 +101,7 @@ export async function searchKeyword(
           break;
         }
 
-        const videosRes = await videosList(client, { ids: videoIds });
+        const videosRes = await videosList(youtube, { ids: videoIds });
         consumed += VIDEOS_UNITS;
         const pageVideos = videosRes.items.map(normaliseVideo);
         for (const v of pageVideos) {
@@ -127,7 +128,7 @@ export async function searchKeyword(
         new Set(allVideos.map((v) => v.channelId).filter((s) => s.length > 0)),
       );
       const channelsRes = channelIds.length
-        ? await channelsList(client, { ids: channelIds })
+        ? await channelsList(youtube, { ids: channelIds })
         : { items: [], batches: 0 };
       consumed += channelsRes.batches * CHANNELS_UNITS;
       const channels = channelsRes.items.map(normaliseChannel);

@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:live:search": "tsx scripts/live-search-keyword.ts",
     "test:live:hot-chart": "tsx scripts/live-fetch-hot-chart.ts",
-    "test:live:snapshot": "tsx scripts/live-snapshot-now.ts"
+    "test:live:snapshot": "tsx scripts/live-snapshot-now.ts",
+    "test:live:v012": "tsx scripts/live-v012-foundation.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.26.0",

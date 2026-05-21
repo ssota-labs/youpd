@@ -33,7 +33,7 @@ export type FetchHotChartOutput = {
 // entry seeds Hot Video Daily and/or which title patterns to extract.
 export async function fetchHotChart(
   input: FetchHotChartInput,
-  client: YouTubeClient = getYouTubeClient(),
+  client?: YouTubeClient,
 ): Promise<FetchHotChartOutput> {
   const totalUnits = UNIT_COST.videos_list;
 
@@ -41,7 +41,8 @@ export async function fetchHotChart(
     operation: 'hot-chart',
     units: totalUnits,
     call: async () => {
-      const res = await videosList(client, {
+      const youtube = client ?? await getYouTubeClient();
+      const res = await videosList(youtube, {
         chart: 'mostPopular',
         regionCode: input.region_code,
         videoCategoryId: input.category_id,

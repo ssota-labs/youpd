@@ -47,7 +47,7 @@ function ptDate(now: Date = new Date()): string {
 /** channels.list in batches of 50; statistics only — 1u per batch. */
 export async function snapshotChannelsNow(
   input: SnapshotChannelsInput,
-  client: YouTubeClient = getYouTubeClient(),
+  client?: YouTubeClient,
 ): Promise<SnapshotChannelsOutput> {
   const uniqueIds = Array.from(new Set(input.channel_ids));
   const expectedBatches = Math.ceil(uniqueIds.length / 50);
@@ -58,7 +58,8 @@ export async function snapshotChannelsNow(
     units: upperBoundUnits,
     videoIds: uniqueIds,
     call: async () => {
-      const res = await channelsList(client, {
+      const youtube = client ?? await getYouTubeClient();
+      const res = await channelsList(youtube, {
         ids: uniqueIds,
         parts: ['snippet', 'statistics', 'contentDetails'],
       });

@@ -36,7 +36,7 @@ export type GetChannelAllVideosOutput = {
 // when the daily counter is too low.
 export async function getChannelAllVideos(
   input: GetChannelAllVideosInput,
-  client: YouTubeClient = getYouTubeClient(),
+  client?: YouTubeClient,
 ): Promise<GetChannelAllVideosOutput> {
   const expectedPages = Math.ceil(input.max_videos / 50);
   const upperBoundUnits =
@@ -49,7 +49,8 @@ export async function getChannelAllVideos(
     units: upperBoundUnits,
     channelId: input.channel_id,
     call: async () => {
-      const channelsRes = await channelsList(client, { ids: [input.channel_id] });
+      const youtube = client ?? await getYouTubeClient();
+      const channelsRes = await channelsList(youtube, { ids: [input.channel_id] });
       const rawChannel = channelsRes.items[0];
       if (!rawChannel) {
         const payload: GetChannelAllVideosOutput = {
@@ -72,7 +73,7 @@ export async function getChannelAllVideos(
       }
 
       const { videoIds, pagesFetched } = await playlistAllVideoIds(
-        client,
+        youtube,
         channel.uploadsPlaylistId,
         input.max_videos,
       );
@@ -80,7 +81,7 @@ export async function getChannelAllVideos(
       let videos: VideoSummary[] = [];
       let videosBatches = 0;
       if (videoIds.length > 0) {
-        const videosRes = await videosList(client, { ids: videoIds });
+        const videosRes = await videosList(youtube, { ids: videoIds });
         videos = videosRes.items.map(normaliseVideo);
         videosBatches = videosRes.batches;
       }
