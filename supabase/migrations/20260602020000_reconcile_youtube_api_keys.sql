@@ -1,6 +1,17 @@
 -- Reconcile preview branches that already applied the older feature-branch
 -- youtube_api_keys migration before main introduced the canonical key pool.
 
+create table if not exists public.youtube_api_keys (
+  id uuid primary key default gen_random_uuid(),
+  label text not null unique,
+  key text not null,
+  status text not null default 'active',
+  disabled_reason text,
+  last_used_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 alter table if exists public.youtube_api_keys
   drop constraint if exists youtube_api_keys_status_check;
 
