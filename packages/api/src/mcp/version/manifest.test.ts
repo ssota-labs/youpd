@@ -36,6 +36,7 @@ describe('version manifest', () => {
     const notes = CHANGELOG[0]!.notes.join('\n');
     expect(notes).toContain('schema/latest');
     expect(notes).toContain('snapshotVideos');
+    expect(notes).toContain('search_sessions');
   });
 
   it('CHANGELOG 1.3.0 entry documents MCP simplification', () => {
@@ -103,10 +104,11 @@ describe('version manifest', () => {
     }
   });
 
-  it('ships 11 Notion DB schemas with unique keys', () => {
-    expect(ALL_SCHEMAS).toHaveLength(11);
+  it('ships 10 Notion DB schemas with unique keys (no search_sessions)', () => {
+    expect(ALL_SCHEMAS).toHaveLength(10);
     const keys = ALL_SCHEMAS.map((s) => s.key);
     expect(new Set(keys).size).toBe(keys.length);
+    expect(keys).not.toContain('search_sessions');
   });
 
   it('every schema has a title property exactly once', () => {
@@ -116,11 +118,11 @@ describe('version manifest', () => {
     }
   });
 
-  it('getLatestVersionSchema() returns all 11 databases', () => {
+  it('getLatestVersionSchema() returns all 10 databases', () => {
     const res = getLatestVersionSchema();
     expect('databases' in res).toBe(true);
     if ('databases' in res) {
-      expect(res.databases).toHaveLength(11);
+      expect(res.databases).toHaveLength(10);
     }
   });
 
@@ -134,6 +136,12 @@ describe('version manifest', () => {
 
   it('getLatestVersionSchema rejects unknown db_name', () => {
     expect(() => getLatestVersionSchema('nope')).toThrow(/unknown db_name/i);
+  });
+
+  it('getLatestVersionSchema rejects retired search_sessions db_name', () => {
+    expect(() => getLatestVersionSchema('search_sessions')).toThrow(
+      /unknown db_name/i,
+    );
   });
 
   describe('relation database_refs all point at known schemas', () => {

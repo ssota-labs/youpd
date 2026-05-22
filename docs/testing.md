@@ -9,7 +9,6 @@
 | **Unit** | 순수 로직, Zod, MCP 도구(YouTube/DB **mock**), 워크플로 orchestration mock | `packages/**`, `apps/**` 의 `*.test.ts` | `pnpm test` |
 | **Integration** | 패키지 경계 + **로컬 Supabase** + Drizzle repository / Route Handler (실 DB, YouTube는 mock) | `**/*.integration.test.ts` | `pnpm test:integration` |
 | **E2E** | web + admin + mcp dev 서버 기동 후 HTTP 스모크 | `e2e/*.spec.ts`, Playwright | `pnpm test:e2e` |
-| **스크립트 E2E** | 썸네일 MCP → 로컬 DB 직접 호출 | `packages/api/scripts/e2e-thumbnail.ts` | `pnpm --filter @youpd/api e2e:thumbnail` |
 
 ```text
         ┌─────────────┐
@@ -289,19 +288,7 @@ pnpm exec playwright show-report
 
 ---
 
-## 7. 패키지 스크립트 E2E (썸네일)
-
-```bash
-pnpm db:up && pnpm db:reset
-pnpm worktree:env
-pnpm --filter @youpd/api e2e:thumbnail
-```
-
-로컬 Supabase 에 MCP thumbnail 도구를 직접 호출합니다. Playwright 와 무관합니다.
-
----
-
-## 8. 변경 유형별 권장 실행
+## 7. 변경 유형별 권장 실행
 
 | 변경 | 권장 |
 |------|------|

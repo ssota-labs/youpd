@@ -15,6 +15,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     notes: [
       'Removed REST meta routes: GET /api/youpd/rest/schema/latest and GET /api/youpd/rest/bundle/manifest (schema/bundle helpers remain in @youpd/api for tests/internal callers)',
       'Notion Worker: renamed worker tool snapshotTrackedVideos → snapshotVideos',
+      'Notion bootstrap: removed search_sessions from get_latest_version_schema (YouTube quota audit stays in Supabase search_sessions only)',
     ],
   },
   {

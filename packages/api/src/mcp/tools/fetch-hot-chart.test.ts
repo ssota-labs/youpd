@@ -89,7 +89,10 @@ describe('fetchHotChart', () => {
         ],
       }),
     });
-    await fetchHotChart({ region_code: 'KR', category_id: '22', limit: 10 }, client);
+    await fetchHotChart(
+      { region_code: 'KR', category_id: '22', limit: 10, persist: true },
+      client,
+    );
     expect(repoMocks.upsertChannels).toHaveBeenCalled();
     expect(repoMocks.upsertVideos).toHaveBeenCalled();
     expect(repoMocks.upsertHotVideos).toHaveBeenCalled();
@@ -120,7 +123,7 @@ describe('fetchHotChart', () => {
       },
     });
     const out = await fetchHotChart(
-      { region_code: 'KR', category_id: '22', limit: 25 },
+      { region_code: 'KR', category_id: '22', limit: 25, persist: true },
       client,
     );
     expect(out.videos).toHaveLength(1);
@@ -136,7 +139,10 @@ describe('fetchHotChart', () => {
         return { items: [] };
       },
     });
-    const out = await fetchHotChart({ region_code: 'US', limit: 5 }, client);
+    const out = await fetchHotChart(
+      { region_code: 'US', limit: 5, persist: true },
+      client,
+    );
     expect(out.category_id).toBeNull();
     expect(out.videos).toEqual([]);
   });

@@ -40,6 +40,7 @@ async function main(): Promise<void> {
     region_code: region,
     ...(category ? { category_id: category } : {}),
     limit,
+    persist: true,
   });
 
   console.log(`\n✅ videos returned: ${out.videos.length}`);
