@@ -1,6 +1,9 @@
 import {
   asc,
+  count,
+  ilike,
   inArray,
+  or,
   type SQL,
 } from 'drizzle-orm';
 import {
@@ -167,6 +170,39 @@ export type QueryHotVideosInput = {
   regionCode?: string;
   categoryId?: string | null;
   limit?: number;
+};
+
+export type HotVideoSortField =
+  | 'views'
+  | 'subscribers'
+  | 'contribution'
+  | 'performance'
+  | 'duration'
+  | 'videoCount'
+  | 'publishedAt';
+
+export type HotVideoSortOrder = 'asc' | 'desc';
+
+export type SearchHotVideosInput = {
+  regionCode?: string;
+  date?: string | null;
+  dateEnd?: string | null;
+  categoryId?: string | null;
+  q?: string | null;
+  limit?: number;
+  offset?: number;
+  sort?: HotVideoSortField;
+  order?: HotVideoSortOrder;
+};
+
+export type SearchHotVideosResult = {
+  rows: {
+    hotVideo: YouTubeHotVideoRow;
+    video: YouTubeVideoRow | null;
+    channel: YouTubeChannelRow | null;
+  }[];
+  total: number;
+  hasMore: boolean;
 };
 
 export type QueryMetricSnapshotsInput = {
@@ -633,6 +669,101 @@ export async function upsertChannelMetricSnapshots(
     .returning();
 }
 
+function buildHotVideoFilterClauses(input: {
+  regionCode?: string;
+  date?: string | null;
+  dateEnd?: string | null;
+  categoryId?: string | null;
+  q?: string | null;
+}): SQL[] {
+  const clauses: SQL[] = [
+    eq(youtubeHotVideos.regionCode, input.regionCode ?? 'KR'),
+  ];
+
+  if (input.date) {
+    if (input.dateEnd) {
+      clauses.push(gte(youtubeHotVideos.hotDate, input.date));
+      clauses.push(lte(youtubeHotVideos.hotDate, input.dateEnd));
+    } else {
+      clauses.push(eq(youtubeHotVideos.hotDate, input.date));
+    }
+  }
+
+  if (input.categoryId !== undefined) {
+    clauses.push(
+      input.categoryId === null
+        ? sql`${youtubeHotVideos.categoryId} is null`
+        : eq(youtubeHotVideos.categoryId, input.categoryId),
+    );
+  }
+
+  const searchTerm = input.q?.trim();
+  if (searchTerm) {
+    const pattern = `%${searchTerm.replace(/[%_\\]/g, '\\$&')}%`;
+    const searchClause = or(
+      ilike(youtubeVideos.title, pattern),
+      ilike(youtubeChannels.title, pattern),
+    );
+    if (searchClause) clauses.push(searchClause);
+  }
+
+  return clauses;
+}
+
+function buildHotVideoOrderBy(
+  sort: HotVideoSortField | undefined,
+  order: HotVideoSortOrder = 'desc',
+) {
+  const tieBreak = [desc(youtubeHotVideos.hotDate), asc(youtubeHotVideos.rank)];
+
+  if (!sort) {
+    return tieBreak;
+  }
+
+  const direction = order === 'asc' ? 'asc' : 'desc';
+  const nulls = order === 'asc' ? 'nulls first' : 'nulls last';
+
+  let primary: SQL;
+  switch (sort) {
+    case 'views':
+      primary = sql`${youtubeVideos.viewCount}`;
+      break;
+    case 'subscribers':
+      primary = sql`${youtubeChannels.subscriberCount}`;
+      break;
+    case 'videoCount':
+      primary = sql`${youtubeChannels.videoCount}`;
+      break;
+    case 'duration':
+      primary = sql`${youtubeVideos.durationSec}`;
+      break;
+    case 'publishedAt':
+      primary = sql`${youtubeVideos.publishedAt}`;
+      break;
+    case 'contribution':
+      primary = sql`case
+        when ${youtubeChannels.averageViewCount} > 0
+        then ${youtubeVideos.viewCount}::float / ${youtubeChannels.averageViewCount}
+        else null
+      end`;
+      break;
+    case 'performance':
+      primary = sql`case
+        when ${youtubeChannels.subscriberCount} > 0
+        then ${youtubeVideos.viewCount}::float / ${youtubeChannels.subscriberCount}
+        else null
+      end`;
+      break;
+    default:
+      return tieBreak;
+  }
+
+  return [
+    sql`${primary} ${sql.raw(direction)} ${sql.raw(nulls)}`,
+    ...tieBreak,
+  ];
+}
+
 export async function queryHotVideos(
   input: QueryHotVideosInput,
 ): Promise<
@@ -644,20 +775,12 @@ export async function queryHotVideos(
 > {
   const db = getDbClient();
   const limit = Math.min(Math.max(input.limit ?? 50, 1), 100);
-  const clauses: SQL[] = [eq(youtubeHotVideos.regionCode, input.regionCode ?? 'KR')];
-  if (input.dateEnd) {
-    clauses.push(gte(youtubeHotVideos.hotDate, input.date));
-    clauses.push(lte(youtubeHotVideos.hotDate, input.dateEnd));
-  } else {
-    clauses.push(eq(youtubeHotVideos.hotDate, input.date));
-  }
-  if (input.categoryId !== undefined) {
-    clauses.push(
-      input.categoryId === null
-        ? sql`${youtubeHotVideos.categoryId} is null`
-        : eq(youtubeHotVideos.categoryId, input.categoryId),
-    );
-  }
+  const clauses = buildHotVideoFilterClauses({
+    regionCode: input.regionCode,
+    date: input.date,
+    dateEnd: input.dateEnd,
+    categoryId: input.categoryId,
+  });
 
   const rows = await db
     .select({
@@ -672,6 +795,53 @@ export async function queryHotVideos(
     .orderBy(youtubeHotVideos.hotDate, youtubeHotVideos.rank)
     .limit(limit);
   return rows;
+}
+
+export async function searchHotVideos(
+  input: SearchHotVideosInput,
+): Promise<SearchHotVideosResult> {
+  const db = getDbClient();
+  const limit = Math.min(Math.max(input.limit ?? 24, 1), 100);
+  const offset = Math.max(input.offset ?? 0, 0);
+  const clauses = buildHotVideoFilterClauses(input);
+
+  const baseQuery = db
+    .select({
+      hotVideo: youtubeHotVideos,
+      video: youtubeVideos,
+      channel: youtubeChannels,
+    })
+    .from(youtubeHotVideos)
+    .leftJoin(youtubeVideos, eq(youtubeHotVideos.videoId, youtubeVideos.videoId))
+    .leftJoin(
+      youtubeChannels,
+      eq(youtubeVideos.channelId, youtubeChannels.channelId),
+    )
+    .where(and(...clauses));
+
+  const [countRow] = await db
+    .select({ total: count() })
+    .from(youtubeHotVideos)
+    .leftJoin(youtubeVideos, eq(youtubeHotVideos.videoId, youtubeVideos.videoId))
+    .leftJoin(
+      youtubeChannels,
+      eq(youtubeVideos.channelId, youtubeChannels.channelId),
+    )
+    .where(and(...clauses));
+
+  const total = Number(countRow?.total ?? 0);
+  const orderBy = buildHotVideoOrderBy(input.sort, input.order ?? 'desc');
+
+  const rows = await baseQuery
+    .orderBy(...orderBy)
+    .limit(limit)
+    .offset(offset);
+
+  return {
+    rows,
+    total,
+    hasMore: offset + rows.length < total,
+  };
 }
 
 export async function getKeywordSummary(input: {

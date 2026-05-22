@@ -5,5 +5,6 @@ export * from './deps';
 export * from './ensure-channel-analysis';
 export * from './ensure-video-analysis';
 export * from './get-stored-trending-videos';
+export * from './search-stored-hot-videos';
 export * from './run-keyword-search-analysis';
 export * from './schemas';

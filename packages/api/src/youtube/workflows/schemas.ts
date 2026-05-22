@@ -47,6 +47,37 @@ export type GetTrendingVideosInput = z.infer<
   typeof GetTrendingVideosInputSchema
 >;
 
+export const HotVideoSortFieldSchema = z.enum([
+  'views',
+  'subscribers',
+  'contribution',
+  'performance',
+  'duration',
+  'videoCount',
+  'publishedAt',
+]);
+export type HotVideoSortField = z.infer<typeof HotVideoSortFieldSchema>;
+
+export const HotVideoSortOrderSchema = z.enum(['asc', 'desc']);
+export type HotVideoSortOrder = z.infer<typeof HotVideoSortOrderSchema>;
+
+export const SearchStoredHotVideosInputSchema = z
+  .object({
+    q: z.string().trim().max(200).optional(),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    dateEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    regionCode: RegionCodeSchema,
+    categoryId: z.string().nullable().optional(),
+    page: z.number().int().min(1).default(1),
+    limit: z.number().int().min(1).max(100).default(24),
+    sort: HotVideoSortFieldSchema.optional(),
+    order: HotVideoSortOrderSchema.optional(),
+  })
+  .strict();
+export type SearchStoredHotVideosInput = z.infer<
+  typeof SearchStoredHotVideosInputSchema
+>;
+
 export const CollectTrendingDailyInputSchema = z
   .object({
     regionCode: RegionCodeSchema,

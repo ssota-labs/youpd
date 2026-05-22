@@ -21,6 +21,7 @@ export type ChannelCore = {
   id: string;
   provider: 'youtube';
   title: string;
+  thumbnailUrl: string | null;
   publishedAt: string | null;
   subscriberCount: number | null;
   videoCount: number | null;

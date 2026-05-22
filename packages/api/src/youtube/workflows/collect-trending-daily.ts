@@ -23,6 +23,7 @@ export async function collectTrendingDaily(
       id: video.channelId,
       provider: 'youtube',
       title: video.channelTitle,
+      thumbnailUrl: null,
       publishedAt: null,
       subscriberCount: null,
       videoCount: null,
