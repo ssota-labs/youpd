@@ -64,6 +64,7 @@ export const youtubeVideos = pgTable(
     videoUrl: text('video_url'),
     publishedAt: timestamp('published_at', { withTimezone: true }),
     durationSec: integer('duration_sec'),
+    isShort: boolean('is_short'),
     viewCount: bigint('view_count', { mode: 'number' }),
     likeCount: bigint('like_count', { mode: 'number' }),
     commentCount: bigint('comment_count', { mode: 'number' }),

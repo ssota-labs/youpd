@@ -347,6 +347,7 @@ function toApiVideo(video: YouTubeVideoRow, channel?: YouTubeChannelRow | null) 
     thumbnails: {},
     thumbnailUrl: video.thumbnailUrl ?? null,
     durationSeconds: video.durationSec,
+    isShort: video.isShort,
     views: video.viewCount,
     likes: video.likeCount,
     comments: video.commentCount,
