@@ -1,0 +1,19 @@
+---
+description: After creating a YouPD git worktree, link .env.local from the main clone
+alwaysApply: true
+---
+
+# YouPD worktree environment
+
+When this workspace is a **git worktree** (not the primary clone), run once from the repo root:
+
+```bash
+pnpm install
+pnpm worktree:env
+```
+
+This symlinks `.env.local`, `apps/web/.env.local`, `apps/web/.env.youtube`, and `apps/mcp/.env.local` from the main worktree (`YOUPD_MAIN_WORKTREE` or the worktree on branch `main`). Do not hand-copy secrets into each worktree.
+
+If linking fails, ensure the main clone has those files (copy from `.env.example`, fill YouTube/Notion tokens, run `pnpm db:up` and `supabase status` for Supabase keys). See `AGENTS.md` → **Git worktrees and local environment**.
+
+For worktree-specific ports, use `pnpm worktree:env -- --copy` and edit ports only in that copy.
