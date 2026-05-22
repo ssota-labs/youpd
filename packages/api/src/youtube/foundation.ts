@@ -22,7 +22,6 @@ import {
   upsertKeywordCache,
   upsertChannelMetricSnapshots,
   upsertChannels,
-  upsertComments,
   upsertHotVideos,
   upsertKeywordResults,
   upsertVideoMetricSnapshots,
@@ -486,7 +485,6 @@ export async function getYouTubeVideo(input: GetYouTubeVideoInput) {
       ? await persistWithHarvest('video_detail', input, raw.video ? 1 : 0, async () => {
           if (raw.channel) await upsertChannels([raw.channel]);
           if (raw.video) await upsertVideos([raw.video]);
-          if (raw.top_comments.length > 0) await upsertComments(raw.top_comments);
         })
       : null;
   return ok(
@@ -592,18 +590,6 @@ export async function listYouTubeVideoComments(
     top_n: input.limit,
   });
   const warnings = disabledCommentsWarning(input.videoId, raw.comments_disabled);
-  let harvest: YouTubeFoundationResponse<unknown>['harvest'] = null;
-  if (input.persist && !raw.comments_disabled) {
-    try {
-      harvest = await persistCommentsWithWarning(input, raw.top_comments);
-    } catch (error) {
-      warnings.push({
-        code: 'COMMENTS_PERSIST_FAILED',
-        message: error instanceof Error ? error.message : String(error),
-        target: { videoId: input.videoId },
-      });
-    }
-  }
   return ok(
     {
       videoId: raw.video_id,
@@ -613,17 +599,8 @@ export async function listYouTubeVideoComments(
       unitsConsumed: raw.units_consumed,
       quotaSessionId: raw.quota_session_id ?? null,
     },
-    { harvest, warnings },
+    { harvest: null, warnings },
   );
-}
-
-async function persistCommentsWithWarning(
-  input: ListYouTubeVideoCommentsInput,
-  comments: CommentSummary[],
-): Promise<YouTubeFoundationResponse<unknown>['harvest']> {
-  return persistWithHarvest('comments', input, comments.length, async () => {
-    await upsertComments(comments);
-  });
 }
 
 export async function fetchTrendingYouTubeVideos(

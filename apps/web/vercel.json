@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/youpd/trending",
+      "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron/youpd/snapshots",
+      "schedule": "0 2 * * *"
+    }
+  ]
+}

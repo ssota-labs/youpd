@@ -32,7 +32,13 @@
     },
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**",
+        "dist/**",
+        "app/.well-known/workflow/**",
+        "src/app/.well-known/workflow/**"
+      ]
     },
     "lint": {
       "dependsOn": ["^build"]

@@ -15,7 +15,6 @@
     "./query": "./src/query/index.ts",
     "./rest": "./src/rest/index.ts",
     "./youtube": "./src/youtube/index.ts",
-    "./rest/harvests": "./src/rest/harvests/index.ts",
     "./thumbnail": "./src/thumbnail/index.ts"
   },
   "scripts": {

@@ -1,1 +1,0 @@
-# No .env* here — package root may have unreadable `.env.local` in constrained sandboxes.

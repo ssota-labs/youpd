@@ -1,8 +1,10 @@
 import { defineConfig, devices } from '@playwright/test';
+import { supabaseWebServerEnv } from './e2e/load-supabase-env';
 
 const WEB_PORT = Number(process.env.WEB_PORT ?? 3000);
 const ADMIN_PORT = Number(process.env.ADMIN_PORT ?? 3001);
 const MCP_PORT = Number(process.env.MCP_PORT ?? 3002);
+const sharedEnv = supabaseWebServerEnv();
 
 export default defineConfig({
   testDir: './e2e',
@@ -24,6 +26,7 @@ export default defineConfig({
       timeout: 120_000,
       stdout: 'pipe',
       stderr: 'pipe',
+      env: sharedEnv,
     },
     {
       command: 'pnpm --filter @youpd/admin dev',
@@ -32,6 +35,7 @@ export default defineConfig({
       timeout: 120_000,
       stdout: 'pipe',
       stderr: 'pipe',
+      env: sharedEnv,
     },
     {
       command: 'pnpm --filter @youpd/mcp dev',
@@ -40,6 +44,7 @@ export default defineConfig({
       timeout: 120_000,
       stdout: 'pipe',
       stderr: 'pipe',
+      env: sharedEnv,
     },
   ],
 });

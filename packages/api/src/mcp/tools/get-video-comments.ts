@@ -7,7 +7,6 @@ import {
   type CommentSummary,
   type YouTubeClient,
 } from '@youpd/youtube';
-import { upsertCanonicalComments } from '@youpd/supabase/repositories/youtube';
 import { executeWithKeyRotation } from '../youtube-key-pool';
 import { attachQuotaSession, runWithBudget } from '../quota';
 
@@ -82,30 +81,8 @@ export async function getVideoComments(
     },
   });
 
-  await persistVideoComments(result);
   return attachQuotaSession(result, sessionId);
   });
-}
-
-async function persistVideoComments(result: GetVideoCommentsOutput): Promise<void> {
-  if (!process.env.DATABASE_URL || result.comments_disabled) return;
-  try {
-    await upsertCanonicalComments(
-      result.top_comments.map((comment) => ({
-        commentId: comment.commentId,
-        videoId: comment.videoId,
-        authorDisplayName: comment.authorDisplayName,
-        authorChannelId: comment.authorChannelId,
-        text: comment.text,
-        likeCount: comment.likeCount,
-        totalReplyCount: comment.totalReplyCount,
-        publishedAt: comment.publishedAt,
-        updatedAt: comment.updatedAt,
-      })),
-    );
-  } catch (err) {
-    console.warn('[youpd] failed to persist video comments', err);
-  }
 }
 
 const HANGUL = /[가-힯ᄀ-ᇿ㄰-㆏]/;
