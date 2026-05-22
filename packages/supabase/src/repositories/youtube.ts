@@ -1077,3 +1077,21 @@ export async function queryChannelMetricSnapshots(
       youtubeChannelMetricSnapshots.snapshotDate,
     );
 }
+
+export async function listAllYouTubeVideoIds(limit = 5000): Promise<string[]> {
+  const db = getDbClient();
+  const rows = await db
+    .select({ videoId: youtubeVideos.videoId })
+    .from(youtubeVideos)
+    .limit(Math.min(Math.max(limit, 1), 10000));
+  return rows.map((row) => row.videoId);
+}
+
+export async function listAllYouTubeChannelIds(limit = 2000): Promise<string[]> {
+  const db = getDbClient();
+  const rows = await db
+    .select({ channelId: youtubeChannels.channelId })
+    .from(youtubeChannels)
+    .limit(Math.min(Math.max(limit, 1), 5000));
+  return rows.map((row) => row.channelId);
+}
