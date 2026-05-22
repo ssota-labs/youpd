@@ -69,3 +69,16 @@ export const CaptureDailySnapshotsInputSchema = z
 export type CaptureDailySnapshotsInput = z.infer<
   typeof CaptureDailySnapshotsInputSchema
 >;
+
+/** Bulk daily mostPopular collection for all configured region×category targets. */
+export const CollectTrendingMatrixDailyInputSchema = z
+  .object({
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    limit: z.number().int().min(1).max(50).default(50),
+    regionCodes: z.array(z.string().length(2)).optional(),
+    categoryIds: z.array(z.string().min(1)).optional(),
+  })
+  .strict();
+export type CollectTrendingMatrixDailyInput = z.infer<
+  typeof CollectTrendingMatrixDailyInputSchema
+>;

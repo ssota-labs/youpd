@@ -501,11 +501,38 @@ export async function getFreshKeywordCache(
   return { keyword, results: rows };
 }
 
+const HOT_VIDEO_UPSERT_CHUNK = 50;
+
+function chunkHotVideoInputs<T>(items: T[], size: number): T[][] {
+  const batches: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    batches.push(items.slice(i, i + size));
+  }
+  return batches;
+}
+
 export async function upsertHotVideos(results: HotVideoInput[]): Promise<void> {
   if (results.length === 0) return;
   const db = getDbClient();
   const collectedAt = now();
-  for (const result of results) {
+  const collectedAtIso = collectedAt.toISOString();
+
+  for (const batch of chunkHotVideoInputs(results, HOT_VIDEO_UPSERT_CHUNK)) {
+    const valueRows = sql.join(
+      batch.map(
+        (result) => sql`(
+          ${result.hotDate}::date,
+          ${result.regionCode ?? 'KR'},
+          ${result.categoryId ?? null},
+          ${result.videoId},
+          ${result.rank ?? result.chartRank ?? 0},
+          ${result.source ?? 'youtube_trending'},
+          ${collectedAtIso}::timestamptz
+        )`,
+      ),
+      sql`, `,
+    );
+
     await db.execute(sql`
       insert into public.youtube_hot_videos (
         hot_date,
@@ -516,15 +543,7 @@ export async function upsertHotVideos(results: HotVideoInput[]): Promise<void> {
         source,
         collected_at
       )
-      values (
-        ${result.hotDate},
-        ${result.regionCode ?? 'KR'},
-        ${result.categoryId ?? null},
-        ${result.videoId},
-        ${result.rank ?? result.chartRank ?? 0},
-        ${result.source ?? 'youtube_trending'},
-        ${collectedAt.toISOString()}
-      )
+      values ${valueRows}
       on conflict (hot_date, region_code, coalesce(category_id, ''), video_id)
       do update set
         rank = excluded.rank,

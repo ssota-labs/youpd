@@ -143,18 +143,50 @@ High-frequency routing:
 - Read `agent-browser`, `browser-use`, or `playwright` before browser QA, screenshots, scraping, or end-to-end UI verification.
 - Read `create-agentsmd`, `create-skill`, `create-rule`, or other Cursor automation skills before changing agent instructions, skills, rules, hooks, or Cursor settings.
 
+## Git Worktrees And Local Environment
+
+Git worktrees do not copy ignored files. After creating a worktree (including Cursor worktrees under `.cursor/worktrees/youpd/`), link env from the **main clone** before `pnpm dev` or tests:
+
+```bash
+pnpm install
+pnpm worktree:env
+```
+
+- **Script:** `scripts/link-env-from-main.sh` (also `pnpm worktree:env`). Symlinks four ignored env files from the main worktree: `.env.local`, `apps/web/.env.local`, `apps/web/.env.youtube` (YouTube API key pool for `pnpm youtube:keys:sync`), `apps/mcp/.env.local`. Next.js 16 only auto-loads `.env*` from each app directory, not the repo root alone.
+- **Main clone resolution:** `YOUPD_MAIN_WORKTREE` if set; else the worktree on branch `main`; else the first worktree that already has `.env.local`.
+- **Copy instead of link** (e.g. different ports per worktree): `pnpm worktree:env -- --copy`
+- **Canonical local clone** (this machine): `/Users/titanism/projects/youpd` on branch `main`.
+
+First-time setup on the main clone: copy `.env.example` → `.env.local` (and the two app templates), run `pnpm db:up`, then paste Supabase keys from `supabase status`.
+
+### Supabase local defaults (`pnpm db:up`)
+
+Default CLI ports from `supabase/config.toml`. Keys below are the **standard local demo JWTs** (same for every `supabase start`); safe for local dev only — never use in production.
+
+| Variable | Local value |
+|----------|-------------|
+| `SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_URL` | `http://127.0.0.1:54321` |
+| `DATABASE_URL` | `postgresql://postgres:postgres@127.0.0.1:54322/postgres` |
+| `SUPABASE_ANON_KEY` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0` |
+| `SUPABASE_SERVICE_ROLE_KEY` | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU` |
+
+Other local URLs (optional): Studio `http://127.0.0.1:54323`, Inbucket/Mailpit `http://127.0.0.1:54324`. Refresh keys after `supabase stop` / `db:reset` if your CLI prints different values: `supabase status` or `supabase status -o env`.
+
+Still set manually on the main clone (not from Supabase): `YOUTUBE_API_KEY`, `YOUPD_API_TOKEN`, `CRON_SECRET`, Notion/OAuth secrets — see root and `apps/*/`.env.example`.
+
 ## Setup And Development Commands
 
 The repository may start before the monorepo is scaffolded. Once scaffolded, keep these root commands available:
 
 ```bash
 pnpm install
+pnpm worktree:env   # when using a git worktree (not the main clone)
 pnpm run dev
 pnpm run build
 pnpm run lint
 pnpm run typecheck
 pnpm run test
-pnpm run test:integration
+pnpm run test:integration  # local Supabase required — docs/testing.md
 pnpm run test:e2e
 ```
 
@@ -180,11 +212,13 @@ If a command does not exist yet, add it as part of project setup rather than doc
 
 ## Testing Policy
 
+Full local workflow (worktree env, Supabase reset, auth stubs, unit / integration scope, E2E): **`docs/testing.md`**.
+
 Testing must run in a closed loop for every meaningful change.
 
-- Unit tests for pure logic, schemas, mappers, policies, reducers, state machines, hooks, and adapters with mocks.
-- Integration tests for API contracts, package boundaries, MCP tools, and Supabase adapters.
-- E2E tests for critical user flows in `apps/web` and `apps/admin` where relevant.
+- Unit tests for pure logic, schemas, mappers, policies, reducers, state machines, hooks, and adapters with mocks (`pnpm test`).
+- Integration tests for API contracts, package boundaries, MCP tools, and Supabase adapters against **local Supabase** (`pnpm test:integration`; requires `pnpm db:up` — see `docs/testing.md`).
+- E2E tests for critical user flows in `apps/web` and `apps/admin` where relevant (`pnpm test:e2e`, Playwright under `e2e/`).
 - Design/component tests for shared UI contracts on the web surface.
 - Lint, typecheck, and tests must pass before handoff unless the user explicitly accepts a known failing state.
 

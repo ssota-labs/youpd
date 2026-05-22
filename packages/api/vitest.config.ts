@@ -13,6 +13,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts'],
+    exclude: ['src/**/*.integration.test.ts'],
     globals: false,
     // Pin the inter-page YouTube throttle to 0 across the suite so the
     // paginated tools (search_keyword, get_channel_all_videos, …) don't

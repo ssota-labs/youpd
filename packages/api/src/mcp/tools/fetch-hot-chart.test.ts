@@ -1,6 +1,18 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fetchHotChart } from './fetch-hot-chart';
 import { makeClient } from './test-utils';
+
+const repoMocks = vi.hoisted(() => ({
+  upsertChannels: vi.fn().mockResolvedValue([]),
+  upsertVideos: vi.fn().mockResolvedValue([]),
+  upsertHotVideos: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('@youpd/supabase/repositories/youtube', () => ({
+  upsertChannels: repoMocks.upsertChannels,
+  upsertVideos: repoMocks.upsertVideos,
+  upsertHotVideos: repoMocks.upsertHotVideos,
+}));
 
 vi.mock('../quota', () => ({
   attachQuotaSession: (result: unknown, sid: string | null) =>
@@ -18,6 +30,71 @@ vi.mock('../quota', () => ({
 }));
 
 describe('fetchHotChart', () => {
+  const prevDbUrl = process.env.DATABASE_URL;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.DATABASE_URL = 'postgresql://local/test';
+  });
+
+  afterEach(() => {
+    if (prevDbUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = prevDbUrl;
+  });
+
+  it('skips repository writes when persist is false', async () => {
+    const client = makeClient({
+      '/videos': () => ({
+        items: [
+          {
+            id: 'v1',
+            snippet: {
+              publishedAt: '2024-01-01T00:00:00Z',
+              channelId: 'c1',
+              title: 'Hot',
+              description: '',
+              thumbnails: {},
+              channelTitle: 'C',
+            },
+            statistics: { viewCount: '100' },
+          },
+        ],
+      }),
+    });
+    await fetchHotChart(
+      { region_code: 'KR', category_id: '22', limit: 10, persist: false },
+      client,
+    );
+    expect(repoMocks.upsertChannels).not.toHaveBeenCalled();
+    expect(repoMocks.upsertVideos).not.toHaveBeenCalled();
+    expect(repoMocks.upsertHotVideos).not.toHaveBeenCalled();
+  });
+
+  it('persists when persist is true (default)', async () => {
+    const client = makeClient({
+      '/videos': () => ({
+        items: [
+          {
+            id: 'v1',
+            snippet: {
+              publishedAt: '2024-01-01T00:00:00Z',
+              channelId: 'c1',
+              title: 'Hot',
+              description: '',
+              thumbnails: {},
+              channelTitle: 'C',
+            },
+            statistics: { viewCount: '100' },
+          },
+        ],
+      }),
+    });
+    await fetchHotChart({ region_code: 'KR', category_id: '22', limit: 10 }, client);
+    expect(repoMocks.upsertChannels).toHaveBeenCalled();
+    expect(repoMocks.upsertVideos).toHaveBeenCalled();
+    expect(repoMocks.upsertHotVideos).toHaveBeenCalled();
+  });
+
   it('uses chart=mostPopular with regionCode and categoryId', async () => {
     const client = makeClient({
       '/videos': (params) => {

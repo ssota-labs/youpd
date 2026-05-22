@@ -26,6 +26,9 @@ importers:
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.19.19)(lightningcss@1.32.0)
 
   apps/admin:
     dependencies:
@@ -159,28 +162,6 @@ importers:
         version: 16.2.6(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3)
       tsx:
         specifier: ^4.19.2
-        version: 4.21.0
-      typescript:
-        specifier: ^5.7.2
-        version: 5.9.3
-      vitest:
-        specifier: ^2.1.8
-        version: 2.1.9(@types/node@22.19.19)(lightningcss@1.32.0)
-
-  apps/notion-worker:
-    dependencies:
-      '@notionhq/client':
-        specifier: 5.21.0
-        version: 5.21.0
-      '@notionhq/workers':
-        specifier: 0.4.0
-        version: 0.4.0(@notionhq/client@5.21.0)
-    devDependencies:
-      '@types/node':
-        specifier: ^22.10.0
-        version: 22.19.19
-      tsx:
-        specifier: ^4.21.0
         version: 4.21.0
       typescript:
         specifier: ^5.7.2
@@ -1724,16 +1705,6 @@ packages:
   '@nolyfill/is-core-module@1.0.39':
     resolution: {integrity: sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==}
     engines: {node: '>=12.4.0'}
-
-  '@notionhq/client@5.21.0':
-    resolution: {integrity: sha512-X+T+hzaQFleOUGm4xUOUm51pOpdZ1+6T4BsRjGlcdEOTJLNkUEv8nZATq9O3ZY4NQEgICc0qwQ0I25OdYprX0w==}
-    engines: {node: '>=18'}
-
-  '@notionhq/workers@0.4.0':
-    resolution: {integrity: sha512-+FgL9Xa6qS4EsIN9gVtfwt1rssfk9NIwx7tMS3d4b5Z6Kb5MRFgKLWllav2XCc2Lk94+h05+MvwgOcwgTPJfuw==}
-    engines: {node: '>=22.0.0', npm: '>=10.9.2'}
-    peerDependencies:
-      '@notionhq/client': '>=2.2.15'
 
   '@nuxt/kit@4.4.2':
     resolution: {integrity: sha512-5+IPRNX2CjkBhuWUwz0hBuLqiaJPRoKzQ+SvcdrQDbAyE+VDeFt74VpSFr5/R0ujrK4b+XnSHUJWdS72w6hsog==}
@@ -6553,14 +6524,6 @@ snapshots:
       fastq: 1.20.1
 
   '@nolyfill/is-core-module@1.0.39': {}
-
-  '@notionhq/client@5.21.0': {}
-
-  '@notionhq/workers@0.4.0(@notionhq/client@5.21.0)':
-    dependencies:
-      '@notionhq/client': 5.21.0
-      ajv: 8.20.0
-      ajv-formats: 3.0.1(ajv@8.20.0)
 
   '@nuxt/kit@4.4.2':
     dependencies:
