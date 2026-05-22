@@ -12,10 +12,18 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: 0,
   workers: 1,
-  reporter: process.env.CI ? 'github' : 'list',
+  reporter: process.env.CI
+    ? 'github'
+    : [
+        ['html', { open: 'never', outputFolder: 'playwright-report' }],
+        ['list'],
+      ],
   globalSetup: './e2e/global-setup.ts',
+  outputDir: 'test-results',
   use: {
-    trace: 'retain-on-failure',
+    screenshot: 'on',
+    video: 'on',
+    trace: 'on',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: [
