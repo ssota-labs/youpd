@@ -33,6 +33,11 @@ export function mapChannelSummary(channel: ChannelSummary): ChannelCore {
     id: channel.channelId,
     provider: 'youtube',
     title: channel.title,
+    thumbnailUrl:
+      channel.thumbnails?.default?.url ??
+      channel.thumbnails?.medium?.url ??
+      channel.thumbnails?.high?.url ??
+      null,
     publishedAt: channel.publishedAt || null,
     subscriberCount: channel.subscriberCount ?? null,
     videoCount: channel.videoCount ?? null,
@@ -93,6 +98,7 @@ export function mapDbVideoRow(
 export function mapDbChannelRow(channel: {
   channelId: string;
   title: string;
+  thumbnailUrl?: string | null;
   publishedAt: Date | null;
   subscriberCount: number | null;
   videoCount: number | null;
@@ -104,6 +110,7 @@ export function mapDbChannelRow(channel: {
     id: channel.channelId,
     provider: 'youtube',
     title: channel.title,
+    thumbnailUrl: channel.thumbnailUrl ?? null,
     publishedAt: channel.publishedAt?.toISOString() ?? null,
     subscriberCount: channel.subscriberCount,
     videoCount: channel.videoCount,
@@ -175,6 +182,7 @@ export function mapFoundationChannel(channel: FoundationChannel): ChannelCore {
     id: channel.channelId,
     provider: 'youtube',
     title: channel.title,
+    thumbnailUrl: channel.thumbnailUrl ?? null,
     publishedAt: channel.publishedAt || null,
     subscriberCount: channel.subscriberCount ?? null,
     videoCount: channel.videoCount ?? null,

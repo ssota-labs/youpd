@@ -123,6 +123,8 @@ export function createFoundationTrendingRepositoryPort() {
       return result.data.videos.map((row) => ({
         hotDate: row.hotVideo.hotDate,
         rank: row.hotVideo.rank,
+        categoryId: row.hotVideo.categoryId ?? null,
+        regionCode: row.hotVideo.regionCode,
         video:
           row.video != null
             ? withScore(
@@ -132,6 +134,52 @@ export function createFoundationTrendingRepositoryPort() {
             : null,
         channel: row.channel ? mapDbChannelRow(row.channel) : null,
       }));
+    },
+
+    async searchHotVideos(input: {
+      regionCode: string;
+      date?: string | null;
+      dateEnd?: string | null;
+      categoryId?: string | null;
+      q?: string | null;
+      limit: number;
+      offset: number;
+      sort?: import('../workflows/schemas').HotVideoSortField;
+      order?: import('../workflows/schemas').HotVideoSortOrder;
+    }) {
+      const { searchHotVideos } = await import(
+        '@youpd/supabase/repositories/youtube'
+      );
+      const { withScore } = await import('./scoring');
+      const result = await searchHotVideos({
+        regionCode: input.regionCode,
+        date: input.date,
+        dateEnd: input.dateEnd,
+        categoryId: input.categoryId,
+        q: input.q,
+        limit: input.limit,
+        offset: input.offset,
+        sort: input.sort,
+        order: input.order,
+      });
+      return {
+        rows: result.rows.map((row) => ({
+          hotDate: row.hotVideo.hotDate,
+          rank: row.hotVideo.rank,
+          categoryId: row.hotVideo.categoryId ?? null,
+          regionCode: row.hotVideo.regionCode,
+          video:
+            row.video != null
+              ? withScore(
+                  mapDbVideoRow(row.video, row.channel),
+                  row.channel ? mapDbChannelRow(row.channel) : null,
+                )
+              : null,
+          channel: row.channel ? mapDbChannelRow(row.channel) : null,
+        })),
+        total: result.total,
+        hasMore: result.hasMore,
+      };
     },
   };
 }
