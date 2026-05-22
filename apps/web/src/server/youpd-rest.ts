@@ -1,28 +1,12 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import {
-  RestAuthError,
-  requireYoupdRestToken,
-} from '@youpd/api/rest';
 import { QuotaExceededAtBudgetError } from '@youpd/api/mcp/quota';
 import { YouTubeApiError } from '@youpd/youtube';
-
-/** Wrap handler with Bearer auth + centralized error mapping. */
-export async function withYoupdRest(
-  request: Request,
-  handler: () => Promise<Response>,
-): Promise<Response> {
-  try {
-    requireYoupdRestToken(request);
-    return await handler();
-  } catch (err) {
-    return youpdRestError(err);
-  }
-}
+import { HttpAuthError } from './http-error';
 
 export function youpdRestError(err: unknown): NextResponse {
-  if (err instanceof RestAuthError) {
+  if (err instanceof HttpAuthError) {
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
   if (err instanceof QuotaExceededAtBudgetError) {
@@ -52,6 +36,6 @@ export function youpdRestError(err: unknown): NextResponse {
       { status: 502 },
     );
   }
-  console.error('[youpd-rest]', err);
+  console.error('[youpd-cron]', err);
   return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
 }

@@ -8,6 +8,14 @@ const repoMocks = vi.hoisted(() => ({
   upsertHotVideos: vi.fn().mockResolvedValue(undefined),
 }));
 
+const batchMocks = vi.hoisted(() => ({
+  fetchChannelsBatch: vi.fn(),
+}));
+
+vi.mock('./fetch-channels-batch', () => ({
+  fetchChannelsBatch: batchMocks.fetchChannelsBatch,
+}));
+
 vi.mock('@youpd/supabase/repositories/youtube', () => ({
   upsertChannels: repoMocks.upsertChannels,
   upsertVideos: repoMocks.upsertVideos,
@@ -35,6 +43,26 @@ describe('fetchHotChart', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.DATABASE_URL = 'postgresql://local/test';
+    batchMocks.fetchChannelsBatch.mockResolvedValue({
+      channels: [
+        {
+          channelId: 'c1',
+          title: 'C',
+          description: '',
+          publishedAt: '2024-01-01T00:00:00Z',
+          thumbnails: {},
+          subscriberCount: 100,
+          videoCount: 10,
+          viewCount: 1000,
+          hiddenSubscriberCount: false,
+          uploadsPlaylistId: 'UU1',
+          country: 'KR',
+          url: 'https://www.youtube.com/channel/c1',
+        },
+      ],
+      missing_channel_ids: [],
+      units_consumed: 1,
+    });
   });
 
   afterEach(() => {
@@ -93,6 +121,7 @@ describe('fetchHotChart', () => {
       { region_code: 'KR', category_id: '22', limit: 10, persist: true },
       client,
     );
+    expect(batchMocks.fetchChannelsBatch).toHaveBeenCalledWith({ channel_ids: ['c1'] });
     expect(repoMocks.upsertChannels).toHaveBeenCalled();
     expect(repoMocks.upsertVideos).toHaveBeenCalled();
     expect(repoMocks.upsertHotVideos).toHaveBeenCalled();

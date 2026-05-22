@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   getChannelAllVideos: vi.fn(),
   getVideoComments: vi.fn(),
   fetchHotChart: vi.fn(),
+  fetchChannelsBatch: vi.fn(),
   snapshotNow: vi.fn(),
   snapshotChannelsNow: vi.fn(),
   createHarvestSession: vi.fn(),
@@ -40,6 +41,7 @@ vi.mock('../mcp/tools/index', () => ({
   getChannelAllVideos: mocks.getChannelAllVideos,
   getVideoComments: mocks.getVideoComments,
   fetchHotChart: mocks.fetchHotChart,
+  fetchChannelsBatch: mocks.fetchChannelsBatch,
   snapshotNow: mocks.snapshotNow,
   snapshotChannelsNow: mocks.snapshotChannelsNow,
 }));
@@ -71,6 +73,26 @@ describe('fetchTrendingYouTubeVideos', () => {
     mocks.upsertChannels.mockResolvedValue([]);
     mocks.upsertVideos.mockResolvedValue([]);
     mocks.upsertHotVideos.mockResolvedValue(undefined);
+    mocks.fetchChannelsBatch.mockResolvedValue({
+      channels: [
+        {
+          channelId: 'c1',
+          title: 'Channel',
+          description: '',
+          publishedAt: '2025-01-01T00:00:00Z',
+          thumbnails: { high: { url: 'https://img.example/thumb.jpg' } },
+          subscriberCount: 1000,
+          videoCount: 10,
+          viewCount: 50000,
+          hiddenSubscriberCount: false,
+          uploadsPlaylistId: 'UU1',
+          country: 'KR',
+          url: 'https://www.youtube.com/channel/c1',
+        },
+      ],
+      missing_channel_ids: [],
+      units_consumed: 1,
+    });
     mocks.fetchHotChart.mockResolvedValue({
       region_code: 'KR',
       category_id: '22',
@@ -113,6 +135,16 @@ describe('fetchTrendingYouTubeVideos', () => {
       limit: 50,
       persist: false,
     });
+    expect(mocks.fetchChannelsBatch).toHaveBeenCalledWith({ channel_ids: ['c1'] });
+    expect(mocks.upsertChannels).toHaveBeenCalledWith([
+      expect.objectContaining({
+        channelId: 'c1',
+        subscriberCount: 1000,
+        viewCount: 50000,
+        videoCount: 10,
+        averageViewCount: 5000,
+      }),
+    ]);
     expect(mocks.upsertHotVideos).toHaveBeenCalledWith([
       expect.objectContaining({
         hotDate: '2026-05-22',

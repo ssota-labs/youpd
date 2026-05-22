@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  fetchChannelsBatch,
   fetchHotChart,
   getChannelAllVideos,
   getChannelOverview,
@@ -29,6 +30,7 @@ import {
   type CanonicalVideoInput,
   type HarvestStatus,
 } from '@youpd/supabase/repositories/youtube';
+import { channelUpsertFromSummary } from './trending/channel-upsert';
 import type {
   ChannelSummary,
   CommentSummary,
@@ -613,19 +615,23 @@ export async function fetchTrendingYouTubeVideos(
     persist: false,
   });
   const hotDate = input.date ?? todayYmd();
+  let channelUnitsConsumed = 0;
   const harvest = input.persist
     ? await persistWithHarvest('trending', input, raw.videos.length, async () => {
-        const channelsById = new Map<string, CanonicalVideoInput>();
-        for (const video of raw.videos) {
-          if (!channelsById.has(video.channelId)) channelsById.set(video.channelId, video);
+        const channelIds = [
+          ...new Set(
+            raw.videos.map((video) => video.channelId).filter((id) => id.length > 0),
+          ),
+        ];
+        if (channelIds.length > 0) {
+          const channelOut = await fetchChannelsBatch({ channel_ids: channelIds });
+          channelUnitsConsumed = channelOut.units_consumed;
+          if (channelOut.channels.length > 0) {
+            await upsertChannels(
+              channelOut.channels.map((channel) => channelUpsertFromSummary(channel)),
+            );
+          }
         }
-        await upsertChannels(
-          Array.from(channelsById.values()).map((video) => ({
-            channelId: video.channelId,
-            title: video.channelTitle ?? video.channelId,
-            url: `https://www.youtube.com/channel/${video.channelId}`,
-          })),
-        );
         await upsertVideos(raw.videos);
         await upsertHotVideos(
           raw.videos.map((video, index) => ({
@@ -646,7 +652,7 @@ export async function fetchTrendingYouTubeVideos(
       categoryId: input.categoryId ?? null,
       videos: raw.videos,
       source: 'youtube_trending',
-      unitsConsumed: raw.units_consumed,
+      unitsConsumed: raw.units_consumed + channelUnitsConsumed,
       quotaSessionId: raw.quota_session_id ?? null,
     },
     { harvest },

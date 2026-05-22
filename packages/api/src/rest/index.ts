@@ -1,5 +1,4 @@
-/** REST-specific helpers shared by HTTP route handlers (`apps/web`). */
-export { requireYoupdRestToken, RestAuthError } from './auth';
+/** Cron HTTP envelope helpers shared by `apps/web` route handlers. */
 export {
   wrapRestEnvelope,
   splitQuotaSession,

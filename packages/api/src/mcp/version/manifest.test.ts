@@ -10,30 +10,40 @@ import {
 } from './index';
 
 describe('version manifest', () => {
-  it('exposes BUNDLE_VERSION 1.4.0 with SCHEMA_VERSION 1.0.0', () => {
-    expect(BUNDLE_VERSION).toBe('1.4.0');
+  it('exposes BUNDLE_VERSION 1.5.0 with SCHEMA_VERSION 1.0.0', () => {
+    expect(BUNDLE_VERSION).toBe('1.5.0');
     expect(SCHEMA_VERSION).toBe('1.0.0');
   });
 
   it('getLatestVersion returns the same triplet every call', () => {
     expect(getLatestVersion()).toEqual(getLatestVersion());
     expect(getLatestVersion()).toMatchObject({
-      version: '1.4.0',
+      version: '1.5.0',
       schema_version: '1.0.0',
     });
   });
 
-  it('CHANGELOG includes 1.4.0 (newest), 1.3.0, 1.2.0, 1.1.0 and 1.0.0 entries in order', () => {
-    expect(CHANGELOG.length).toBeGreaterThanOrEqual(5);
-    expect(CHANGELOG[0]!.version).toBe('1.4.0');
-    expect(CHANGELOG[1]!.version).toBe('1.3.0');
-    expect(CHANGELOG[2]!.version).toBe('1.2.0');
-    expect(CHANGELOG[3]!.version).toBe('1.1.0');
+  it('CHANGELOG includes 1.5.0 (newest), 1.4.0, 1.3.0, 1.2.0, 1.1.0 and 1.0.0 entries in order', () => {
+    expect(CHANGELOG.length).toBeGreaterThanOrEqual(6);
+    expect(CHANGELOG[0]!.version).toBe('1.5.0');
+    expect(CHANGELOG[1]!.version).toBe('1.4.0');
+    expect(CHANGELOG[2]!.version).toBe('1.3.0');
+    expect(CHANGELOG[3]!.version).toBe('1.2.0');
+    expect(CHANGELOG[4]!.version).toBe('1.1.0');
     expect(CHANGELOG.at(-1)!.version).toBe('1.0.0');
   });
 
-  it('CHANGELOG 1.4.0 entry documents REST route removal and Worker rename', () => {
+  it('CHANGELOG 1.5.0 entry documents REST removal and trending channel enrichment', () => {
     const notes = CHANGELOG[0]!.notes.join('\n');
+    expect(notes).toContain('/api/youpd/rest');
+    expect(notes).toContain('channels.list');
+    expect(notes).toContain('MCP-only');
+  });
+
+  it('CHANGELOG 1.4.0 entry documents REST meta route removal and Worker rename', () => {
+    const entry = CHANGELOG.find((c) => c.version === '1.4.0');
+    expect(entry).toBeDefined();
+    const notes = entry!.notes.join('\n');
     expect(notes).toContain('schema/latest');
     expect(notes).toContain('snapshotVideos');
     expect(notes).toContain('search_sessions');
@@ -179,7 +189,7 @@ describe('version manifest', () => {
       const manifest = getBundleManifest();
       expect(manifest.template_url).toBeNull();
       expect(manifest.healthcheck_url).toBeNull();
-      expect(manifest.bundle_version).toBe('1.4.0');
+      expect(manifest.bundle_version).toBe('1.5.0');
     });
 
     it('derives healthcheck_url from MCP_OAUTH_RESOURCE', () => {

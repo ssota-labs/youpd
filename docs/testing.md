@@ -2,6 +2,8 @@
 
 운영 SSOT는 Notion이지만, **로컬에서 테스트를 돌리는 절차**는 이 파일을 기준으로 합니다. 에이전트는 `AGENTS.md` → 이 문서 순으로 참고하세요.
 
+> **Agent HTTP surface (v1.5+)**: 유저/에이전트는 **MCP only** (`apps/mcp`). 스케줄 수집은 **`/api/cron/youpd/*`** (Bearer `CRON_SECRET`). Public REST `/api/youpd/rest/*`는 제거됨.
+
 ## 테스트 피라미드 (이 레포 기준)
 
 | 층 | 무엇을 검증하나 | 어디에 있나 | 실행 |
@@ -143,7 +145,7 @@ pnpm lint
 
 1. **`packages/supabase` repositories** — `getDbClient()` + 로컬 `DATABASE_URL`, migration/seed 반영 후 `upsertHotVideos`, `queryHotVideos`, quota, `getLivenessRow` 등.
 2. **`packages/api` 경계** — foundation/workflow는 YouTube만 mock, persist는 **실 DB** (또는 test transaction + rollback).
-3. **`apps/web` Route Handlers** — `/api/youpd/rest/*`, `/api/cron/youpd/*` (CRON_SECRET, YOUPD_API_TOKEN env), `Request` 주입 vitest 또는 `node:test` + `fetch` to running server.
+3. **`apps/web` Route Handlers** — `/api/cron/youpd/*` (`CRON_SECRET`), `Request` 주입 vitest 또는 `node:test` + `fetch` to running server.
 4. **`apps/mcp`** — `/api/health` + OAuth token verify + tool handler (YouTube mock 유지 가능).
 5. **REST 계약** — Zod envelope, 401/403, quota 초과 shape.
 
@@ -246,11 +248,10 @@ Next.js **쿠키 세션** (`createUserContextClient`) 은 Route Handler / Server
 - Bearer JWT 를 헤더에 직접 넣는 API 를 테스트하거나,
 - Playwright E2E 에서 로그인 UI 플로우를 추가하는 방식을 선택합니다.
 
-### 5.4 REST / Cron stub env
+### 5.4 Cron stub env
 
 | 변수 | 용도 |
 |------|------|
-| `YOUPD_API_TOKEN` | `/api/youpd/rest/*` Bearer |
 | `CRON_SECRET` | `/api/cron/youpd/*` → `Authorization: Bearer $CRON_SECRET` |
 
 로컬 `.env.local` 에 임의 문자열을 넣고 integration 요청 헤더에 동일 값을 사용합니다.

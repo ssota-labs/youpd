@@ -1,8 +1,8 @@
-/** Standard REST envelope aligned with internal v0.5 spec `{ data, meta }`. */
+/** Standard cron HTTP envelope `{ data, meta }`. */
 
 export type YoupdRestMeta = {
   fetchedAt: string;
-  source: 'youpd-rest';
+  source: 'youpd-cron';
   /** Correlates with `search_sessions.id` (quota / audit row). */
   jobId?: string | null;
   /** YouTube commentThreads or playlist continuation token when applicable. */
@@ -20,7 +20,7 @@ export function wrapRestEnvelope<T>(
     data,
     meta: {
       fetchedAt: new Date().toISOString(),
-      source: 'youpd-rest',
+      source: 'youpd-cron',
       ...partial,
     },
   };

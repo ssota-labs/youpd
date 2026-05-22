@@ -35,6 +35,12 @@ export {
   type FetchHotChartOutput,
 } from './fetch-hot-chart';
 export {
+  fetchChannelsBatch,
+  FetchChannelsBatchInputSchema,
+  type FetchChannelsBatchInput,
+  type FetchChannelsBatchOutput,
+} from './fetch-channels-batch';
+export {
   snapshotNow,
   SnapshotNowInputSchema,
   type SnapshotNowInput,
