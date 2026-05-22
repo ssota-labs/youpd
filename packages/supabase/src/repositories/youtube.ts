@@ -703,7 +703,7 @@ export async function upsertHotVideos(results: HotVideoInput[]): Promise<void> {
         ${result.videoId},
         ${result.rank ?? result.chartRank ?? 0},
         ${result.source ?? 'youtube_trending'},
-        ${collectedAt}
+        ${collectedAt.toISOString()}
       )
       on conflict (hot_date, region_code, coalesce(category_id, ''), video_id)
       do update set

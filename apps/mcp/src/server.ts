@@ -1,24 +1,30 @@
 import 'server-only';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { QuotaExceededAtBudgetError } from '@youpd/api/mcp/quota';
 import {
   AnalyzeChannelInputSchema,
   AnalyzeVideoInputSchema,
   GetTrendingVideosInputSchema,
   SearchKeywordWorkflowInputSchema,
+  getStoredTrendingVideos,
 } from '@youpd/api/youtube';
-import { restPost } from './youpd-rest';
+import { YouTubeApiError } from '@youpd/youtube';
+import { enqueueYoupdJob, getYoupdJobStatus, JobNotFoundError } from './workflows/jobs';
+import { GetJobStatusInputSchema } from './workflows/schemas';
 
 /** Agent-facing MCP workflow tool descriptions. */
 const TOOL_DESCRIPTIONS: Record<string, string> = {
   youpd_analyze_video:
-    'Use when you need a full analysis report for one known YouTube videoId. Inputs: videoId, optional includeComments and commentsTopN. Side effects: the system ensures video/channel data, comments, and an initial metric snapshot are stored internally; the caller does not choose persist or fetch mode. Returns scored video detail, channel summary, comments, and snapshot status.',
+    'Use when you need a full analysis report for one known YouTube videoId. Inputs: videoId, optional includeComments and commentsTopN. Side effects: enqueues a durable analysis job that stores video/channel data, comments, and an initial metric snapshot internally. Returns job_id, status, and workflow immediately; poll youpd_get_job_status for the scored video detail, channel summary, comments, and snapshot status.',
   youpd_analyze_channel:
-    'Use when you need a channel-level performance report for one known channelId. Inputs: channelId, optional maxVideos, topPerformingLimit, includeComments. Side effects: the system collects/stores channel metadata, channel videos, snapshots, and optional comment analysis for top performers. Returns channel summary, scored catalog, and top performing videos.',
+    'Use when you need a channel-level performance report for one known channelId. Inputs: channelId, optional maxVideos, topPerformingLimit, includeComments. Side effects: enqueues a durable analysis job that collects/stores channel metadata, channel videos, snapshots, and optional comment analysis for top performers. Returns job_id, status, and workflow immediately; poll youpd_get_job_status for the channel summary, scored catalog, and top performing videos.',
   youpd_search_keyword:
-    'Use when a user asks to research a keyword market and wants analyzed video candidates. Inputs: keyword, regionCode, limit, order. Side effects: the system searches YouTube, stores results, and runs video analysis for each candidate internally. Returns analyzed keyword results and channel summaries.',
+    'Use when a user asks to research a keyword market and wants analyzed video candidates. Inputs: keyword, regionCode, limit, order. Side effects: enqueues a durable search job that searches YouTube, stores results, and runs video analysis for each candidate internally. Returns job_id, status, and workflow immediately; poll youpd_get_job_status for analyzed keyword results and channel summaries.',
   youpd_get_trending_videos:
     'Use when you need stored trending videos for a specific date and region. Inputs: date, regionCode, optional categoryId, limit. Side effects: read-only and idempotent; does not call YouTube directly. Returns persisted trending rows or a clear missing-data warning if the daily scheduler has not populated the date yet.',
+  youpd_get_job_status:
+    'Use to poll an async YouTube analysis job started by youpd_analyze_video, youpd_analyze_channel, or youpd_search_keyword. Inputs: job_id from the enqueue response. Side effects: read-only status lookup against the durable workflow runtime. Returns current status and includes result data when completed or error details when failed.',
 };
 
 function workflowDescription(name: string): string {
@@ -34,32 +40,36 @@ export function registerTools(server: McpServer): void {
     name: 'youpd_analyze_video',
     title: 'Analyze one YouTube video',
     inputSchema: AnalyzeVideoInputSchema,
-    handler: (params) =>
-      restPost('/api/youpd/rest/workflows/analyze-video', params),
+    handler: (params) => enqueueYoupdJob('analyze-video', params),
     readOnly: false,
   });
   registerWorkflowTool(server, {
     name: 'youpd_analyze_channel',
     title: 'Analyze one YouTube channel',
     inputSchema: AnalyzeChannelInputSchema,
-    handler: (params) =>
-      restPost('/api/youpd/rest/workflows/analyze-channel', params),
+    handler: (params) => enqueueYoupdJob('analyze-channel', params),
     readOnly: false,
   });
   registerWorkflowTool(server, {
     name: 'youpd_search_keyword',
     title: 'Search and analyze a YouTube keyword market',
     inputSchema: SearchKeywordWorkflowInputSchema,
-    handler: (params) =>
-      restPost('/api/youpd/rest/workflows/search-keyword', params),
+    handler: (params) => enqueueYoupdJob('search-keyword', params),
     readOnly: false,
   });
   registerWorkflowTool(server, {
     name: 'youpd_get_trending_videos',
     title: 'Get stored trending YouTube videos',
     inputSchema: GetTrendingVideosInputSchema,
-    handler: (params) =>
-      restPost('/api/youpd/rest/workflows/get-trending-videos', params),
+    handler: (params) => getStoredTrendingVideos(params),
+    readOnly: true,
+    idempotent: true,
+  });
+  registerWorkflowTool(server, {
+    name: 'youpd_get_job_status',
+    title: 'Get async YouTube workflow job status',
+    inputSchema: GetJobStatusInputSchema,
+    handler: (params) => getYoupdJobStatus(params.job_id),
     readOnly: true,
     idempotent: true,
   });
@@ -118,6 +128,18 @@ function errorContent(err: unknown) {
 }
 
 function errorCodeFor(err: unknown): string {
+  if (err instanceof z.ZodError) {
+    return 'ZodError';
+  }
+  if (err instanceof JobNotFoundError) {
+    return 'JobNotFoundError';
+  }
+  if (err instanceof QuotaExceededAtBudgetError) {
+    return 'QuotaExceededAtBudgetError';
+  }
+  if (err instanceof YouTubeApiError) {
+    return 'YouTubeApiError';
+  }
   if (err instanceof Error) {
     return err.name;
   }
