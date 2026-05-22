@@ -21,6 +21,16 @@ export const ThumbnailSetSchema = z.object({
 });
 export type ThumbnailSet = z.infer<typeof ThumbnailSetSchema>;
 
+/** YouPD short-form rule: under 60 seconds (strictly less than 1 minute). */
+export const SHORT_FORM_DURATION_LIMIT_SEC = 60;
+
+export function isShortFromDuration(
+  durationSeconds: number | null | undefined,
+): boolean | null {
+  if (durationSeconds == null) return null;
+  return durationSeconds < SHORT_FORM_DURATION_LIMIT_SEC;
+}
+
 export const VideoSummarySchema = z.object({
   videoId: z.string(),
   title: z.string(),
@@ -30,6 +40,7 @@ export const VideoSummarySchema = z.object({
   publishedAt: z.string(),
   thumbnails: ThumbnailSetSchema,
   durationSeconds: z.number().int().nonnegative().nullable(),
+  isShort: z.boolean().nullable(),
   views: z.number().int().nonnegative().nullable(),
   likes: z.number().int().nonnegative().nullable(),
   comments: z.number().int().nonnegative().nullable(),
@@ -210,6 +221,7 @@ export function normaliseVideo(raw: RawVideo): VideoSummary {
     channelTitle: '',
     tags: [],
   };
+  const durationSeconds = parseIsoDuration(raw.contentDetails?.duration);
   return VideoSummarySchema.parse({
     videoId: raw.id,
     title: snippet.title ?? '',
@@ -218,7 +230,8 @@ export function normaliseVideo(raw: RawVideo): VideoSummary {
     channelTitle: snippet.channelTitle ?? '',
     publishedAt: snippet.publishedAt ?? '',
     thumbnails: snippet.thumbnails ?? {},
-    durationSeconds: parseIsoDuration(raw.contentDetails?.duration),
+    durationSeconds,
+    isShort: isShortFromDuration(durationSeconds),
     views: safeNumber(raw.statistics?.viewCount),
     likes: safeNumber(raw.statistics?.likeCount),
     comments: safeNumber(raw.statistics?.commentCount),

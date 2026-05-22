@@ -42,6 +42,7 @@ export type CanonicalVideoInput = {
   thumbnailUrl?: string | null;
   durationSec?: number | null;
   durationSeconds?: number | null;
+  isShort?: boolean | null;
   views?: number | null;
   likes?: number | null;
   comments?: number | null;
@@ -200,6 +201,13 @@ function now(): Date {
   return new Date();
 }
 
+function resolveIsShort(video: CanonicalVideoInput): boolean | null {
+  if (video.isShort !== undefined) return video.isShort;
+  const durationSec = video.durationSeconds ?? video.durationSec ?? null;
+  if (durationSec == null) return null;
+  return durationSec < 60;
+}
+
 function normalizeKeyword(value: string): string {
   return value.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
 }
@@ -321,6 +329,7 @@ export async function upsertVideos(
         videoUrl: video.url ?? `https://www.youtube.com/watch?v=${video.videoId}`,
         publishedAt: timestamp(video.publishedAt),
         durationSec: video.durationSeconds ?? video.durationSec ?? null,
+        isShort: resolveIsShort(video),
         viewCount: video.views ?? null,
         likeCount: video.likes ?? null,
         commentCount: video.comments ?? null,
@@ -342,6 +351,7 @@ export async function upsertVideos(
         videoUrl: sql`excluded.video_url`,
         publishedAt: sql`excluded.published_at`,
         durationSec: sql`excluded.duration_sec`,
+        isShort: sql`excluded.is_short`,
         viewCount: sql`excluded.view_count`,
         likeCount: sql`excluded.like_count`,
         commentCount: sql`excluded.comment_count`,

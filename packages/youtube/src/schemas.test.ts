@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  isShortFromDuration,
   normaliseChannel,
   normaliseCommentThread,
   normaliseVideo,
@@ -7,6 +8,7 @@ import {
   RawChannelSchema,
   RawCommentThreadSchema,
   RawVideoSchema,
+  SHORT_FORM_DURATION_LIMIT_SEC,
 } from './schemas';
 
 describe('parseIsoDuration', () => {
@@ -21,6 +23,24 @@ describe('parseIsoDuration', () => {
   });
   it('returns null on undefined', () => {
     expect(parseIsoDuration(undefined)).toBeNull();
+  });
+});
+
+describe('isShortFromDuration', () => {
+  it('treats under 60 seconds as short-form', () => {
+    expect(SHORT_FORM_DURATION_LIMIT_SEC).toBe(60);
+    expect(isShortFromDuration(59)).toBe(true);
+    expect(isShortFromDuration(0)).toBe(true);
+  });
+
+  it('treats 60 seconds and above as non-short', () => {
+    expect(isShortFromDuration(60)).toBe(false);
+    expect(isShortFromDuration(61)).toBe(false);
+  });
+
+  it('returns null when duration is unknown', () => {
+    expect(isShortFromDuration(null)).toBeNull();
+    expect(isShortFromDuration(undefined)).toBeNull();
   });
 });
 
@@ -43,6 +63,7 @@ describe('normaliseVideo', () => {
     expect(v.videoId).toBe('abc');
     expect(v.url).toBe('https://www.youtube.com/watch?v=abc');
     expect(v.durationSeconds).toBe(300);
+    expect(v.isShort).toBe(false);
     expect(v.views).toBe(1234);
     expect(v.likes).toBe(12);
     expect(v.comments).toBe(3);
@@ -64,6 +85,25 @@ describe('normaliseVideo', () => {
     expect(v.views).toBeNull();
     expect(v.likes).toBeNull();
     expect(v.durationSeconds).toBeNull();
+    expect(v.isShort).toBeNull();
+  });
+
+  it('marks sub-minute videos as short-form', () => {
+    const raw = RawVideoSchema.parse({
+      id: 'short1',
+      snippet: {
+        publishedAt: '2024-01-01T00:00:00Z',
+        channelId: 'ch1',
+        title: 'Short clip',
+        description: '',
+        thumbnails: {},
+        channelTitle: 'Ch',
+      },
+      contentDetails: { duration: 'PT45S' },
+    });
+    const v = normaliseVideo(raw);
+    expect(v.durationSeconds).toBe(45);
+    expect(v.isShort).toBe(true);
   });
 });
 
