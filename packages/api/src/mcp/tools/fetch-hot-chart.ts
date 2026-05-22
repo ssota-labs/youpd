@@ -11,6 +11,8 @@ import {
   upsertVideos,
   upsertHotVideos,
 } from '@youpd/supabase/repositories/youtube';
+import { channelUpsertFromSummary } from '../../youtube/trending/channel-upsert';
+import { fetchChannelsBatch } from './fetch-channels-batch';
 import { executeWithKeyRotation } from '../youtube-key-pool';
 import { attachQuotaSession, runWithBudget } from '../quota';
 
@@ -90,21 +92,19 @@ async function persistHotChartResult(result: FetchHotChartOutput): Promise<void>
   if (!process.env.DATABASE_URL) return;
   const hotDate = result.fetched_at.slice(0, 10);
   try {
-    const firstByChannel = new Map<string, VideoSummary>();
-    for (const video of result.videos) {
-      if (!firstByChannel.has(video.channelId)) firstByChannel.set(video.channelId, video);
+    const channelIds = [
+      ...new Set(
+        result.videos.map((video) => video.channelId).filter((id) => id.length > 0),
+      ),
+    ];
+    if (channelIds.length > 0) {
+      const channelOut = await fetchChannelsBatch({ channel_ids: channelIds });
+      if (channelOut.channels.length > 0) {
+        await upsertChannels(
+          channelOut.channels.map((channel) => channelUpsertFromSummary(channel)),
+        );
+      }
     }
-    await upsertChannels(
-      [...firstByChannel.values()].map((video) => ({
-        channelId: video.channelId,
-        title: video.channelTitle,
-        subscriberCount: null,
-        viewCount: null,
-        videoCount: null,
-        url: `https://www.youtube.com/channel/${encodeURIComponent(video.channelId)}`,
-        publishedAt: null,
-      })),
-    );
     await upsertVideos(
       result.videos.map((video) => ({
         videoId: video.videoId,

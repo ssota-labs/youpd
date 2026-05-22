@@ -9,7 +9,7 @@ describe('wrapRestEnvelope', () => {
   it('adds timestamps and merges meta', () => {
     const { data, meta } = wrapRestEnvelope({ x: 1 }, { jobId: 'jid' });
     expect(data).toEqual({ x: 1 });
-    expect(meta.source).toBe('youpd-rest');
+    expect(meta.source).toBe('youpd-cron');
     expect(meta.jobId).toBe('jid');
     expect(meta.fetchedAt).toMatch(/^\d{4}-/);
   });

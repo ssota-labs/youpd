@@ -172,7 +172,7 @@ Default CLI ports from `supabase/config.toml`. Keys below are the **standard loc
 
 Other local URLs (optional): Studio `http://127.0.0.1:54323`, Inbucket/Mailpit `http://127.0.0.1:54324`. Refresh keys after `supabase stop` / `db:reset` if your CLI prints different values: `supabase status` or `supabase status -o env`.
 
-Still set manually on the main clone (not from Supabase): `YOUTUBE_API_KEY`, `YOUPD_API_TOKEN`, `CRON_SECRET`, Notion/OAuth secrets — see root and `apps/*/`.env.example`.
+Still set manually on the main clone (not from Supabase): `YOUTUBE_API_KEY`, `CRON_SECRET`, Notion/OAuth secrets — see root and `apps/*/`.env.example`.
 
 ## Setup And Development Commands
 

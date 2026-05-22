@@ -5,13 +5,22 @@ import type { ChangelogEntry, NotionDatabaseSchema } from './types';
 // covers the agent template + MCP tool set; the schema version covers the
 // Notion DB structures. They are bumped in lockstep for v1.x.
 export const SCHEMA_VERSION = '1.0.0';
-export const BUNDLE_VERSION = '1.4.0';
-export const BUNDLE_RELEASED_AT = '2026-05-16T00:00:00Z';
+export const BUNDLE_VERSION = '1.5.0';
+export const BUNDLE_RELEASED_AT = '2026-05-22T00:00:00Z';
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    version: '1.4.0',
+    version: '1.5.0',
     released_at: BUNDLE_RELEASED_AT,
+    notes: [
+      'Removed public REST routes under /api/youpd/rest/* — agent surface is MCP-only; scheduled collection remains on /api/cron/youpd/*',
+      'Trending collection enriches channels via channels.list (thumbnail, subscriber/view/video counts) and bootstraps averageViewCount for scoring',
+      'Removed YOUPD_API_TOKEN Bearer auth (no public REST clients)',
+    ],
+  },
+  {
+    version: '1.4.0',
+    released_at: '2026-05-16T00:00:00Z',
     notes: [
       'Removed REST meta routes: GET /api/youpd/rest/schema/latest and GET /api/youpd/rest/bundle/manifest (schema/bundle helpers remain in @youpd/api for tests/internal callers)',
       'Notion Worker: renamed worker tool snapshotTrackedVideos → snapshotVideos',
