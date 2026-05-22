@@ -5,25 +5,14 @@ import {
 } from 'drizzle-orm';
 import {
   and,
-  channels,
   desc,
   eq,
   getDbClient,
   gte,
-  hotVideos,
   lte,
-  searchHarvests,
-  searchHarvestVideos,
   sql,
-  videoComments,
-  videos,
-  type ChannelRow,
-  type HotVideoRow,
-  type VideoCommentRow,
-  type VideoRow,
   youtubeChannelMetricSnapshots,
   youtubeChannels,
-  youtubeComments,
   youtubeHarvestSessions,
   youtubeHotVideos,
   youtubeKeywords,
@@ -32,7 +21,6 @@ import {
   youtubeVideos,
   type YouTubeChannelMetricSnapshotRow,
   type YouTubeChannelRow,
-  type YouTubeCommentRow,
   type YouTubeHarvestSessionRow,
   type YouTubeHotVideoRow,
   type YouTubeKeywordRow,
@@ -83,24 +71,8 @@ export type CanonicalChannelInput = {
   raw?: unknown;
 };
 
-export type CanonicalCommentInput = {
-  commentId: string;
-  videoId: string;
-  authorDisplayName?: string;
-  authorChannelId?: string | null;
-  body?: string;
-  text?: string;
-  likeCount: number;
-  totalReplyCount?: number;
-  publishedAt?: string | Date | null;
-  updatedAt?: string | Date | null;
-  parentCommentId?: string | null;
-  raw?: unknown;
-};
-
 export type UpsertChannelInput = CanonicalChannelInput;
 export type UpsertVideoInput = CanonicalVideoInput;
-export type UpsertCommentInput = CanonicalCommentInput;
 
 export type KeywordResultInput = {
   harvestId?: string | null;
@@ -278,32 +250,6 @@ export async function upsertChannels(
   });
   const db = getDbClient();
   const collectedAt = now();
-  await db
-    .insert(channels)
-    .values(
-      channelRows.map((channel) => ({
-        channelId: channel.channelId,
-        title: channel.title,
-        subscriberCount: channel.subscriberCount ?? null,
-        viewCount: channel.viewCount ?? null,
-        videoCount:
-          typeof channel.videoCount === 'number' ? channel.videoCount : null,
-        publishedAt: timestamp(channel.publishedAt),
-        url: channel.url ?? null,
-      })),
-    )
-    .onConflictDoUpdate({
-      target: channels.channelId,
-      set: {
-        title: sql`excluded.title`,
-        subscriberCount: sql`excluded.subscriber_count`,
-        viewCount: sql`excluded.view_count`,
-        videoCount: sql`excluded.video_count`,
-        publishedAt: sql`excluded.published_at`,
-        url: sql`excluded.url`,
-        lastSeenAt: collectedAt,
-      },
-    });
   return db
     .insert(youtubeChannels)
     .values(
@@ -363,35 +309,6 @@ export async function upsertVideos(
   });
   const db = getDbClient();
   const collectedAt = now();
-  await db
-    .insert(videos)
-    .values(
-      videoRows.map((video) => ({
-        videoId: video.videoId,
-        channelId: video.channelId,
-        title: video.title,
-        views: video.views ?? null,
-        likes: video.likes ?? null,
-        comments: video.comments ?? null,
-        durationSec: video.durationSeconds ?? video.durationSec ?? null,
-        publishedAt: timestamp(video.publishedAt),
-        url: video.url ?? `https://www.youtube.com/watch?v=${video.videoId}`,
-      })),
-    )
-    .onConflictDoUpdate({
-      target: videos.videoId,
-      set: {
-        channelId: sql`excluded.channel_id`,
-        title: sql`excluded.title`,
-        views: sql`excluded.views`,
-        likes: sql`excluded.likes`,
-        comments: sql`excluded.comments`,
-        durationSec: sql`excluded.duration_sec`,
-        publishedAt: sql`excluded.published_at`,
-        url: sql`excluded.url`,
-        lastSeenAt: collectedAt,
-      },
-    });
   return db
     .insert(youtubeVideos)
     .values(
@@ -462,83 +379,6 @@ export async function updateChannelAverageViewCount(
     .where(eq(youtubeChannels.channelId, channelId))
     .returning();
   return row ?? null;
-}
-
-export async function upsertComments(
-  rows: CanonicalCommentInput[],
-): Promise<YouTubeCommentRow[]> {
-  if (rows.length === 0) return [];
-  const seen = new Set<string>();
-  const commentRows = rows.filter((comment) => {
-    if (seen.has(comment.commentId)) return false;
-    seen.add(comment.commentId);
-    return true;
-  });
-  const db = getDbClient();
-  const collectedAt = now();
-  await db
-    .insert(videoComments)
-    .values(
-      commentRows.map((comment) => ({
-        commentId: comment.commentId,
-        videoId: comment.videoId,
-        authorDisplayName: comment.authorDisplayName ?? '',
-        authorChannelId: comment.authorChannelId ?? null,
-        body: comment.body ?? comment.text ?? '',
-        likeCount: comment.likeCount,
-        totalReplyCount: comment.totalReplyCount ?? 0,
-        publishedAt: timestamp(comment.publishedAt),
-        updatedAt: timestamp(comment.updatedAt),
-        lastSeenAt: collectedAt,
-      })),
-    )
-    .onConflictDoUpdate({
-      target: videoComments.commentId,
-      set: {
-        videoId: sql`excluded.video_id`,
-        authorDisplayName: sql`excluded.author_display_name`,
-        authorChannelId: sql`excluded.author_channel_id`,
-        body: sql`excluded.body`,
-        likeCount: sql`excluded.like_count`,
-        totalReplyCount: sql`excluded.total_reply_count`,
-        publishedAt: sql`excluded.published_at`,
-        updatedAt: sql`excluded.updated_at`,
-        lastSeenAt: collectedAt,
-      },
-    });
-  return db
-    .insert(youtubeComments)
-    .values(
-      commentRows.map((comment) => ({
-        commentId: comment.commentId,
-        videoId: comment.videoId,
-        authorDisplayName: comment.authorDisplayName ?? '',
-        text: comment.text ?? comment.body ?? '',
-        likeCount: comment.likeCount,
-        totalReplyCount: comment.totalReplyCount ?? 0,
-        publishedAt: timestamp(comment.publishedAt),
-        commentUpdatedAt: timestamp(comment.updatedAt),
-        parentCommentId: comment.parentCommentId ?? null,
-        raw: comment.raw ?? null,
-        collectedAt,
-      })),
-    )
-    .onConflictDoUpdate({
-      target: youtubeComments.commentId,
-      set: {
-        videoId: sql`excluded.video_id`,
-        authorDisplayName: sql`excluded.author_display_name`,
-        text: sql`excluded.text`,
-        likeCount: sql`excluded.like_count`,
-        totalReplyCount: sql`excluded.total_reply_count`,
-        publishedAt: sql`excluded.published_at`,
-        commentUpdatedAt: sql`excluded.comment_updated_at`,
-        parentCommentId: sql`excluded.parent_comment_id`,
-        raw: sql`excluded.raw`,
-        collectedAt: sql`excluded.collected_at`,
-      },
-    })
-    .returning();
 }
 
 export async function upsertKeywordResults(
@@ -665,26 +505,6 @@ export async function upsertHotVideos(results: HotVideoInput[]): Promise<void> {
   if (results.length === 0) return;
   const db = getDbClient();
   const collectedAt = now();
-  await db
-    .insert(hotVideos)
-    .values(
-      results.map((result) => ({
-        hotDate: result.hotDate,
-        videoId: result.videoId,
-        source: result.source ?? 'chart=mostPopular',
-        regionCode: result.regionCode ?? null,
-        categoryId: result.categoryId ?? null,
-        chartRank: result.chartRank ?? result.rank ?? null,
-      })),
-    )
-    .onConflictDoUpdate({
-      target: [hotVideos.hotDate, hotVideos.videoId, hotVideos.source],
-      set: {
-        regionCode: sql`excluded.region_code`,
-        categoryId: sql`excluded.category_id`,
-        chartRank: sql`excluded.chart_rank`,
-      },
-    });
   for (const result of results) {
     await db.execute(sql`
       insert into public.youtube_hot_videos (
@@ -712,116 +532,6 @@ export async function upsertHotVideos(results: HotVideoInput[]): Promise<void> {
         collected_at = excluded.collected_at
     `);
   }
-}
-
-export const upsertCanonicalComments = upsertComments;
-
-export type VideoWithChannel = {
-  video: VideoRow;
-  channel: ChannelRow;
-  position?: number;
-};
-
-export async function getLatestKeywordVideos(input: {
-  keyword: string;
-  limit?: number;
-}): Promise<VideoWithChannel[]> {
-  const db = getDbClient();
-  const limit = Math.min(Math.max(input.limit ?? 50, 1), 500);
-  const [harvest] = await db
-    .select()
-    .from(searchHarvests)
-    .where(eq(searchHarvests.keyword, input.keyword))
-    .orderBy(desc(searchHarvests.createdAt))
-    .limit(1);
-  if (!harvest) return [];
-
-  return db
-    .select({
-      video: videos,
-      channel: channels,
-      position: searchHarvestVideos.position,
-    })
-    .from(searchHarvestVideos)
-    .innerJoin(videos, eq(searchHarvestVideos.videoId, videos.videoId))
-    .innerJoin(channels, eq(videos.channelId, channels.channelId))
-    .where(eq(searchHarvestVideos.harvestId, harvest.id))
-    .orderBy(asc(searchHarvestVideos.position))
-    .limit(limit);
-}
-
-export async function getVideosByIds(
-  videoIds: string[],
-): Promise<VideoWithChannel[]> {
-  if (videoIds.length === 0) return [];
-  const db = getDbClient();
-  return db
-    .select({
-      video: videos,
-      channel: channels,
-    })
-    .from(videos)
-    .innerJoin(channels, eq(videos.channelId, channels.channelId))
-    .where(inArray(videos.videoId, videoIds));
-}
-
-export async function getCommentsByVideoIds(input: {
-  videoIds: string[];
-  minLikeCount?: number;
-  limit?: number;
-}): Promise<VideoCommentRow[]> {
-  if (input.videoIds.length === 0) return [];
-  const db = getDbClient();
-  return db
-    .select()
-    .from(videoComments)
-    .where(
-      and(
-        inArray(videoComments.videoId, input.videoIds),
-        gte(videoComments.likeCount, input.minLikeCount ?? 0),
-      ),
-    )
-    .orderBy(desc(videoComments.likeCount))
-    .limit(Math.min(Math.max(input.limit ?? 30, 1), 100));
-}
-
-export async function getHotVideos(input: {
-  date?: string | null;
-  dateEnd?: string | null;
-  limit?: number;
-}): Promise<
-  {
-    hotVideo: HotVideoRow;
-    video: VideoRow;
-    channel: ChannelRow;
-  }[]
-> {
-  const db = getDbClient();
-  const limit = Math.min(Math.max(input.limit ?? 50, 1), 100);
-  const clauses: SQL[] = [];
-  if (input.date && input.dateEnd) {
-    clauses.push(gte(hotVideos.hotDate, input.date));
-    clauses.push(lte(hotVideos.hotDate, input.dateEnd));
-  } else if (input.date) {
-    clauses.push(eq(hotVideos.hotDate, input.date));
-  }
-
-  const base = db
-    .select({
-      hotVideo: hotVideos,
-      video: videos,
-      channel: channels,
-    })
-    .from(hotVideos)
-    .innerJoin(videos, eq(hotVideos.videoId, videos.videoId))
-    .innerJoin(channels, eq(videos.channelId, channels.channelId));
-
-  const query =
-    clauses.length > 0 ? base.where(and(...clauses)) : base;
-
-  return query
-    .orderBy(desc(hotVideos.hotDate), asc(hotVideos.chartRank))
-    .limit(limit);
 }
 
 export async function upsertVideoMetricSnapshots(
