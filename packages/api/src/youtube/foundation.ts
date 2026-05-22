@@ -610,6 +610,7 @@ export async function fetchTrendingYouTubeVideos(
     region_code: input.regionCode,
     category_id: input.categoryId ?? undefined,
     limit: input.limit,
+    persist: false,
   });
   const hotDate = input.date ?? todayYmd();
   const harvest = input.persist

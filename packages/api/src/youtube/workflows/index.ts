@@ -1,5 +1,6 @@
 export * from './capture-daily-snapshots';
 export * from './collect-trending-daily';
+export * from './collect-trending-matrix-daily';
 export * from './deps';
 export * from './ensure-channel-analysis';
 export * from './ensure-video-analysis';

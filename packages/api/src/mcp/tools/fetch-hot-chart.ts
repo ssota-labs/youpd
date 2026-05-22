@@ -19,6 +19,8 @@ export const FetchHotChartInputSchema = z
     region_code: z.string().length(2).default('KR'),
     category_id: z.string().optional(),
     limit: z.number().int().min(1).max(50).default(50),
+    /** When false, only calls YouTube; persistence is the caller's job (e.g. foundation harvest). */
+    persist: z.boolean().default(true),
   })
   .strict();
 export type FetchHotChartInput = z.infer<typeof FetchHotChartInputSchema>;
@@ -46,6 +48,7 @@ export async function fetchHotChart(
   input: FetchHotChartInput,
   injectedClient?: YouTubeClient,
 ): Promise<FetchHotChartOutput> {
+  const parsed = FetchHotChartInputSchema.parse(input);
   const totalUnits = UNIT_COST.videos_list;
 
   return executeWithKeyRotation(
@@ -58,14 +61,14 @@ export async function fetchHotChart(
         call: async () => {
           const res = await videosList(client, {
             chart: 'mostPopular',
-            regionCode: input.region_code,
-            videoCategoryId: input.category_id,
-            maxResults: input.limit,
+            regionCode: parsed.region_code,
+            videoCategoryId: parsed.category_id,
+            maxResults: parsed.limit,
           });
           const videos = res.items.map(normaliseVideo);
           const payload: FetchHotChartOutput = {
-            region_code: input.region_code,
-            category_id: input.category_id ?? null,
+            region_code: parsed.region_code,
+            category_id: parsed.category_id ?? null,
             fetched_at: new Date().toISOString(),
             source: 'chart=mostPopular',
             videos,
@@ -75,7 +78,9 @@ export async function fetchHotChart(
         },
       });
 
-      await persistHotChartResult(result);
+      if (parsed.persist) {
+        await persistHotChartResult(result);
+      }
       return attachQuotaSession(result, sessionId);
     },
   );

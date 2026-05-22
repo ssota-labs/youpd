@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "youpd": {
+      "url": "https://youpd-mcp.vercel.app/api/mcp"
+    }
+  }
+}

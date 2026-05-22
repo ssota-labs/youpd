@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  FetchTrendingYouTubeVideosInputSchema,
   SearchYouTubeVideosInputSchema,
+  fetchTrendingYouTubeVideos,
   searchYouTubeVideos,
 } from './foundation';
 
@@ -60,6 +62,79 @@ vi.mock('@youpd/supabase/repositories/youtube', () => ({
   queryVideoMetricSnapshots: mocks.queryVideoMetricSnapshots,
   queryChannelMetricSnapshots: mocks.queryChannelMetricSnapshots,
 }));
+
+describe('fetchTrendingYouTubeVideos', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.createHarvestSession.mockResolvedValue({ id: 'harvest-trending' });
+    mocks.completeHarvestSession.mockResolvedValue({ id: 'harvest-trending' });
+    mocks.upsertChannels.mockResolvedValue([]);
+    mocks.upsertVideos.mockResolvedValue([]);
+    mocks.upsertHotVideos.mockResolvedValue(undefined);
+    mocks.fetchHotChart.mockResolvedValue({
+      region_code: 'KR',
+      category_id: '22',
+      fetched_at: '2026-05-22T12:00:00.000Z',
+      source: 'chart=mostPopular',
+      videos: [
+        {
+          videoId: 'v1',
+          title: 'Trending',
+          description: '',
+          channelId: 'c1',
+          channelTitle: 'Channel',
+          publishedAt: '2026-05-01T00:00:00Z',
+          thumbnails: {},
+          durationSeconds: 600,
+          views: 5000,
+          likes: 100,
+          comments: 10,
+          tags: [],
+          categoryId: '22',
+          defaultAudioLanguage: null,
+          url: 'https://www.youtube.com/watch?v=v1',
+        },
+      ],
+      units_consumed: 1,
+    });
+  });
+
+  it('calls fetchHotChart with persist false and writes via harvest path only', async () => {
+    await fetchTrendingYouTubeVideos({
+      regionCode: 'KR',
+      categoryId: '22',
+      limit: 50,
+      persist: true,
+    });
+
+    expect(mocks.fetchHotChart).toHaveBeenCalledWith({
+      region_code: 'KR',
+      category_id: '22',
+      limit: 50,
+      persist: false,
+    });
+    expect(mocks.upsertHotVideos).toHaveBeenCalledWith([
+      expect.objectContaining({
+        hotDate: '2026-05-22',
+        regionCode: 'KR',
+        categoryId: '22',
+        videoId: 'v1',
+        rank: 1,
+        source: 'youtube_trending',
+      }),
+    ]);
+  });
+});
+
+describe('FetchTrendingYouTubeVideosInputSchema', () => {
+  it('defaults limit to 50', () => {
+    const parsed = FetchTrendingYouTubeVideosInputSchema.parse({
+      regionCode: 'KR',
+    });
+    expect(parsed.limit).toBe(50);
+    expect(parsed.persist).toBe(true);
+  });
+});
 
 describe('SearchYouTubeVideosInputSchema', () => {
   it('uses v0.12 defaults', () => {

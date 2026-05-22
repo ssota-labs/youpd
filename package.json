@@ -12,6 +12,7 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
+    "test:integration": "bash scripts/test-integration.sh",
     "test:e2e": "playwright test",
     "db:up": "supabase start",
     "db:down": "supabase stop",
@@ -19,6 +20,7 @@
     "db:generate": "pnpm --filter @youpd/db exec drizzle-kit generate",
     "db:push": "node -e \"console.error('drizzle-kit migrate is forbidden by AGENTS.md. Use supabase migration new + pnpm db:reset.'); process.exit(1)\"",
     "youtube:keys:sync": "pnpm --filter @youpd/api youtube:keys:sync",
+    "worktree:env": "bash scripts/link-env-from-main.sh",
     "format": "prettier --write ."
   },
   "devDependencies": {
@@ -27,6 +29,7 @@
     "drizzle-kit": "^0.30.0",
     "prettier": "^3.4.2",
     "turbo": "^2.3.3",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
   }
 }

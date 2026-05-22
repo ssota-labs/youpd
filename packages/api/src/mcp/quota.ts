@@ -97,9 +97,9 @@ export type RunWithBudgetInput<T> = {
   call: () => Promise<{ resultCount: number; payload: T }>;
 };
 
-// Run an MCP tool body under the budget gate. Records a search_session row
-// for every attempt (success | error | quota_exceeded) so the agent can
-// surface usage in the Notion Search Sessions DB.
+// Run an MCP tool body under the budget gate. Records a search_sessions row
+// for every attempt (success | error | quota_exceeded) for server-side quota
+// audit and REST job correlation — not mirrored to Notion.
 export async function runWithBudget<T>(
   input: RunWithBudgetInput<T>,
 ): Promise<{ result: T; unitsConsumed: number; sessionId: string | null }> {

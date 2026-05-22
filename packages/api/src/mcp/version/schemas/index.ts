@@ -7,7 +7,6 @@ import { hotVideoDailySchema } from './hotVideoDaily';
 import { keyContentCandidatesSchema } from './keyContentCandidates';
 import { keywordsSchema } from './keywords';
 import { pullContentCandidatesSchema } from './pullContentCandidates';
-import { searchSessionsSchema } from './searchSessions';
 import { videoSnapshotsSchema } from './videoSnapshots';
 import { videosSchema } from './videos';
 
@@ -22,7 +21,6 @@ export const ALL_SCHEMAS: NotionDatabaseSchema[] = [
   commentsSchema,
   keyContentCandidatesSchema,
   pullContentCandidatesSchema,
-  searchSessionsSchema,
   hotVideoDailySchema,
   agentMetaSchema,
 ];

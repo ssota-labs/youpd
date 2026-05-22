@@ -23,10 +23,8 @@ export const dailyQuotaUsage = pgTable('daily_quota_usage', {
 
 export type DailyQuotaUsageRow = typeof dailyQuotaUsage.$inferSelect;
 
-// One row per outbound YouTube Data API call (or attempted call) made by an
-// MCP tool. operation matches the Search Sessions DB enum so the agent can
-// surface units consumed in S4. status records whether the call returned
-// data, errored, or was refused by the local budget gate.
+// One row per outbound YouTube Data API call (or attempted call). operation is
+// a stable audit label; status records success, error, or local budget refusal.
 export const searchSessions = pgTable(
   'search_sessions',
   {

@@ -19,8 +19,6 @@
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.47.10",
     "@youpd/api": "workspace:*",
-    "@youpd/composer-core": "workspace:*",
-    "@youpd/composer-render-satori": "workspace:*",
     "@youpd/db": "workspace:*",
     "@youpd/supabase": "workspace:*",
     "@youpd/types": "workspace:*",

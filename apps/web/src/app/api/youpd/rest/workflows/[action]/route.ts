@@ -6,10 +6,12 @@ import {
   AnalyzeVideoInputSchema,
   CaptureDailySnapshotsInputSchema,
   CollectTrendingDailyInputSchema,
+  CollectTrendingMatrixDailyInputSchema,
   GetTrendingVideosInputSchema,
   SearchKeywordWorkflowInputSchema,
   captureDailySnapshots,
   collectTrendingDaily,
+  collectTrendingMatrixDaily,
   ensureChannelAnalysis,
   ensureVideoAnalysis,
   getStoredTrendingVideos,
@@ -58,6 +60,12 @@ export async function POST(
       case 'collect-trending-daily':
         return json(
           await collectTrendingDaily(CollectTrendingDailyInputSchema.parse(body)),
+        );
+      case 'collect-trending-matrix-daily':
+        return json(
+          await collectTrendingMatrixDaily(
+            CollectTrendingMatrixDailyInputSchema.parse(body),
+          ),
         );
       case 'capture-daily-snapshots':
         return json(
