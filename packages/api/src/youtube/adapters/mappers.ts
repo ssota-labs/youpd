@@ -14,6 +14,12 @@ export function mapVideoSummary(video: VideoSummary): VideoCore {
     channelTitle: video.channelTitle ?? '',
     publishedAt: video.publishedAt || null,
     durationSec: video.durationSeconds ?? null,
+    isShort:
+      'isShort' in video && video.isShort !== undefined
+        ? video.isShort
+        : video.durationSeconds != null
+          ? video.durationSeconds < 60
+          : null,
     metrics: {
       views: video.views ?? null,
       likes: video.likes ?? null,
@@ -66,6 +72,7 @@ export function mapDbVideoRow(
     channelId: string | null;
     publishedAt: Date | null;
     durationSec: number | null;
+    isShort?: boolean | null;
     viewCount: number | null;
     likeCount: number | null;
     commentCount: number | null;
@@ -85,6 +92,7 @@ export function mapDbVideoRow(
     channelTitle: channel?.title ?? '',
     publishedAt: video.publishedAt?.toISOString() ?? null,
     durationSec: video.durationSec,
+    isShort: video.isShort ?? null,
     metrics: {
       views: video.viewCount,
       likes: video.likeCount,
@@ -162,6 +170,7 @@ export function mapFoundationVideo(
       channelId: video.channelId,
       publishedAt: video.publishedAt ? new Date(video.publishedAt) : null,
       durationSec: video.durationSeconds ?? null,
+      isShort: null,
       viewCount: video.views ?? null,
       likeCount: video.likes ?? null,
       commentCount: video.comments ?? null,

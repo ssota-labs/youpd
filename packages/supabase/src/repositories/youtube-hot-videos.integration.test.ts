@@ -218,4 +218,146 @@ describe('youtube hot videos repository (integration)', () => {
     const ids = sorted.rows.map((row) => row.video?.videoId);
     expect(ids.indexOf(highViewsId)).toBeLessThan(ids.indexOf(lowViewsId));
   });
+
+  it('filters by isShort, view/subscriber ranges, and score grades', async () => {
+    const filterChannelId = `${CHANNEL_ID}-filter`;
+    const shortId = `${VIDEO_ID}-filter-short`;
+    const longGoodPerfId = `${VIDEO_ID}-filter-long-good`;
+    const longLowPerfId = `${VIDEO_ID}-filter-long-low`;
+
+    await upsertChannels([
+      {
+        channelId: filterChannelId,
+        title: 'Filter Test Channel',
+        subscriberCount: 1_000,
+        averageViewCount: 500,
+        url: `https://www.youtube.com/channel/${filterChannelId}`,
+      },
+    ]);
+
+    await upsertVideos([
+      {
+        videoId: shortId,
+        channelId: filterChannelId,
+        title: 'Filter Short Video',
+        durationSec: 30,
+        views: 50_000,
+        url: `https://www.youtube.com/watch?v=${shortId}`,
+      },
+      {
+        videoId: longGoodPerfId,
+        channelId: filterChannelId,
+        title: 'Filter Long Good Performance',
+        durationSec: 600,
+        views: 20_000,
+        url: `https://www.youtube.com/watch?v=${longGoodPerfId}`,
+      },
+      {
+        videoId: longLowPerfId,
+        channelId: filterChannelId,
+        title: 'Filter Long Low Performance',
+        durationSec: 600,
+        views: 500,
+        url: `https://www.youtube.com/watch?v=${longLowPerfId}`,
+      },
+    ]);
+
+    await upsertHotVideos([
+      {
+        hotDate: HOT_DATE,
+        regionCode: REGION,
+        categoryId: CATEGORY,
+        videoId: shortId,
+        rank: 10,
+        source: 'integration_test',
+      },
+      {
+        hotDate: HOT_DATE,
+        regionCode: REGION,
+        categoryId: CATEGORY,
+        videoId: longGoodPerfId,
+        rank: 11,
+        source: 'integration_test',
+      },
+      {
+        hotDate: HOT_DATE,
+        regionCode: REGION,
+        categoryId: CATEGORY,
+        videoId: longLowPerfId,
+        rank: 12,
+        source: 'integration_test',
+      },
+    ]);
+
+    const nonShort = await searchHotVideos({
+      regionCode: REGION,
+      date: HOT_DATE,
+      categoryId: CATEGORY,
+      isShort: false,
+      limit: 50,
+      offset: 0,
+    });
+    expect(nonShort.rows.some((row) => row.video?.videoId === shortId)).toBe(false);
+    expect(
+      nonShort.rows.some((row) => row.video?.videoId === longGoodPerfId),
+    ).toBe(true);
+
+    const shortsOnly = await searchHotVideos({
+      regionCode: REGION,
+      date: HOT_DATE,
+      categoryId: CATEGORY,
+      isShort: true,
+      limit: 50,
+      offset: 0,
+    });
+    expect(shortsOnly.rows.some((row) => row.video?.videoId === shortId)).toBe(
+      true,
+    );
+
+    const byViews = await searchHotVideos({
+      regionCode: REGION,
+      date: HOT_DATE,
+      categoryId: CATEGORY,
+      minViews: 10_000,
+      maxViews: 30_000,
+      limit: 50,
+      offset: 0,
+    });
+    expect(byViews.rows.some((row) => row.video?.videoId === longGoodPerfId)).toBe(
+      true,
+    );
+    expect(byViews.rows.some((row) => row.video?.videoId === longLowPerfId)).toBe(
+      false,
+    );
+
+    const bySubscribers = await searchHotVideos({
+      regionCode: REGION,
+      date: HOT_DATE,
+      categoryId: CATEGORY,
+      minSubscribers: 500,
+      maxSubscribers: 2_000,
+      limit: 50,
+      offset: 0,
+    });
+    expect(
+      bySubscribers.rows.some((row) => row.video?.videoId === longGoodPerfId),
+    ).toBe(true);
+
+    const goodOrScore = await searchHotVideos({
+      regionCode: REGION,
+      date: HOT_DATE,
+      categoryId: CATEGORY,
+      minPerformanceGrade: 'Good',
+      minContributionGrade: 'Good',
+      scoreLogic: 'or',
+      limit: 50,
+      offset: 0,
+    });
+    expect(
+      goodOrScore.rows.some((row) => row.video?.videoId === longGoodPerfId),
+    ).toBe(true);
+    expect(
+      goodOrScore.rows.some((row) => row.video?.videoId === longLowPerfId),
+    ).toBe(false);
+  });
 });
