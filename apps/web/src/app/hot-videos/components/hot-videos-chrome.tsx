@@ -86,14 +86,13 @@ function CategorySelect({
 
 export function HotVideosChrome({ categories }: HotVideosChromeProps) {
   const searchParams = useSearchParams();
-  const { q, date, dateEnd, categoryId, view, sort, order } =
+  const { q, date, categoryId, view, sort, order } =
     readHotVideoUrlState(searchParams);
 
   const viewQuery = (nextView: HotVideoViewMode) =>
     buildHotVideoQueryString({
       q,
       date,
-      dateEnd,
       categoryId: categoryId ?? undefined,
       view: nextView,
       sort,
@@ -135,21 +134,9 @@ export function HotVideosChrome({ categories }: HotVideosChromeProps) {
             <Input
               type="date"
               name="date"
-              defaultValue={date ?? ''}
-              key={`date-${date ?? ''}`}
-              aria-label="시작일"
-              className="h-8 w-[140px] pl-8"
-            />
-          </div>
-
-          <div className="relative">
-            <RiCalendarLine className="pointer-events-none absolute top-1/2 left-2.5 z-10 size-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="date"
-              name="dateEnd"
-              defaultValue={dateEnd ?? ''}
-              key={`dateEnd-${dateEnd ?? ''}`}
-              aria-label="종료일"
+              defaultValue={date}
+              key={`date-${date}`}
+              aria-label="날짜"
               className="h-8 w-[140px] pl-8"
             />
           </div>
