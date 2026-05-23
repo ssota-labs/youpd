@@ -21,8 +21,7 @@ export async function HotVideoResultsSection({
       hasMore={result.data.hasMore}
       filters={{
         q: filters.q,
-        date: filters.date,
-        dateEnd: filters.dateEnd,
+        date: filters.date!,
         categoryId: filters.categoryId,
         view,
         sort,
