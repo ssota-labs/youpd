@@ -183,6 +183,16 @@ export type HotVideoSortField =
 
 export type HotVideoSortOrder = 'asc' | 'desc';
 
+export type HotVideoScoreGrade =
+  | 'Unknown'
+  | 'Worst'
+  | 'Bad'
+  | 'Normal'
+  | 'Good'
+  | 'Great';
+
+export type HotVideoScoreLogic = 'or' | 'and';
+
 export type SearchHotVideosInput = {
   regionCode?: string;
   date?: string | null;
@@ -193,6 +203,14 @@ export type SearchHotVideosInput = {
   offset?: number;
   sort?: HotVideoSortField;
   order?: HotVideoSortOrder;
+  isShort?: boolean | null;
+  minPerformanceGrade?: HotVideoScoreGrade | null;
+  minContributionGrade?: HotVideoScoreGrade | null;
+  scoreLogic?: HotVideoScoreLogic;
+  minSubscribers?: number;
+  maxSubscribers?: number;
+  minViews?: number;
+  maxViews?: number;
 };
 
 export type SearchHotVideosResult = {
@@ -246,6 +264,68 @@ function resolveIsShort(video: CanonicalVideoInput): boolean | null {
 
 function normalizeKeyword(value: string): string {
   return value.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+}
+
+function minGradeToRatioThreshold(grade: HotVideoScoreGrade): number | null {
+  switch (grade) {
+    case 'Great':
+      return 100;
+    case 'Good':
+      return 10;
+    case 'Normal':
+      return 1;
+    case 'Bad':
+      return 0.1;
+    case 'Worst':
+      return 0;
+    case 'Unknown':
+      return null;
+  }
+}
+
+const performanceRatioSql = sql`case
+  when ${youtubeChannels.subscriberCount} > 0
+  then ${youtubeVideos.viewCount}::float / ${youtubeChannels.subscriberCount}
+  else null
+end`;
+
+const contributionRatioSql = sql`case
+  when ${youtubeChannels.averageViewCount} > 0
+  then ${youtubeVideos.viewCount}::float / ${youtubeChannels.averageViewCount}
+  else null
+end`;
+
+function buildScoreFilterClause(input: {
+  minPerformanceGrade?: HotVideoScoreGrade | null;
+  minContributionGrade?: HotVideoScoreGrade | null;
+  scoreLogic?: HotVideoScoreLogic;
+}): SQL | null {
+  const perfThreshold =
+    input.minPerformanceGrade != null
+      ? minGradeToRatioThreshold(input.minPerformanceGrade)
+      : null;
+  const contribThreshold =
+    input.minContributionGrade != null
+      ? minGradeToRatioThreshold(input.minContributionGrade)
+      : null;
+
+  const perfClause =
+    perfThreshold != null
+      ? sql`${performanceRatioSql} >= ${perfThreshold}`
+      : null;
+  const contribClause =
+    contribThreshold != null
+      ? sql`${contributionRatioSql} >= ${contribThreshold}`
+      : null;
+
+  if (perfClause && contribClause) {
+    return input.scoreLogic === 'and'
+      ? sql`(${perfClause} and ${contribClause})`
+      : sql`(${perfClause} or ${contribClause})`;
+  }
+  if (perfClause) return perfClause;
+  if (contribClause) return contribClause;
+  return null;
 }
 
 export async function createHarvestSession(
@@ -675,6 +755,14 @@ function buildHotVideoFilterClauses(input: {
   dateEnd?: string | null;
   categoryId?: string | null;
   q?: string | null;
+  isShort?: boolean | null;
+  minPerformanceGrade?: HotVideoScoreGrade | null;
+  minContributionGrade?: HotVideoScoreGrade | null;
+  scoreLogic?: HotVideoScoreLogic;
+  minSubscribers?: number;
+  maxSubscribers?: number;
+  minViews?: number;
+  maxViews?: number;
 }): SQL[] {
   const clauses: SQL[] = [
     eq(youtubeHotVideos.regionCode, input.regionCode ?? 'KR'),
@@ -706,6 +794,30 @@ function buildHotVideoFilterClauses(input: {
     );
     if (searchClause) clauses.push(searchClause);
   }
+
+  if (input.isShort === true) {
+    clauses.push(eq(youtubeVideos.isShort, true));
+  } else if (input.isShort === false) {
+    clauses.push(
+      sql`(${youtubeVideos.isShort} is null or ${youtubeVideos.isShort} = false)`,
+    );
+  }
+
+  if (input.minSubscribers != null) {
+    clauses.push(gte(youtubeChannels.subscriberCount, input.minSubscribers));
+  }
+  if (input.maxSubscribers != null) {
+    clauses.push(lte(youtubeChannels.subscriberCount, input.maxSubscribers));
+  }
+  if (input.minViews != null) {
+    clauses.push(gte(youtubeVideos.viewCount, input.minViews));
+  }
+  if (input.maxViews != null) {
+    clauses.push(lte(youtubeVideos.viewCount, input.maxViews));
+  }
+
+  const scoreClause = buildScoreFilterClause(input);
+  if (scoreClause) clauses.push(scoreClause);
 
   return clauses;
 }

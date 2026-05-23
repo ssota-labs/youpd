@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { gradeRatio, lengthAdjustedScore, scoreVideo } from './scoring';
+import { gradeRatio, lengthAdjustedScore, minGradeToRatioThreshold, scoreVideo } from './scoring';
 
 describe('gradeRatio', () => {
   it('uses the ADR-022 logarithmic buckets', () => {
@@ -35,6 +35,14 @@ describe('lengthAdjustedScore', () => {
     expect(out.baseScore).toBeNull();
     expect(out.adjustedScore).toBeNull();
     expect(out.weight).toBe(1);
+  });
+});
+
+describe('minGradeToRatioThreshold', () => {
+  it('maps grade floors to ADR-022 ratio thresholds', () => {
+    expect(minGradeToRatioThreshold('Good')).toBe(10);
+    expect(minGradeToRatioThreshold('Great')).toBe(100);
+    expect(minGradeToRatioThreshold('Unknown')).toBeNull();
   });
 });
 

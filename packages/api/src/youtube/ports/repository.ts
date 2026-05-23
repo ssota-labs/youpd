@@ -5,13 +5,24 @@ import type {
   VideoCore,
   VideoMetricSnapshotCore,
 } from '../core/models';
-import type { HotVideoSortField, HotVideoSortOrder } from '../workflows/schemas';
+import type { HotVideoSortField, HotVideoSortOrder, ScoreGradeFilter, ScoreLogic } from '../workflows/schemas';
 
 export type QueryHotVideosRequest = {
   date: string;
   regionCode: string;
   categoryId?: string | null;
   limit: number;
+};
+
+export type HotVideoSearchFilters = {
+  isShort?: boolean | null;
+  minPerformanceGrade?: ScoreGradeFilter | null;
+  minContributionGrade?: ScoreGradeFilter | null;
+  scoreLogic?: ScoreLogic;
+  minSubscribers?: number;
+  maxSubscribers?: number;
+  minViews?: number;
+  maxViews?: number;
 };
 
 export type SearchHotVideosRequest = {
@@ -24,7 +35,7 @@ export type SearchHotVideosRequest = {
   offset: number;
   sort?: HotVideoSortField;
   order?: HotVideoSortOrder;
-};
+} & HotVideoSearchFilters;
 
 export type HotVideoRow = {
   hotDate: string;

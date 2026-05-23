@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { GetTrendingVideosInputSchema } from './schemas';
 import type { WorkflowDeps } from './deps';
 import { ensureVideoAnalysis } from './ensure-video-analysis';
 import { getStoredTrendingVideos } from './get-stored-trending-videos';
@@ -54,6 +55,7 @@ describe('ensureVideoAnalysis', () => {
         channelTitle: 'Test Channel',
         publishedAt: '2026-01-01T00:00:00.000Z',
         durationSec: 600,
+        isShort: false,
         metrics: { views: 1000, likes: 100, comments: 10 },
         url: 'https://youtube.com/watch?v=vid-1',
         thumbnailUrl: null,
@@ -106,22 +108,68 @@ describe('ensureVideoAnalysis', () => {
   });
 });
 
+describe('GetTrendingVideosInputSchema', () => {
+  it('defaults to paginated non-short Good-or score filters', () => {
+    const parsed = GetTrendingVideosInputSchema.parse({
+      date: '2026-05-22',
+    });
+    expect(parsed.limit).toBe(10);
+    expect(parsed.page).toBe(1);
+    expect(parsed.isShort).toBe(false);
+    expect(parsed.minPerformanceGrade).toBe('Good');
+    expect(parsed.minContributionGrade).toBe('Good');
+    expect(parsed.scoreLogic).toBe('or');
+    expect(parsed.regionCode).toBe('KR');
+  });
+});
+
 describe('getStoredTrendingVideos', () => {
   it('returns a missing-data warning when no rows exist', async () => {
     const deps = createMockDeps();
-    deps.trending.queryHotVideos = vi.fn().mockResolvedValue([]);
+    deps.trending.searchHotVideos = vi.fn().mockResolvedValue({
+      rows: [],
+      total: 0,
+      hasMore: false,
+    });
 
-    const result = await getStoredTrendingVideos(
-      {
+    const input = GetTrendingVideosInputSchema.parse({
+      date: '2026-05-22',
+      regionCode: 'KR',
+    });
+
+    const result = await getStoredTrendingVideos(input, deps);
+
+    expect(result.data.videos).toEqual([]);
+    expect(result.data.total).toBe(0);
+    expect(result.warnings[0]?.code).toBe('TRENDING_DATA_NOT_FOUND');
+  });
+
+  it('passes default filters and pagination to searchHotVideos', async () => {
+    const deps = createMockDeps();
+    deps.trending.searchHotVideos = vi.fn().mockResolvedValue({
+      rows: [],
+      total: 0,
+      hasMore: false,
+    });
+
+    const input = GetTrendingVideosInputSchema.parse({
+      date: '2026-05-22',
+    });
+
+    await getStoredTrendingVideos(input, deps);
+
+    expect(deps.trending.searchHotVideos).toHaveBeenCalledWith(
+      expect.objectContaining({
         date: '2026-05-22',
         regionCode: 'KR',
         limit: 10,
-      },
-      deps,
+        offset: 0,
+        isShort: false,
+        minPerformanceGrade: 'Good',
+        minContributionGrade: 'Good',
+        scoreLogic: 'or',
+      }),
     );
-
-    expect(result.data.videos).toEqual([]);
-    expect(result.warnings[0]?.code).toBe('TRENDING_DATA_NOT_FOUND');
   });
 });
 
@@ -167,6 +215,7 @@ describe('searchStoredHotVideos', () => {
             channelTitle: 'Channel',
             publishedAt: null,
             durationSec: 600,
+            isShort: false,
             metrics: { views: 1000, likes: 100, comments: 10 },
             url: 'https://youtube.com/watch?v=vid-1',
             thumbnailUrl: null,

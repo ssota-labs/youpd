@@ -41,6 +41,24 @@ export function isGoodOrGreat(grade: ScoreGrade): boolean {
   return grade === 'Good' || grade === 'Great';
 }
 
+/** Minimum ratio for a video to meet at least this grade (ADR-022 buckets). */
+export function minGradeToRatioThreshold(grade: ScoreGrade): number | null {
+  switch (grade) {
+    case 'Great':
+      return 100;
+    case 'Good':
+      return 10;
+    case 'Normal':
+      return 1;
+    case 'Bad':
+      return 0.1;
+    case 'Worst':
+      return 0;
+    case 'Unknown':
+      return null;
+  }
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }

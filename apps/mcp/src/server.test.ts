@@ -64,9 +64,20 @@ vi.mock('@youpd/api/youtube', () => ({
   GetTrendingVideosInputSchema: z
     .object({
       date: z.string(),
+      dateEnd: z.string().optional(),
       regionCode: z.string().length(2).default('KR'),
       categoryId: z.string().nullable().optional(),
-      limit: z.number().int().default(50),
+      q: z.string().optional(),
+      page: z.number().int().default(1),
+      limit: z.number().int().default(10),
+      isShort: z.boolean().nullable().default(false),
+      minPerformanceGrade: z.string().nullable().default('Good'),
+      minContributionGrade: z.string().nullable().default('Good'),
+      scoreLogic: z.enum(['or', 'and']).default('or'),
+      minSubscribers: z.number().int().optional(),
+      maxSubscribers: z.number().int().optional(),
+      minViews: z.number().int().optional(),
+      maxViews: z.number().int().optional(),
     })
     .strict(),
   getStoredTrendingVideos: (...args: unknown[]) =>
@@ -163,6 +174,12 @@ describe('registerTools', () => {
     expect(descriptionFor(tools, 'youpd_get_trending_videos')).toContain(
       'does not call YouTube directly',
     );
+    expect(descriptionFor(tools, 'youpd_get_trending_videos')).toContain(
+      'pagination',
+    );
+    expect(descriptionFor(tools, 'youpd_get_trending_videos')).toContain(
+      'isShort',
+    );
   });
 
   it('marks job status lookup as read-only', () => {
@@ -211,13 +228,11 @@ describe('registerTools', () => {
     await tools.get('youpd_get_trending_videos')?.handler({
       date: '2026-05-22',
       regionCode: 'KR',
-      limit: 10,
     });
 
     expect(getStoredTrendingVideosMock).toHaveBeenCalledWith({
       date: '2026-05-22',
       regionCode: 'KR',
-      limit: 10,
     });
     expect(enqueueYoupdJobMock).not.toHaveBeenCalled();
   });

@@ -146,6 +146,14 @@ export function createFoundationTrendingRepositoryPort() {
       offset: number;
       sort?: import('../workflows/schemas').HotVideoSortField;
       order?: import('../workflows/schemas').HotVideoSortOrder;
+      isShort?: boolean | null;
+      minPerformanceGrade?: import('../workflows/schemas').ScoreGradeFilter | null;
+      minContributionGrade?: import('../workflows/schemas').ScoreGradeFilter | null;
+      scoreLogic?: import('../workflows/schemas').ScoreLogic;
+      minSubscribers?: number;
+      maxSubscribers?: number;
+      minViews?: number;
+      maxViews?: number;
     }) {
       const { searchHotVideos } = await import(
         '@youpd/supabase/repositories/youtube'
@@ -161,6 +169,14 @@ export function createFoundationTrendingRepositoryPort() {
         offset: input.offset,
         sort: input.sort,
         order: input.order,
+        isShort: input.isShort,
+        minPerformanceGrade: input.minPerformanceGrade,
+        minContributionGrade: input.minContributionGrade,
+        scoreLogic: input.scoreLogic,
+        minSubscribers: input.minSubscribers,
+        maxSubscribers: input.maxSubscribers,
+        minViews: input.minViews,
+        maxViews: input.maxViews,
       });
       return {
         rows: result.rows.map((row) => ({

@@ -8,6 +8,7 @@ export type VideoCore = {
   channelTitle: string;
   publishedAt: string | null;
   durationSec: number | null;
+  isShort: boolean | null;
   metrics: {
     views: number | null;
     likes: number | null;

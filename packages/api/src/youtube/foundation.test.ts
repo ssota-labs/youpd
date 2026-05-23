@@ -123,6 +123,7 @@ describe('fetchTrendingYouTubeVideos', () => {
 
   it('calls fetchHotChart with persist false and writes via harvest path only', async () => {
     await fetchTrendingYouTubeVideos({
+      date: '2026-05-22',
       regionCode: 'KR',
       categoryId: '22',
       limit: 50,

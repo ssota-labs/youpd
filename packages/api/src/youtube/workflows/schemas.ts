@@ -1,6 +1,13 @@
 import { z } from 'zod';
+import { SCORE_GRADES } from '../../query/scoring';
 
 const RegionCodeSchema = z.string().length(2).default('KR');
+
+export const ScoreGradeFilterSchema = z.enum(SCORE_GRADES);
+export type ScoreGradeFilter = z.infer<typeof ScoreGradeFilterSchema>;
+
+export const ScoreLogicSchema = z.enum(['or', 'and']);
+export type ScoreLogic = z.infer<typeof ScoreLogicSchema>;
 
 export const AnalyzeVideoInputSchema = z
   .object({
@@ -35,18 +42,6 @@ export type SearchKeywordWorkflowInput = z.infer<
   typeof SearchKeywordWorkflowInputSchema
 >;
 
-export const GetTrendingVideosInputSchema = z
-  .object({
-    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    regionCode: RegionCodeSchema,
-    categoryId: z.string().nullable().optional(),
-    limit: z.number().int().min(1).max(100).default(50),
-  })
-  .strict();
-export type GetTrendingVideosInput = z.infer<
-  typeof GetTrendingVideosInputSchema
->;
-
 export const HotVideoSortFieldSchema = z.enum([
   'views',
   'subscribers',
@@ -60,6 +55,31 @@ export type HotVideoSortField = z.infer<typeof HotVideoSortFieldSchema>;
 
 export const HotVideoSortOrderSchema = z.enum(['asc', 'desc']);
 export type HotVideoSortOrder = z.infer<typeof HotVideoSortOrderSchema>;
+
+export const GetTrendingVideosInputSchema = z
+  .object({
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    dateEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    regionCode: RegionCodeSchema,
+    categoryId: z.string().nullable().optional(),
+    q: z.string().trim().max(200).optional(),
+    page: z.number().int().min(1).default(1),
+    limit: z.number().int().min(1).max(100).default(10),
+    sort: HotVideoSortFieldSchema.optional(),
+    order: HotVideoSortOrderSchema.optional(),
+    isShort: z.boolean().nullable().default(false),
+    minPerformanceGrade: ScoreGradeFilterSchema.nullable().default('Good'),
+    minContributionGrade: ScoreGradeFilterSchema.nullable().default('Good'),
+    scoreLogic: ScoreLogicSchema.default('or'),
+    minSubscribers: z.number().int().min(0).optional(),
+    maxSubscribers: z.number().int().min(0).optional(),
+    minViews: z.number().int().min(0).optional(),
+    maxViews: z.number().int().min(0).optional(),
+  })
+  .strict();
+export type GetTrendingVideosInput = z.infer<
+  typeof GetTrendingVideosInputSchema
+>;
 
 export const SearchStoredHotVideosInputSchema = z
   .object({
