@@ -15,6 +15,7 @@ export type QueryHotVideosRequest = {
 };
 
 export type HotVideoSearchFilters = {
+  source?: string | string[] | null;
   isShort?: boolean | null;
   minPerformanceGrade?: ScoreGradeFilter | null;
   minContributionGrade?: ScoreGradeFilter | null;
@@ -42,6 +43,7 @@ export type HotVideoRow = {
   rank: number;
   categoryId: string | null;
   regionCode: string;
+  source: string;
   video: ScoredVideoCore | null;
   channel: ChannelCore | null;
 };

@@ -250,7 +250,13 @@ describe('searchYouTubeVideos', () => {
       status: 'success',
       resultCount: 1,
     });
-    expect(mocks.upsertChannels).toHaveBeenCalledOnce();
+    expect(mocks.upsertChannels).toHaveBeenCalledWith([
+      expect.objectContaining({
+        channelId: 'c1',
+        averageViewCount: 500,
+        averageViewCountBasis: { method: 'channel_lifetime_ratio' },
+      }),
+    ]);
     expect(mocks.upsertVideos).toHaveBeenCalledOnce();
     expect(mocks.upsertKeywordResults).toHaveBeenCalledWith([
       expect.objectContaining({ harvestId: 'harvest-1', videoId: 'v1' }),
@@ -266,6 +272,7 @@ describe('searchYouTubeVideos', () => {
     expect(out.data.videos[0]).toMatchObject({
       videoId: 'v1',
       performance: { ratio: 10, grade: 'Good' },
+      contribution: { ratio: 2, grade: 'Normal' },
     });
   });
 

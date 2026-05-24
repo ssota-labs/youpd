@@ -59,6 +59,73 @@ describe('youtube hot videos repository (integration)', () => {
     expect(match?.hotVideo.source).toBe('integration_test');
   });
 
+  it('keeps youtube_trending and keyword_promoted rows for the same video', async () => {
+    const dualVideoId = `${VIDEO_ID}-dual-source`;
+
+    await upsertChannels([
+      {
+        channelId: CHANNEL_ID,
+        title: 'Integration Test Channel',
+        url: `https://www.youtube.com/channel/${CHANNEL_ID}`,
+      },
+    ]);
+
+    await upsertVideos([
+      {
+        videoId: dualVideoId,
+        channelId: CHANNEL_ID,
+        title: 'Dual Source Hot Video',
+        views: 1000,
+        url: `https://www.youtube.com/watch?v=${dualVideoId}`,
+      },
+    ]);
+
+    await upsertHotVideos([
+      {
+        hotDate: HOT_DATE,
+        regionCode: REGION,
+        categoryId: CATEGORY,
+        videoId: dualVideoId,
+        rank: 1,
+        source: 'youtube_trending',
+      },
+      {
+        hotDate: HOT_DATE,
+        regionCode: REGION,
+        categoryId: CATEGORY,
+        videoId: dualVideoId,
+        rank: 1,
+        source: 'keyword_promoted',
+      },
+    ]);
+
+    const trendingOnly = await searchHotVideos({
+      regionCode: REGION,
+      date: HOT_DATE,
+      categoryId: CATEGORY,
+      source: 'youtube_trending',
+      limit: 10,
+      offset: 0,
+    });
+    const keywordOnly = await searchHotVideos({
+      regionCode: REGION,
+      date: HOT_DATE,
+      categoryId: CATEGORY,
+      source: 'keyword_promoted',
+      limit: 10,
+      offset: 0,
+    });
+
+    expect(
+      trendingOnly.rows.some((row) => row.hotVideo.videoId === dualVideoId),
+    ).toBe(true);
+    expect(
+      keywordOnly.rows.some((row) => row.hotVideo.videoId === dualVideoId),
+    ).toBe(true);
+    expect(trendingOnly.total).toBeGreaterThanOrEqual(1);
+    expect(keywordOnly.total).toBeGreaterThanOrEqual(1);
+  });
+
   it('persists is_short from duration on upsert and update', async () => {
     await upsertChannels([
       {

@@ -206,6 +206,15 @@ export const youtubeHotVideos = pgTable(
       table.categoryId,
       table.rank,
     ),
+    snapshotSourceUnique: uniqueIndex(
+      'youtube_hot_videos_snapshot_source_uidx',
+    ).on(
+      table.hotDate,
+      table.regionCode,
+      sql`coalesce(${table.categoryId}, '')`,
+      table.videoId,
+      table.source,
+    ),
   }),
 );
 

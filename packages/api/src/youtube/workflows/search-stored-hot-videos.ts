@@ -14,11 +14,20 @@ export async function searchStoredHotVideos(
     date: input.date ?? null,
     dateEnd: input.dateEnd ?? null,
     categoryId: input.categoryId,
+    source: input.source ?? null,
     q: input.q ?? null,
     limit: input.limit,
     offset,
     sort: input.sort,
     order: input.sort ? (input.order ?? 'desc') : undefined,
+    isShort: input.isShort,
+    minPerformanceGrade: input.minPerformanceGrade,
+    minContributionGrade: input.minContributionGrade,
+    scoreLogic: input.scoreLogic,
+    minSubscribers: input.minSubscribers,
+    maxSubscribers: input.maxSubscribers,
+    minViews: input.minViews,
+    maxViews: input.maxViews,
   });
 
   if (result.rows.length === 0) {

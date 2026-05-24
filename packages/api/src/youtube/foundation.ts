@@ -27,6 +27,7 @@ import {
   upsertKeywordResults,
   upsertVideoMetricSnapshots,
   upsertVideos,
+  type CanonicalChannelInput,
   type CanonicalVideoInput,
   type HarvestStatus,
 } from '@youpd/supabase/repositories/youtube';
@@ -290,7 +291,10 @@ function grade(ratio: number | null): string {
   return 'Great';
 }
 
-function scoreFor(video: VideoSummary | YouTubeVideoRow, channel?: ChannelSummary | YouTubeChannelRow | null) {
+function scoreFor(
+  video: VideoSummary | YouTubeVideoRow,
+  channel?: ChannelSummary | YouTubeChannelRow | CanonicalChannelInput | null,
+) {
   const views = 'views' in video ? video.views : video.viewCount;
   const subscribers = channel && 'subscriberCount' in channel ? channel.subscriberCount : null;
   const average = channel && 'averageViewCount' in channel ? channel.averageViewCount : null;
@@ -328,7 +332,10 @@ function scoreFor(video: VideoSummary | YouTubeVideoRow, channel?: ChannelSummar
   };
 }
 
-function videoWithScore(video: VideoSummary, channel?: ChannelSummary | null) {
+function videoWithScore(
+  video: VideoSummary,
+  channel?: ChannelSummary | YouTubeChannelRow | CanonicalChannelInput | null,
+) {
   return { ...video, ...scoreFor(video, channel ?? null) };
 }
 
@@ -421,7 +428,10 @@ export async function searchYouTubeVideos(input: SearchYouTubeVideosInput) {
     region_code: input.regionCode,
     order: input.order,
   });
-  const channelById = new Map(raw.channels.map((channel) => [channel.channelId, channel]));
+  const channelInputs = raw.channels.map(channelUpsertFromSummary);
+  const channelById = new Map(
+    channelInputs.map((channel) => [channel.channelId, channel]),
+  );
   const videos = raw.videos.map((video) =>
     input.includeScore
       ? videoWithScore(video, channelById.get(video.channelId) ?? null)
@@ -433,7 +443,7 @@ export async function searchYouTubeVideos(input: SearchYouTubeVideosInput) {
         input,
         raw.videos.length,
         async (harvestId) => {
-          await upsertChannels(raw.channels);
+          await upsertChannels(channelInputs);
           await upsertVideos(raw.videos);
           await upsertKeywordResults(
             raw.videos.map((video, index) => ({

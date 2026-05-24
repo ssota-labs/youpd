@@ -125,6 +125,7 @@ export function createFoundationTrendingRepositoryPort() {
         rank: row.hotVideo.rank,
         categoryId: row.hotVideo.categoryId ?? null,
         regionCode: row.hotVideo.regionCode,
+        source: row.hotVideo.source,
         video:
           row.video != null
             ? withScore(
@@ -141,6 +142,7 @@ export function createFoundationTrendingRepositoryPort() {
       date?: string | null;
       dateEnd?: string | null;
       categoryId?: string | null;
+      source?: string | string[] | null;
       q?: string | null;
       limit: number;
       offset: number;
@@ -164,6 +166,7 @@ export function createFoundationTrendingRepositoryPort() {
         date: input.date,
         dateEnd: input.dateEnd,
         categoryId: input.categoryId,
+        source: input.source,
         q: input.q,
         limit: input.limit,
         offset: input.offset,
@@ -184,6 +187,7 @@ export function createFoundationTrendingRepositoryPort() {
           rank: row.hotVideo.rank,
           categoryId: row.hotVideo.categoryId ?? null,
           regionCode: row.hotVideo.regionCode,
+          source: row.hotVideo.source,
           video:
             row.video != null
               ? withScore(

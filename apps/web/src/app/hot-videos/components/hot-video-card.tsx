@@ -61,11 +61,11 @@ export function HotVideoCard({ row, categoryLabel }: HotVideoCardProps) {
             No thumbnail
           </div>
         )}
-        <Badge className="absolute top-2 left-2" variant="secondary">
-          #{row.rank}
+        <Badge className="absolute top-2 right-2 max-w-[140px] truncate" variant="outline">
+          {row.source}
         </Badge>
         {categoryLabel ? (
-          <Badge className="absolute top-2 right-2" variant="outline">
+          <Badge className="absolute right-2 bottom-10" variant="outline">
             {categoryLabel}
           </Badge>
         ) : null}
@@ -187,9 +187,9 @@ export function HotVideoListRow({
               {video.title}
             </Link>
             <p className="text-[0.625rem] text-muted-foreground">
-              #{row.rank}
-              <span className="mx-1">·</span>
               {row.hotDate}
+              <span className="mx-1">·</span>
+              {row.source}
               {categoryLabel ? (
                 <>
                   <span className="mx-1">·</span>
