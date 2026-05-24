@@ -20,6 +20,15 @@ export function readHotVideoUrlState(searchParams: ReadonlyURLSearchParams): {
   date?: string;
   dateEnd?: string;
   categoryId?: string | null;
+  source?: string;
+  isShort?: string;
+  minPerformanceGrade?: string;
+  minContributionGrade?: string;
+  scoreLogic?: string;
+  minSubscribers?: string;
+  maxSubscribers?: string;
+  minViews?: string;
+  maxViews?: string;
   view: HotVideoViewMode;
   sort?: HotVideoSortField;
   order: HotVideoSortOrder;
@@ -36,6 +45,15 @@ export function readHotVideoUrlState(searchParams: ReadonlyURLSearchParams): {
       categoryIdRaw === undefined || categoryIdRaw === 'all'
         ? undefined
         : categoryIdRaw,
+    source: pickParam(searchParams, 'source'),
+    isShort: pickParam(searchParams, 'isShort'),
+    minPerformanceGrade: pickParam(searchParams, 'minPerformanceGrade'),
+    minContributionGrade: pickParam(searchParams, 'minContributionGrade'),
+    scoreLogic: pickParam(searchParams, 'scoreLogic'),
+    minSubscribers: pickParam(searchParams, 'minSubscribers'),
+    maxSubscribers: pickParam(searchParams, 'maxSubscribers'),
+    minViews: pickParam(searchParams, 'minViews'),
+    maxViews: pickParam(searchParams, 'maxViews'),
     view: parseHotVideoViewMode(sp),
     sort,
     order,

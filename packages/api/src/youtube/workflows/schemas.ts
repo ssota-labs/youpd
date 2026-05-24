@@ -88,10 +88,19 @@ export const SearchStoredHotVideosInputSchema = z
     dateEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     regionCode: RegionCodeSchema,
     categoryId: z.string().nullable().optional(),
+    source: z.union([z.string().min(1), z.array(z.string().min(1))]).optional(),
     page: z.number().int().min(1).default(1),
     limit: z.number().int().min(1).max(100).default(24),
     sort: HotVideoSortFieldSchema.optional(),
     order: HotVideoSortOrderSchema.optional(),
+    isShort: z.boolean().nullable().optional(),
+    minPerformanceGrade: ScoreGradeFilterSchema.nullable().optional(),
+    minContributionGrade: ScoreGradeFilterSchema.nullable().optional(),
+    scoreLogic: ScoreLogicSchema.optional(),
+    minSubscribers: z.number().int().min(0).optional(),
+    maxSubscribers: z.number().int().min(0).optional(),
+    minViews: z.number().int().min(0).optional(),
+    maxViews: z.number().int().min(0).optional(),
   })
   .strict();
 export type SearchStoredHotVideosInput = z.infer<
@@ -132,4 +141,40 @@ export const CollectTrendingMatrixDailyInputSchema = z
   .strict();
 export type CollectTrendingMatrixDailyInput = z.infer<
   typeof CollectTrendingMatrixDailyInputSchema
+>;
+
+export const PromoteKeywordResultsInputSchema = z
+  .object({
+    hotDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    sourceCollectedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    regionCode: RegionCodeSchema,
+  })
+  .strict();
+export type PromoteKeywordResultsInput = z.infer<
+  typeof PromoteKeywordResultsInputSchema
+>;
+
+export const RunKeywordSearchBatchInputSchema = z
+  .object({
+    keywords: z.array(z.string().min(1).max(200)).min(1).max(50),
+    regionCode: RegionCodeSchema,
+    limit: z.number().int().min(1).max(50).default(50),
+    order: z
+      .enum(['date', 'rating', 'relevance', 'title', 'videoCount', 'viewCount'])
+      .default('relevance'),
+    forceRefresh: z.boolean().default(false),
+  })
+  .strict();
+export type RunKeywordSearchBatchInput = z.infer<
+  typeof RunKeywordSearchBatchInputSchema
+>;
+
+export const ListKeywordHarvestsInputSchema = z
+  .object({
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    regionCode: RegionCodeSchema,
+  })
+  .strict();
+export type ListKeywordHarvestsInput = z.infer<
+  typeof ListKeywordHarvestsInputSchema
 >;

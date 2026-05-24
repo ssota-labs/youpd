@@ -207,6 +207,7 @@ describe('searchStoredHotVideos', () => {
           rank: 1,
           categoryId: '22',
           regionCode: 'KR',
+          source: 'youtube_trending',
           video: {
             id: 'vid-1',
             provider: 'youtube',

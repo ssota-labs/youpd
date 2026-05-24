@@ -86,8 +86,24 @@ function CategorySelect({
 
 export function HotVideosChrome({ categories }: HotVideosChromeProps) {
   const searchParams = useSearchParams();
-  const { q, date, dateEnd, categoryId, view, sort, order } =
-    readHotVideoUrlState(searchParams);
+  const {
+    q,
+    date,
+    dateEnd,
+    categoryId,
+    source,
+    isShort,
+    minPerformanceGrade,
+    minContributionGrade,
+    scoreLogic,
+    minSubscribers,
+    maxSubscribers,
+    minViews,
+    maxViews,
+    view,
+    sort,
+    order,
+  } = readHotVideoUrlState(searchParams);
 
   const viewQuery = (nextView: HotVideoViewMode) =>
     buildHotVideoQueryString({
@@ -95,6 +111,15 @@ export function HotVideosChrome({ categories }: HotVideosChromeProps) {
       date,
       dateEnd,
       categoryId: categoryId ?? undefined,
+      source,
+      isShort,
+      minPerformanceGrade,
+      minContributionGrade,
+      scoreLogic,
+      minSubscribers,
+      maxSubscribers,
+      minViews,
+      maxViews,
       view: nextView,
       sort,
       order: sort ? order : undefined,
@@ -159,6 +184,95 @@ export function HotVideosChrome({ categories }: HotVideosChromeProps) {
           initialCategory={categoryId ?? 'all'}
           categories={categories}
         />
+
+          <select
+            name="source"
+            defaultValue={source ?? 'all'}
+            aria-label="Source"
+            className="h-8 rounded-md border border-input bg-transparent px-2 text-sm"
+          >
+            <option value="all">전체 source</option>
+            <option value="youtube_trending">youtube_trending</option>
+            <option value="keyword_promoted">keyword_promoted</option>
+          </select>
+
+          <select
+            name="isShort"
+            defaultValue={isShort ?? 'all'}
+            aria-label="쇼츠"
+            className="h-8 rounded-md border border-input bg-transparent px-2 text-sm"
+          >
+            <option value="all">전체 길이</option>
+            <option value="false">롱폼만</option>
+            <option value="true">쇼츠만</option>
+          </select>
+
+          <input
+            type="number"
+            name="minSubscribers"
+            defaultValue={minSubscribers ?? ''}
+            placeholder="최소 구독"
+            aria-label="최소 구독자"
+            className="h-8 w-[110px] rounded-md border border-input bg-transparent px-2 text-sm"
+          />
+          <input
+            type="number"
+            name="maxSubscribers"
+            defaultValue={maxSubscribers ?? ''}
+            placeholder="최대 구독"
+            aria-label="최대 구독자"
+            className="h-8 w-[110px] rounded-md border border-input bg-transparent px-2 text-sm"
+          />
+          <input
+            type="number"
+            name="minViews"
+            defaultValue={minViews ?? ''}
+            placeholder="최소 조회"
+            aria-label="최소 조회수"
+            className="h-8 w-[110px] rounded-md border border-input bg-transparent px-2 text-sm"
+          />
+          <input
+            type="number"
+            name="maxViews"
+            defaultValue={maxViews ?? ''}
+            placeholder="최대 조회"
+            aria-label="최대 조회수"
+            className="h-8 w-[110px] rounded-md border border-input bg-transparent px-2 text-sm"
+          />
+
+          <select
+            name="minPerformanceGrade"
+            defaultValue={minPerformanceGrade ?? 'none'}
+            aria-label="최소 성과"
+            className="h-8 rounded-md border border-input bg-transparent px-2 text-sm"
+          >
+            <option value="none">성과 전체</option>
+            <option value="Normal">성과 Normal+</option>
+            <option value="Good">성과 Good+</option>
+            <option value="Great">성과 Great</option>
+          </select>
+
+          <select
+            name="minContributionGrade"
+            defaultValue={minContributionGrade ?? 'none'}
+            aria-label="최소 기여"
+            className="h-8 rounded-md border border-input bg-transparent px-2 text-sm"
+          >
+            <option value="none">기여 전체</option>
+            <option value="Normal">기여 Normal+</option>
+            <option value="Good">기여 Good+</option>
+            <option value="Great">기여 Great</option>
+          </select>
+
+          <select
+            name="scoreLogic"
+            defaultValue={scoreLogic ?? 'or'}
+            aria-label="점수 조합"
+            className="h-8 rounded-md border border-input bg-transparent px-2 text-sm"
+          >
+            <option value="or">OR</option>
+            <option value="and">AND</option>
+          </select>
 
           <input type="hidden" name="view" value={view} />
           {sort ? <input type="hidden" name="sort" value={sort} /> : null}

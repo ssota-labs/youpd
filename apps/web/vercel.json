@@ -2,11 +2,15 @@
   "crons": [
     {
       "path": "/api/cron/youpd/trending",
-      "schedule": "0 1 * * *"
+      "schedule": "0 15 * * *"
     },
     {
       "path": "/api/cron/youpd/snapshots",
-      "schedule": "0 2 * * *"
+      "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/cron/youpd/promote-keywords",
+      "schedule": "0 15 * * *"
     }
   ]
 }

@@ -198,6 +198,7 @@ export type SearchHotVideosInput = {
   date?: string | null;
   dateEnd?: string | null;
   categoryId?: string | null;
+  source?: string | string[] | null;
   q?: string | null;
   limit?: number;
   offset?: number;
@@ -211,6 +212,44 @@ export type SearchHotVideosInput = {
   maxSubscribers?: number;
   minViews?: number;
   maxViews?: number;
+};
+
+export const HOT_VIDEO_SOURCE_YOUTUBE_TRENDING = 'youtube_trending';
+export const HOT_VIDEO_SOURCE_KEYWORD_PROMOTED = 'keyword_promoted';
+
+/** Minimum performance/contribution grade for keyword → hot video promotion (Good+ only). */
+export const KEYWORD_PROMOTION_MIN_SCORE_GRADE: HotVideoScoreGrade = 'Good';
+
+export type KeywordHarvestSessionSummary = {
+  id: string;
+  keyword: string;
+  regionCode: string;
+  searchOrder: string;
+  limit: number;
+  forceRefresh: boolean;
+  status: HarvestStatus;
+  resultCount: number;
+  startedAt: Date;
+  completedAt: Date | null;
+};
+
+export type KeywordHarvestResultRow = {
+  result: YouTubeKeywordVideoResultRow;
+  video: YouTubeVideoRow;
+  channel: YouTubeChannelRow | null;
+  performanceRatio: number | null;
+  contributionRatio: number | null;
+  promoted: boolean;
+};
+
+export type PromotableKeywordResultRow = {
+  videoId: string;
+  regionCode: string;
+  categoryId: string | null;
+  keyword: string;
+  keywordRank: number;
+  performanceRatio: number;
+  contributionRatio: number;
 };
 
 export type SearchHotVideosResult = {
@@ -670,10 +709,15 @@ export async function upsertHotVideos(results: HotVideoInput[]): Promise<void> {
         collected_at
       )
       values ${valueRows}
-      on conflict (hot_date, region_code, coalesce(category_id, ''), video_id)
+      on conflict (
+        hot_date,
+        region_code,
+        coalesce(category_id, ''),
+        video_id,
+        source
+      )
       do update set
         rank = excluded.rank,
-        source = excluded.source,
         collected_at = excluded.collected_at
     `);
   }
@@ -754,6 +798,7 @@ function buildHotVideoFilterClauses(input: {
   date?: string | null;
   dateEnd?: string | null;
   categoryId?: string | null;
+  source?: string | string[] | null;
   q?: string | null;
   isShort?: boolean | null;
   minPerformanceGrade?: HotVideoScoreGrade | null;
@@ -783,6 +828,16 @@ function buildHotVideoFilterClauses(input: {
         ? sql`${youtubeHotVideos.categoryId} is null`
         : eq(youtubeHotVideos.categoryId, input.categoryId),
     );
+  }
+
+  if (input.source != null) {
+    const sources = Array.isArray(input.source) ? input.source : [input.source];
+    const filtered = sources.filter((value) => value.length > 0);
+    if (filtered.length === 1) {
+      clauses.push(eq(youtubeHotVideos.source, filtered[0]!));
+    } else if (filtered.length > 1) {
+      clauses.push(inArray(youtubeHotVideos.source, filtered));
+    }
   }
 
   const searchTerm = input.q?.trim();
@@ -1115,4 +1170,222 @@ export async function listAllYouTubeChannelIds(limit = 2000): Promise<string[]> 
     .from(youtubeChannels)
     .limit(Math.min(Math.max(limit, 1), 5000));
   return rows.map((row) => row.channelId);
+}
+
+function parseKeywordHarvestQuery(query: unknown): {
+  keyword: string;
+  regionCode: string;
+  searchOrder: string;
+  limit: number;
+  forceRefresh: boolean;
+} {
+  const fallback = {
+    keyword: '',
+    regionCode: 'KR',
+    searchOrder: 'relevance',
+    limit: 50,
+    forceRefresh: false,
+  };
+  if (query == null || typeof query !== 'object') return fallback;
+  const record = query as Record<string, unknown>;
+  return {
+    keyword: typeof record.keyword === 'string' ? record.keyword : fallback.keyword,
+    regionCode:
+      typeof record.regionCode === 'string' ? record.regionCode : fallback.regionCode,
+    searchOrder:
+      typeof record.order === 'string' ? record.order : fallback.searchOrder,
+    limit:
+      typeof record.limit === 'number' && Number.isFinite(record.limit)
+        ? record.limit
+        : fallback.limit,
+    forceRefresh: record.forceRefresh === true,
+  };
+}
+
+function kstDayRange(ymd: string): { start: Date; end: Date } {
+  const start = new Date(`${ymd}T00:00:00+09:00`);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  return { start, end };
+}
+
+export async function listKeywordHarvestSessionsByDate(input: {
+  date: string;
+  regionCode?: string;
+}): Promise<KeywordHarvestSessionSummary[]> {
+  const db = getDbClient();
+  const { start, end } = kstDayRange(input.date);
+  const rows = await db
+    .select()
+    .from(youtubeHarvestSessions)
+    .where(
+      and(
+        eq(youtubeHarvestSessions.type, 'keyword_search'),
+        gte(youtubeHarvestSessions.startedAt, start),
+        lte(youtubeHarvestSessions.startedAt, end),
+      ),
+    )
+    .orderBy(desc(youtubeHarvestSessions.startedAt));
+
+  return rows
+    .map((row) => {
+      const parsed = parseKeywordHarvestQuery(row.query);
+      if (input.regionCode && parsed.regionCode !== input.regionCode) {
+        return null;
+      }
+      return {
+        id: row.id,
+        keyword: parsed.keyword,
+        regionCode: parsed.regionCode,
+        searchOrder: parsed.searchOrder,
+        limit: parsed.limit,
+        forceRefresh: parsed.forceRefresh,
+        status: row.status as HarvestStatus,
+        resultCount: row.resultCount,
+        startedAt: row.startedAt,
+        completedAt: row.completedAt,
+      };
+    })
+    .filter((row): row is KeywordHarvestSessionSummary => row != null);
+}
+
+export async function listKeywordHarvestResults(input: {
+  harvestId: string;
+  hotDate?: string | null;
+  regionCode?: string;
+}): Promise<KeywordHarvestResultRow[]> {
+  const db = getDbClient();
+  const rows = await db
+    .select({
+      result: youtubeKeywordVideoResults,
+      video: youtubeVideos,
+      channel: youtubeChannels,
+    })
+    .from(youtubeKeywordVideoResults)
+    .innerJoin(
+      youtubeVideos,
+      eq(youtubeKeywordVideoResults.videoId, youtubeVideos.videoId),
+    )
+    .leftJoin(youtubeChannels, eq(youtubeVideos.channelId, youtubeChannels.channelId))
+    .where(eq(youtubeKeywordVideoResults.harvestId, input.harvestId))
+    .orderBy(asc(youtubeKeywordVideoResults.rank));
+
+  const promotedVideoIds = new Set<string>();
+  if (input.hotDate) {
+    const promoted = await db
+      .select({ videoId: youtubeHotVideos.videoId })
+      .from(youtubeHotVideos)
+      .where(
+        and(
+          eq(youtubeHotVideos.hotDate, input.hotDate),
+          eq(youtubeHotVideos.source, HOT_VIDEO_SOURCE_KEYWORD_PROMOTED),
+          eq(youtubeHotVideos.regionCode, input.regionCode ?? 'KR'),
+        ),
+      );
+    for (const row of promoted) {
+      promotedVideoIds.add(row.videoId);
+    }
+  }
+
+  return rows.map((row) => {
+    const performanceRatio =
+      row.video.viewCount != null &&
+      row.channel?.subscriberCount != null &&
+      row.channel.subscriberCount > 0
+        ? row.video.viewCount / row.channel.subscriberCount
+        : null;
+    const contributionRatio =
+      row.video.viewCount != null &&
+      row.channel?.averageViewCount != null &&
+      row.channel.averageViewCount > 0
+        ? row.video.viewCount / row.channel.averageViewCount
+        : null;
+
+    return {
+      result: row.result,
+      video: row.video,
+      channel: row.channel,
+      performanceRatio,
+      contributionRatio,
+      promoted: promotedVideoIds.has(row.video.videoId),
+    };
+  });
+}
+
+export async function queryPromotableKeywordResults(input: {
+  collectedDate: string;
+  regionCode?: string;
+}): Promise<PromotableKeywordResultRow[]> {
+  const db = getDbClient();
+  const { start, end } = kstDayRange(input.collectedDate);
+  const regionCode = input.regionCode ?? 'KR';
+  const goodThreshold = minGradeToRatioThreshold(KEYWORD_PROMOTION_MIN_SCORE_GRADE) ?? 10;
+
+  const result = (await db.execute(sql`
+    with scored as (
+      select
+        kr.video_id,
+        kr.region_code,
+        v.category_id,
+        kr.keyword,
+        kr.rank as keyword_rank,
+        case
+          when c.subscriber_count > 0
+          then v.view_count::float / c.subscriber_count
+          else null
+        end as performance_ratio,
+        case
+          when c.average_view_count > 0
+          then v.view_count::float / c.average_view_count
+          else null
+        end as contribution_ratio
+      from public.youtube_keyword_video_results kr
+      inner join public.youtube_videos v on kr.video_id = v.video_id
+      left join public.youtube_channels c on v.channel_id = c.channel_id
+      where kr.collected_at >= ${start.toISOString()}::timestamptz
+        and kr.collected_at < ${end.toISOString()}::timestamptz
+        and kr.region_code = ${regionCode}
+    ),
+    deduped as (
+      select distinct on (video_id)
+        video_id,
+        region_code,
+        category_id,
+        keyword,
+        keyword_rank,
+        performance_ratio,
+        contribution_ratio
+      from scored
+      where performance_ratio >= ${goodThreshold}
+        and contribution_ratio >= ${goodThreshold}
+      order by
+        video_id,
+        contribution_ratio desc,
+        performance_ratio desc,
+        keyword_rank asc
+    )
+    select *
+    from deduped
+    order by
+      contribution_ratio desc,
+      performance_ratio desc,
+      keyword_rank asc
+  `)) as unknown as Array<{
+    video_id: string;
+    region_code: string;
+    category_id: string | null;
+    keyword: string;
+    keyword_rank: number;
+    performance_ratio: number;
+    contribution_ratio: number;
+  }>;
+
+  return result.map((row) => ({
+    videoId: row.video_id,
+    regionCode: row.region_code,
+    categoryId: row.category_id,
+    keyword: row.keyword,
+    keywordRank: row.keyword_rank,
+    performanceRatio: row.performance_ratio,
+    contributionRatio: row.contribution_ratio,
+  }));
 }
