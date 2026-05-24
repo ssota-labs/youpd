@@ -1,15 +1,19 @@
 import { expect, test } from '@playwright/test';
+import {
+  buildBrokenDefaultFilterUrl,
+  E2E_HOT_VIDEO_TITLES,
+  getTodayInKorea,
+} from './hot-videos-fixtures';
 
 const WEB_PORT = Number(process.env.WEB_PORT ?? 3000);
 const BASE_URL = `http://127.0.0.1:${WEB_PORT}`;
 
-function getTodayInKorea(): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Seoul',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date());
+async function expectSeededHotVideos(page: import('@playwright/test').Page) {
+  await expect(page.getByText(E2E_HOT_VIDEO_TITLES.gaming)).toBeVisible();
+  await expect(page.getByText(E2E_HOT_VIDEO_TITLES.vlog)).toBeVisible();
+  await expect(
+    page.getByText('조건에 맞는 핫비디오가 없습니다'),
+  ).not.toBeVisible();
 }
 
 test.describe('apps/web', () => {
@@ -32,7 +36,9 @@ test.describe('apps/web', () => {
     const today = getTodayInKorea();
 
     await page.goto(`${BASE_URL}/hot-videos`);
-    await expect(page.getByText('Hot Videos')).toBeVisible();
+    await expect(
+      page.locator('header').getByText('Hot Videos', { exact: true }),
+    ).toBeVisible();
     await expect(page.getByLabel('영상 / 채널 검색')).toBeVisible();
     await expect(page.getByLabel('날짜')).toBeVisible();
     await expect(page.getByLabel('날짜')).toHaveValue(today);
@@ -48,7 +54,9 @@ test.describe('apps/web', () => {
 
   test('hot videos page switches to list view via URL', async ({ page }) => {
     await page.goto(`${BASE_URL}/hot-videos?view=list&categoryId=20`);
-    await expect(page.getByText('Hot Videos')).toBeVisible();
+    await expect(
+      page.locator('header').getByText('Hot Videos', { exact: true }),
+    ).toBeVisible();
     await expect(page.getByRole('link', { name: '리스트' })).toHaveClass(/bg-primary/);
 
     await page.screenshot({
@@ -72,6 +80,81 @@ test.describe('apps/web', () => {
 
     await page.screenshot({
       path: 'test-results/hot-videos-search-results.png',
+      fullPage: true,
+    });
+  });
+
+  test('hot videos bare page shows seeded results', async ({ page }) => {
+    await page.goto(`${BASE_URL}/hot-videos`);
+    await expectSeededHotVideos(page);
+
+    await page.screenshot({
+      path: 'test-results/hot-videos-seeded-default.png',
+      fullPage: true,
+    });
+  });
+
+  test('hot videos default filter URL with empty categoryId shows seeded results', async ({
+    page,
+  }) => {
+    await page.goto(`${BASE_URL}${buildBrokenDefaultFilterUrl()}`);
+    await expectSeededHotVideos(page);
+
+    await page.screenshot({
+      path: 'test-results/hot-videos-seeded-broken-filter-url.png',
+      fullPage: true,
+    });
+  });
+
+  test('hot videos filter form submit with all categories shows seeded results', async ({
+    page,
+  }) => {
+    await page.goto(`${BASE_URL}/hot-videos`);
+    await page.getByRole('button', { name: '검색' }).click();
+
+    await expect(page).toHaveURL(new RegExp(`date=${getTodayInKorea()}`));
+    expect(page.url()).not.toMatch(/categoryId=$/);
+    await expectSeededHotVideos(page);
+
+    await page.screenshot({
+      path: 'test-results/hot-videos-seeded-form-submit.png',
+      fullPage: true,
+    });
+  });
+
+  test('hot videos advanced filter dialog shows distribution charts', async ({
+    page,
+  }) => {
+    await page.goto(`${BASE_URL}/hot-videos`);
+    await page.getByRole('button', { name: /상세 필터/ }).click();
+
+    await expect(page.getByRole('dialog', { name: '상세 필터' })).toBeVisible();
+    const dialog = page.getByRole('dialog', { name: '상세 필터' });
+    await expect(dialog.getByText('조회수')).toBeVisible();
+    await expect(dialog.getByText('영상 게시일')).toBeVisible();
+    await expect(dialog.getByText('기여도')).toBeVisible();
+    await expect(dialog.getByText('성과도')).toBeVisible();
+
+    await page.screenshot({
+      path: 'test-results/hot-videos-filter-dialog.png',
+      fullPage: true,
+    });
+  });
+
+  test('hot videos loads additional rows when scrolling near the bottom', async ({
+    page,
+  }) => {
+    await page.goto(`${BASE_URL}/hot-videos`);
+    await expect(page.getByText(E2E_HOT_VIDEO_TITLES.gaming)).toBeVisible();
+    await expect(page.getByText(E2E_HOT_VIDEO_TITLES.last)).not.toBeVisible();
+
+    await page.getByText('스크롤하면 더 불러옵니다').scrollIntoViewIfNeeded();
+    await expect(page.getByText(E2E_HOT_VIDEO_TITLES.last)).toBeVisible({
+      timeout: 10_000,
+    });
+
+    await page.screenshot({
+      path: 'test-results/hot-videos-infinite-scroll-loaded.png',
       fullPage: true,
     });
   });

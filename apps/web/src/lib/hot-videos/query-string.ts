@@ -13,6 +13,16 @@ export const HOT_VIDEO_SORT_FIELDS = [
 export type HotVideoSortField = (typeof HOT_VIDEO_SORT_FIELDS)[number];
 export type HotVideoSortOrder = 'asc' | 'desc';
 
+/** Treat missing, empty, and "all" category selections as no category filter. */
+export function normalizeHotVideoCategoryId(
+  categoryId: string | undefined,
+): string | undefined {
+  if (categoryId === undefined || categoryId === '' || categoryId === 'all') {
+    return undefined;
+  }
+  return categoryId;
+}
+
 function pickString(
   sp: Record<string, string | string[] | undefined>,
   key: string,
@@ -63,6 +73,19 @@ export function buildHotVideoSortHref(
     q?: string;
     date: string;
     categoryId?: string | null;
+    source?: string;
+    isShort?: string;
+    minPerformanceGrade?: string;
+    minContributionGrade?: string;
+    scoreLogic?: string;
+    minSubscribers?: string;
+    maxSubscribers?: string;
+    minViews?: string;
+    maxViews?: string;
+    publishedAfter?: string;
+    publishedBefore?: string;
+    performanceGrades?: string;
+    contributionGrades?: string;
     view: HotVideoViewMode;
   },
 ): string {
@@ -77,6 +100,19 @@ export function buildHotVideoSortHref(
     q: current.q,
     date: current.date,
     categoryId: current.categoryId ?? undefined,
+    source: current.source,
+    isShort: current.isShort,
+    minPerformanceGrade: current.minPerformanceGrade,
+    minContributionGrade: current.minContributionGrade,
+    scoreLogic: current.scoreLogic,
+    minSubscribers: current.minSubscribers,
+    maxSubscribers: current.maxSubscribers,
+    minViews: current.minViews,
+    maxViews: current.maxViews,
+    publishedAfter: current.publishedAfter,
+    publishedBefore: current.publishedBefore,
+    performanceGrades: current.performanceGrades,
+    contributionGrades: current.contributionGrades,
     view: current.view,
     sort: sortField,
     order: nextOrder,

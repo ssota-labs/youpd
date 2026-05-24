@@ -28,6 +28,10 @@ export async function searchStoredHotVideos(
     maxSubscribers: input.maxSubscribers,
     minViews: input.minViews,
     maxViews: input.maxViews,
+    publishedAfter: input.publishedAfter,
+    publishedBefore: input.publishedBefore,
+    performanceGrades: input.performanceGrades,
+    contributionGrades: input.contributionGrades,
   });
 
   if (result.rows.length === 0) {

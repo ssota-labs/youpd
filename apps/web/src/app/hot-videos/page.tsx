@@ -8,7 +8,7 @@ import {
   HotVideoGridSkeleton,
   HotVideoStatusBarSkeleton,
 } from './components/hot-video-skeleton';
-import { HotVideosChrome } from './components/hot-videos-chrome';
+import { HotVideosChromeSection } from './components/hot-videos-chrome-section';
 
 type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -21,7 +21,10 @@ export default function HotVideosPage({ searchParams }: PageProps) {
     <>
       <div className="border-b border-border bg-background">
         <Suspense fallback={<HotVideoChromeSkeleton />}>
-          <HotVideosChrome categories={categories} />
+          <HotVideosChromeSection
+            categories={categories}
+            searchParams={searchParams}
+          />
         </Suspense>
 
         <div className="flex flex-col gap-2 border-t border-border px-4 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8 xl:px-10">
