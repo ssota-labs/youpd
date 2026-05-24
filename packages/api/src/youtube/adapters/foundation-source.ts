@@ -156,6 +156,10 @@ export function createFoundationTrendingRepositoryPort() {
       maxSubscribers?: number;
       minViews?: number;
       maxViews?: number;
+      publishedAfter?: string;
+      publishedBefore?: string;
+      performanceGrades?: import('../workflows/schemas').ScoreGradeFilter[];
+      contributionGrades?: import('../workflows/schemas').ScoreGradeFilter[];
     }) {
       const { searchHotVideos } = await import(
         '@youpd/supabase/repositories/youtube'
@@ -180,6 +184,10 @@ export function createFoundationTrendingRepositoryPort() {
         maxSubscribers: input.maxSubscribers,
         minViews: input.minViews,
         maxViews: input.maxViews,
+        publishedAfter: input.publishedAfter,
+        publishedBefore: input.publishedBefore,
+        performanceGrades: input.performanceGrades,
+        contributionGrades: input.contributionGrades,
       });
       return {
         rows: result.rows.map((row) => ({

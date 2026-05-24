@@ -1,5 +1,6 @@
 import type { ReadonlyURLSearchParams } from 'next/navigation';
 import {
+  normalizeHotVideoCategoryId,
   parseHotVideoSort,
   parseHotVideoViewMode,
   type HotVideoSortField,
@@ -29,6 +30,10 @@ export function readHotVideoUrlState(searchParams: ReadonlyURLSearchParams): {
   maxSubscribers?: string;
   minViews?: string;
   maxViews?: string;
+  publishedAfter?: string;
+  publishedBefore?: string;
+  performanceGrades?: string;
+  contributionGrades?: string;
   view: HotVideoViewMode;
   sort?: HotVideoSortField;
   order: HotVideoSortOrder;
@@ -40,10 +45,7 @@ export function readHotVideoUrlState(searchParams: ReadonlyURLSearchParams): {
   return {
     q: pickParam(searchParams, 'q'),
     date: resolveHotVideoDate(pickParam(searchParams, 'date')),
-    categoryId:
-      categoryIdRaw === undefined || categoryIdRaw === 'all'
-        ? undefined
-        : categoryIdRaw,
+    categoryId: normalizeHotVideoCategoryId(categoryIdRaw),
     source: pickParam(searchParams, 'source'),
     isShort: pickParam(searchParams, 'isShort'),
     minPerformanceGrade: pickParam(searchParams, 'minPerformanceGrade'),
@@ -53,6 +55,10 @@ export function readHotVideoUrlState(searchParams: ReadonlyURLSearchParams): {
     maxSubscribers: pickParam(searchParams, 'maxSubscribers'),
     minViews: pickParam(searchParams, 'minViews'),
     maxViews: pickParam(searchParams, 'maxViews'),
+    publishedAfter: pickParam(searchParams, 'publishedAfter'),
+    publishedBefore: pickParam(searchParams, 'publishedBefore'),
+    performanceGrades: pickParam(searchParams, 'performanceGrades'),
+    contributionGrades: pickParam(searchParams, 'contributionGrades'),
     view: parseHotVideoViewMode(sp),
     sort,
     order,

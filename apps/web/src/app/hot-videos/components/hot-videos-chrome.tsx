@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import {
   RiCalendarLine,
+  RiFilter3Line,
   RiLayoutGridLine,
   RiListUnordered,
   RiPriceTag3Line,
@@ -13,6 +14,16 @@ import {
 } from '@remixicon/react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -28,6 +39,12 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import {
+  countActiveAdvancedFilters,
+  HOT_VIDEOS_FILTER_FORM_ID,
+  HotVideosFilterPanel,
+} from './hot-videos-filter-panel';
+import type { HotVideoFilterStats } from '@/lib/hot-videos/filter-stats';
 import { readHotVideoUrlState } from '@/lib/hot-videos/read-search-params';
 import {
   buildHotVideoQueryString,
@@ -41,6 +58,8 @@ type CategoryOption = {
 
 type HotVideosChromeProps = {
   categories: CategoryOption[];
+  filterStats: HotVideoFilterStats;
+  resultTotal: number;
 };
 
 type CategorySelectProps = {
@@ -75,16 +94,16 @@ function CategorySelect({
           </SelectGroup>
         </SelectContent>
       </Select>
-      <input
-        type="hidden"
-        name="categoryId"
-        value={selectedCategory === 'all' ? '' : selectedCategory}
-      />
+      <input type="hidden" name="categoryId" value={selectedCategory} />
     </>
   );
 }
 
-export function HotVideosChrome({ categories }: HotVideosChromeProps) {
+export function HotVideosChrome({
+  categories,
+  filterStats,
+  resultTotal,
+}: HotVideosChromeProps) {
   const searchParams = useSearchParams();
   const {
     q,
@@ -94,15 +113,34 @@ export function HotVideosChrome({ categories }: HotVideosChromeProps) {
     isShort,
     minPerformanceGrade,
     minContributionGrade,
+    performanceGrades,
+    contributionGrades,
     scoreLogic,
     minSubscribers,
     maxSubscribers,
     minViews,
     maxViews,
+    publishedAfter,
+    publishedBefore,
     view,
     sort,
     order,
   } = readHotVideoUrlState(searchParams);
+  const activeAdvancedFilterCount = countActiveAdvancedFilters({
+    source,
+    isShort,
+    minPerformanceGrade,
+    minContributionGrade,
+    performanceGrades,
+    contributionGrades,
+    scoreLogic,
+    minSubscribers,
+    maxSubscribers,
+    minViews,
+    maxViews,
+    publishedAfter,
+    publishedBefore,
+  });
 
   const viewQuery = (nextView: HotVideoViewMode) =>
     buildHotVideoQueryString({
@@ -113,11 +151,15 @@ export function HotVideosChrome({ categories }: HotVideosChromeProps) {
       isShort,
       minPerformanceGrade,
       minContributionGrade,
+      performanceGrades,
+      contributionGrades,
       scoreLogic,
       minSubscribers,
       maxSubscribers,
       minViews,
       maxViews,
+      publishedAfter,
+      publishedBefore,
       view: nextView,
       sort,
       order: sort ? order : undefined,
@@ -137,6 +179,7 @@ export function HotVideosChrome({ categories }: HotVideosChromeProps) {
       </header>
 
       <form
+        id={HOT_VIDEOS_FILTER_FORM_ID}
         method="get"
         className="flex flex-wrap items-center gap-2 px-4 py-2 sm:px-6 lg:px-8 xl:px-10"
       >
@@ -171,94 +214,62 @@ export function HotVideosChrome({ categories }: HotVideosChromeProps) {
           categories={categories}
         />
 
-          <select
-            name="source"
-            defaultValue={source ?? 'all'}
-            aria-label="Source"
-            className="h-8 rounded-md border border-input bg-transparent px-2 text-sm"
-          >
-            <option value="all">전체 source</option>
-            <option value="youtube_trending">youtube_trending</option>
-            <option value="keyword_promoted">keyword_promoted</option>
-          </select>
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button
+                type="button"
+                variant={activeAdvancedFilterCount > 0 ? 'secondary' : 'outline'}
+                size="lg"
+              >
+                <RiFilter3Line data-icon="inline-start" />
+                상세 필터
+                {activeAdvancedFilterCount > 0 ? (
+                  <Badge variant="default">{activeAdvancedFilterCount}</Badge>
+                ) : null}
+              </Button>
+            </DialogTrigger>
 
-          <select
-            name="isShort"
-            defaultValue={isShort ?? 'all'}
-            aria-label="쇼츠"
-            className="h-8 rounded-md border border-input bg-transparent px-2 text-sm"
-          >
-            <option value="all">전체 길이</option>
-            <option value="false">롱폼만</option>
-            <option value="true">쇼츠만</option>
-          </select>
+            <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-6xl">
+              <DialogHeader className="border-b border-border px-4 py-3">
+                <DialogTitle>상세 필터</DialogTitle>
+                <DialogDescription>
+                  현재 로드된 결과 기준 분포 · 전체{' '}
+                  {resultTotal.toLocaleString('ko-KR')}건
+                </DialogDescription>
+              </DialogHeader>
 
-          <input
-            type="number"
-            name="minSubscribers"
-            defaultValue={minSubscribers ?? ''}
-            placeholder="최소 구독"
-            aria-label="최소 구독자"
-            className="h-8 w-[110px] rounded-md border border-input bg-transparent px-2 text-sm"
-          />
-          <input
-            type="number"
-            name="maxSubscribers"
-            defaultValue={maxSubscribers ?? ''}
-            placeholder="최대 구독"
-            aria-label="최대 구독자"
-            className="h-8 w-[110px] rounded-md border border-input bg-transparent px-2 text-sm"
-          />
-          <input
-            type="number"
-            name="minViews"
-            defaultValue={minViews ?? ''}
-            placeholder="최소 조회"
-            aria-label="최소 조회수"
-            className="h-8 w-[110px] rounded-md border border-input bg-transparent px-2 text-sm"
-          />
-          <input
-            type="number"
-            name="maxViews"
-            defaultValue={maxViews ?? ''}
-            placeholder="최대 조회"
-            aria-label="최대 조회수"
-            className="h-8 w-[110px] rounded-md border border-input bg-transparent px-2 text-sm"
-          />
+              <div className="overflow-y-auto">
+                <HotVideosFilterPanel
+                  filterStats={filterStats}
+                  source={source}
+                  isShort={isShort}
+                  scoreLogic={scoreLogic}
+                  minSubscribers={minSubscribers}
+                  maxSubscribers={maxSubscribers}
+                  minViews={minViews}
+                  maxViews={maxViews}
+                  publishedAfter={publishedAfter}
+                  publishedBefore={publishedBefore}
+                  performanceGrades={performanceGrades}
+                  contributionGrades={contributionGrades}
+                  minPerformanceGrade={minPerformanceGrade}
+                  minContributionGrade={minContributionGrade}
+                />
+              </div>
 
-          <select
-            name="minPerformanceGrade"
-            defaultValue={minPerformanceGrade ?? 'none'}
-            aria-label="최소 성과"
-            className="h-8 rounded-md border border-input bg-transparent px-2 text-sm"
-          >
-            <option value="none">성과 전체</option>
-            <option value="Normal">성과 Normal+</option>
-            <option value="Good">성과 Good+</option>
-            <option value="Great">성과 Great</option>
-          </select>
-
-          <select
-            name="minContributionGrade"
-            defaultValue={minContributionGrade ?? 'none'}
-            aria-label="최소 기여"
-            className="h-8 rounded-md border border-input bg-transparent px-2 text-sm"
-          >
-            <option value="none">기여 전체</option>
-            <option value="Normal">기여 Normal+</option>
-            <option value="Good">기여 Good+</option>
-            <option value="Great">기여 Great</option>
-          </select>
-
-          <select
-            name="scoreLogic"
-            defaultValue={scoreLogic ?? 'or'}
-            aria-label="점수 조합"
-            className="h-8 rounded-md border border-input bg-transparent px-2 text-sm"
-          >
-            <option value="or">OR</option>
-            <option value="and">AND</option>
-          </select>
+              <DialogFooter className="border-t border-border px-4 py-3">
+                <DialogClose asChild>
+                  <Button type="button" variant="outline" size="lg">
+                    닫기
+                  </Button>
+                </DialogClose>
+                <Button type="submit" form={HOT_VIDEOS_FILTER_FORM_ID} size="lg">
+                  <RiSearchLine data-icon="inline-start" />
+                  필터 적용
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           <input type="hidden" name="view" value={view} />
           {sort ? <input type="hidden" name="sort" value={sort} /> : null}

@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
 import {
   formatCount,
   formatDateLabel,
@@ -29,11 +30,23 @@ function ScoreColumn({
   grade: string;
   value: string;
 }) {
+  const emphasized = grade === 'Good' || grade === 'Great';
+
   return (
-    <div className="flex min-w-0 flex-1 flex-col items-center gap-1 border-r border-border px-2 py-2 text-center last:border-r-0">
+    <div
+      className="group/score flex min-w-0 flex-1 flex-col items-center gap-1 border-r border-border px-2 py-2 text-center last:border-r-0"
+      title={`${label} 점수 ${value}`}
+    >
       <span className="text-[0.625rem] text-muted-foreground">{label}</span>
-      <Badge variant={gradeBadgeVariant(grade)}>{gradeLabelKo(grade)}</Badge>
-      <span className="truncate text-[0.625rem] text-muted-foreground">{value}</span>
+      <Badge
+        variant={gradeBadgeVariant(grade)}
+        className={cn(emphasized && 'h-6 px-2.5 text-xs font-semibold')}
+      >
+        {gradeLabelKo(grade)}
+      </Badge>
+      <span className="truncate text-[0.625rem] text-muted-foreground opacity-0 transition-opacity group-hover/score:opacity-100">
+        {value}
+      </span>
     </div>
   );
 }
@@ -61,17 +74,6 @@ export function HotVideoCard({ row, categoryLabel }: HotVideoCardProps) {
             No thumbnail
           </div>
         )}
-        <Badge className="absolute top-2 right-2 max-w-[140px] truncate" variant="outline">
-          {row.source}
-        </Badge>
-        {categoryLabel ? (
-          <Badge className="absolute right-2 bottom-10" variant="outline">
-            {categoryLabel}
-          </Badge>
-        ) : null}
-        <Badge className="absolute right-2 bottom-2 bg-foreground/80 text-background hover:bg-foreground/80">
-          {formatDuration(video.durationSec)}
-        </Badge>
       </div>
 
       <div className="flex flex-col gap-3 p-3">
@@ -88,7 +90,22 @@ export function HotVideoCard({ row, categoryLabel }: HotVideoCardProps) {
             <p className="mt-1 text-[0.625rem] text-muted-foreground">
               조회 {formatCount(video.metrics.views)}
               <span className="mx-1">·</span>
+              좋아요 {formatCount(video.metrics.likes)}
+              <span className="mx-1">·</span>
+              댓글 {formatCount(video.metrics.comments)}
+              <span className="mx-1">·</span>
+              길이 {formatDuration(video.durationSec)}
+              <span className="mx-1">·</span>
               {formatDateLabel(row.hotDate)}
+            </p>
+            <p className="mt-1 text-[0.625rem] text-muted-foreground">
+              {row.source}
+              {categoryLabel ? (
+                <>
+                  <span className="mx-1">·</span>
+                  {categoryLabel}
+                </>
+              ) : null}
             </p>
           </div>
           <Button variant="outline" size="icon-xs" asChild>
@@ -113,12 +130,6 @@ export function HotVideoCard({ row, categoryLabel }: HotVideoCardProps) {
               영상 {formatCount(channel?.videoCount ?? null)}
             </p>
           </div>
-        </div>
-
-        <div className="flex flex-wrap gap-1">
-          <Badge variant="outline">조회 {formatCount(video.metrics.views)}</Badge>
-          <Badge variant="outline">좋아요 {formatCount(video.metrics.likes)}</Badge>
-          <Badge variant="outline">댓글 {formatCount(video.metrics.comments)}</Badge>
         </div>
 
         <Separator />
@@ -170,9 +181,6 @@ export function HotVideoListRow({
             sizes="112px"
           />
         ) : null}
-        <Badge className="absolute right-1 bottom-1 bg-foreground/80 text-[0.625rem] text-background hover:bg-foreground/80">
-          {formatDuration(video.durationSec)}
-        </Badge>
       </div>
 
       <div className="min-w-0 flex-1">
@@ -190,6 +198,14 @@ export function HotVideoListRow({
               {row.hotDate}
               <span className="mx-1">·</span>
               {row.source}
+              <span className="mx-1">·</span>
+              조회 {formatCount(video.metrics.views)}
+              <span className="mx-1">·</span>
+              좋아요 {formatCount(video.metrics.likes)}
+              <span className="mx-1">·</span>
+              댓글 {formatCount(video.metrics.comments)}
+              <span className="mx-1">·</span>
+              길이 {formatDuration(video.durationSec)}
               {categoryLabel ? (
                 <>
                   <span className="mx-1">·</span>
@@ -214,17 +230,30 @@ export function HotVideoListRow({
           </Avatar>
           <span className="truncate text-xs">{channelTitle}</span>
           <Badge variant="outline">구독 {formatCount(channel?.subscriberCount ?? null)}</Badge>
-          <Badge variant="outline">조회 {formatCount(video.metrics.views)}</Badge>
-          <Badge variant="outline">좋아요 {formatCount(video.metrics.likes)}</Badge>
-          <Badge variant="outline">댓글 {formatCount(video.metrics.comments)}</Badge>
         </div>
       </div>
 
       <div className="flex shrink-0 flex-wrap gap-1 lg:max-w-[280px] lg:justify-end">
-        <Badge variant={gradeBadgeVariant(video.score.contribution.grade)}>
+        <Badge
+          variant={gradeBadgeVariant(video.score.contribution.grade)}
+          className={cn(
+            (video.score.contribution.grade === 'Good' ||
+              video.score.contribution.grade === 'Great') &&
+              'h-6 px-2.5 text-xs font-semibold',
+          )}
+          title={`기여도 점수 ${formatScore(video.score.contribution.ratio)}`}
+        >
           기여 {gradeLabelKo(video.score.contribution.grade)}
         </Badge>
-        <Badge variant={gradeBadgeVariant(video.score.performance.grade)}>
+        <Badge
+          variant={gradeBadgeVariant(video.score.performance.grade)}
+          className={cn(
+            (video.score.performance.grade === 'Good' ||
+              video.score.performance.grade === 'Great') &&
+              'h-6 px-2.5 text-xs font-semibold',
+          )}
+          title={`성과도 점수 ${formatScore(video.score.performance.ratio)}`}
+        >
           성과 {gradeLabelKo(video.score.performance.grade)}
         </Badge>
         <Badge variant="secondary">점수 {formatScore(video.score.adjustedScore)}</Badge>

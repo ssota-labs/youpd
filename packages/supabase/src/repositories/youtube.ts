@@ -212,6 +212,10 @@ export type SearchHotVideosInput = {
   maxSubscribers?: number;
   minViews?: number;
   maxViews?: number;
+  publishedAfter?: string;
+  publishedBefore?: string;
+  performanceGrades?: HotVideoScoreGrade[];
+  contributionGrades?: HotVideoScoreGrade[];
 };
 
 export const HOT_VIDEO_SOURCE_YOUTUBE_TRENDING = 'youtube_trending';
@@ -334,28 +338,61 @@ const contributionRatioSql = sql`case
   else null
 end`;
 
+function gradeRangeClause(
+  ratioSql: SQL,
+  grade: HotVideoScoreGrade,
+): SQL | null {
+  switch (grade) {
+    case 'Worst':
+      return sql`${ratioSql} is not null and ${ratioSql} < 0.1`;
+    case 'Bad':
+      return sql`${ratioSql} >= 0.1 and ${ratioSql} < 1`;
+    case 'Normal':
+      return sql`${ratioSql} >= 1 and ${ratioSql} < 10`;
+    case 'Good':
+      return sql`${ratioSql} >= 10 and ${ratioSql} < 100`;
+    case 'Great':
+      return sql`${ratioSql} >= 100`;
+    case 'Unknown':
+      return sql`${ratioSql} is null`;
+    default:
+      return null;
+  }
+}
+
+function buildGradeListClause(
+  ratioSql: SQL,
+  grades: HotVideoScoreGrade[] | undefined,
+): SQL | null {
+  if (!grades || grades.length === 0) return null;
+
+  const clauses = grades
+    .map((grade) => gradeRangeClause(ratioSql, grade))
+    .filter((clause): clause is SQL => clause != null);
+
+  if (clauses.length === 0) return null;
+  if (clauses.length === 1) return clauses[0]!;
+
+  return or(...clauses) ?? null;
+}
+
 function buildScoreFilterClause(input: {
   minPerformanceGrade?: HotVideoScoreGrade | null;
   minContributionGrade?: HotVideoScoreGrade | null;
+  performanceGrades?: HotVideoScoreGrade[];
+  contributionGrades?: HotVideoScoreGrade[];
   scoreLogic?: HotVideoScoreLogic;
 }): SQL | null {
-  const perfThreshold =
-    input.minPerformanceGrade != null
-      ? minGradeToRatioThreshold(input.minPerformanceGrade)
-      : null;
-  const contribThreshold =
-    input.minContributionGrade != null
-      ? minGradeToRatioThreshold(input.minContributionGrade)
-      : null;
-
   const perfClause =
-    perfThreshold != null
-      ? sql`${performanceRatioSql} >= ${perfThreshold}`
-      : null;
+    buildGradeListClause(performanceRatioSql, input.performanceGrades) ??
+    (input.minPerformanceGrade != null
+      ? sql`${performanceRatioSql} >= ${minGradeToRatioThreshold(input.minPerformanceGrade)}`
+      : null);
   const contribClause =
-    contribThreshold != null
-      ? sql`${contributionRatioSql} >= ${contribThreshold}`
-      : null;
+    buildGradeListClause(contributionRatioSql, input.contributionGrades) ??
+    (input.minContributionGrade != null
+      ? sql`${contributionRatioSql} >= ${minGradeToRatioThreshold(input.minContributionGrade)}`
+      : null);
 
   if (perfClause && contribClause) {
     return input.scoreLogic === 'and'
@@ -808,6 +845,10 @@ function buildHotVideoFilterClauses(input: {
   maxSubscribers?: number;
   minViews?: number;
   maxViews?: number;
+  publishedAfter?: string;
+  publishedBefore?: string;
+  performanceGrades?: HotVideoScoreGrade[];
+  contributionGrades?: HotVideoScoreGrade[];
 }): SQL[] {
   const clauses: SQL[] = [
     eq(youtubeHotVideos.regionCode, input.regionCode ?? 'KR'),
@@ -869,6 +910,17 @@ function buildHotVideoFilterClauses(input: {
   }
   if (input.maxViews != null) {
     clauses.push(lte(youtubeVideos.viewCount, input.maxViews));
+  }
+  if (input.publishedAfter) {
+    clauses.push(gte(youtubeVideos.publishedAt, timestamp(input.publishedAfter)!));
+  }
+  if (input.publishedBefore) {
+    clauses.push(
+      lte(
+        youtubeVideos.publishedAt,
+        timestamp(`${input.publishedBefore}T23:59:59.999Z`)!,
+      ),
+    );
   }
 
   const scoreClause = buildScoreFilterClause(input);

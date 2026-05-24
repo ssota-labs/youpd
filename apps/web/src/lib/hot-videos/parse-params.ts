@@ -1,6 +1,6 @@
 import 'server-only';
 import { SearchStoredHotVideosInputSchema } from '@youpd/api/youtube';
-import { parseHotVideoSort } from './query-string';
+import { normalizeHotVideoCategoryId, parseHotVideoSort } from './query-string';
 import { resolveHotVideoDate } from './today-korea';
 
 export type { HotVideoViewMode, HotVideoSortField, HotVideoSortOrder } from './query-string';
@@ -41,6 +41,27 @@ function pickOptionalGrade(
   return undefined;
 }
 
+function pickOptionalDate(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined;
+}
+
+function pickOptionalGradeList(
+  value: string | undefined,
+): ('Normal' | 'Good' | 'Great' | 'Worst' | 'Bad')[] | undefined {
+  if (!value) return undefined;
+
+  const allowed = new Set(['Worst', 'Bad', 'Normal', 'Good', 'Great']);
+  const grades = value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry): entry is 'Normal' | 'Good' | 'Great' | 'Worst' | 'Bad' =>
+      allowed.has(entry),
+    );
+
+  return grades.length > 0 ? grades : undefined;
+}
+
 export function parseHotVideoSearchParams(
   sp: Record<string, string | string[] | undefined>,
 ) {
@@ -55,12 +76,7 @@ export function parseHotVideoSearchParams(
     q: pickString(sp, 'q') || undefined,
     date: resolveHotVideoDate(pickString(sp, 'date')),
     regionCode: pickString(sp, 'regionCode') || 'KR',
-    categoryId:
-      categoryIdRaw === undefined
-        ? undefined
-        : categoryIdRaw === 'all'
-          ? undefined
-          : categoryIdRaw,
+    categoryId: normalizeHotVideoCategoryId(categoryIdRaw),
     source:
       sourceRaw === undefined || sourceRaw === 'all'
         ? undefined
@@ -82,5 +98,9 @@ export function parseHotVideoSearchParams(
     maxSubscribers: pickOptionalInt(pickString(sp, 'maxSubscribers')),
     minViews: pickOptionalInt(pickString(sp, 'minViews')),
     maxViews: pickOptionalInt(pickString(sp, 'maxViews')),
+    publishedAfter: pickOptionalDate(pickString(sp, 'publishedAfter')),
+    publishedBefore: pickOptionalDate(pickString(sp, 'publishedBefore')),
+    performanceGrades: pickOptionalGradeList(pickString(sp, 'performanceGrades')),
+    contributionGrades: pickOptionalGradeList(pickString(sp, 'contributionGrades')),
   });
 }

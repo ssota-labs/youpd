@@ -24,6 +24,10 @@ export type HotVideoSearchFilters = {
   maxSubscribers?: number;
   minViews?: number;
   maxViews?: number;
+  publishedAfter?: string;
+  publishedBefore?: string;
+  performanceGrades?: ScoreGradeFilter[];
+  contributionGrades?: ScoreGradeFilter[];
 };
 
 export type SearchHotVideosRequest = {

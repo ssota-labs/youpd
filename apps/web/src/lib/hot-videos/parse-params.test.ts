@@ -65,6 +65,53 @@ describe('parseHotVideoSearchParams', () => {
     const parsed = parseHotVideoSearchParams({ categoryId: 'all' });
     expect(parsed.categoryId).toBeUndefined();
   });
+
+  it('treats empty categoryId as undefined categoryId', () => {
+    const parsed = parseHotVideoSearchParams({ categoryId: '' });
+    expect(parsed.categoryId).toBeUndefined();
+  });
+
+  it('normalizes default filter form params without applying restrictive filters', () => {
+    const parsed = parseHotVideoSearchParams({
+      q: '',
+      date: '2026-05-24',
+      categoryId: '',
+      source: 'all',
+      isShort: 'all',
+      minSubscribers: '',
+      maxSubscribers: '',
+      minViews: '',
+      maxViews: '',
+      publishedAfter: '',
+      publishedBefore: '',
+      minPerformanceGrade: 'none',
+      minContributionGrade: 'none',
+      scoreLogic: 'or',
+      view: 'grid',
+    });
+
+    expect(parsed).toMatchObject({
+      date: '2026-05-24',
+      regionCode: 'KR',
+      page: 1,
+      limit: 24,
+    });
+    expect(parsed.q).toBeUndefined();
+    expect(parsed.categoryId).toBeUndefined();
+    expect(parsed.source).toBeUndefined();
+    expect(parsed.isShort).toBeUndefined();
+    expect(parsed.minPerformanceGrade).toBeUndefined();
+    expect(parsed.minContributionGrade).toBeUndefined();
+    expect(parsed.scoreLogic).toBeUndefined();
+    expect(parsed.minSubscribers).toBeUndefined();
+    expect(parsed.maxSubscribers).toBeUndefined();
+    expect(parsed.minViews).toBeUndefined();
+    expect(parsed.maxViews).toBeUndefined();
+    expect(parsed.publishedAfter).toBeUndefined();
+    expect(parsed.publishedBefore).toBeUndefined();
+    expect(parsed.sort).toBeUndefined();
+    expect(parsed.order).toBeUndefined();
+  });
 });
 
 describe('parseHotVideoViewMode', () => {

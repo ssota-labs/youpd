@@ -2,6 +2,7 @@ import 'server-only';
 
 import { cache } from 'react';
 import { listTrendingChartTargets, searchStoredHotVideos } from '@youpd/api/youtube';
+import { buildHotVideoFilterStats } from './filter-stats';
 import { formatDateLabel } from './format';
 import {
   parseHotVideoSearchParams,
@@ -52,6 +53,7 @@ export const loadHotVideoPageData = cache(
       sort,
       order,
       categoryLabels,
+      filterStats: buildHotVideoFilterStats(result.data.videos),
       result,
       statusLabel,
       scoreIncomplete,

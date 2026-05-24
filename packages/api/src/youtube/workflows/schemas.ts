@@ -101,6 +101,10 @@ export const SearchStoredHotVideosInputSchema = z
     maxSubscribers: z.number().int().min(0).optional(),
     minViews: z.number().int().min(0).optional(),
     maxViews: z.number().int().min(0).optional(),
+    publishedAfter: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    publishedBefore: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    performanceGrades: z.array(ScoreGradeFilterSchema).optional(),
+    contributionGrades: z.array(ScoreGradeFilterSchema).optional(),
   })
   .strict();
 export type SearchStoredHotVideosInput = z.infer<
