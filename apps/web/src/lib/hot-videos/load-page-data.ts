@@ -10,17 +10,11 @@ import {
 } from './parse-params';
 
 function buildStatusLabel(input: {
-  date?: string;
-  dateEnd?: string;
+  date: string;
   categoryId?: string | null;
   categoryLabels: Record<string, string>;
 }): string {
-  const datePart =
-    input.date && input.dateEnd
-      ? `${formatDateLabel(input.date)} ~ ${formatDateLabel(input.dateEnd)}`
-      : input.date
-        ? formatDateLabel(input.date)
-        : '전체 기간';
+  const datePart = formatDateLabel(input.date);
 
   const categoryPart = input.categoryId
     ? (input.categoryLabels[input.categoryId] ?? `카테고리 ${input.categoryId}`)
@@ -47,8 +41,7 @@ export const loadHotVideoPageData = cache(
     );
 
     const statusLabel = buildStatusLabel({
-      date: filters.date,
-      dateEnd: filters.dateEnd,
+      date: filters.date!,
       categoryId: filters.categoryId,
       categoryLabels,
     });

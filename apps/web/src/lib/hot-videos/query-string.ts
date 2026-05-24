@@ -61,8 +61,7 @@ export function buildHotVideoSortHref(
     sort?: HotVideoSortField;
     order: HotVideoSortOrder;
     q?: string;
-    date?: string;
-    dateEnd?: string;
+    date: string;
     categoryId?: string | null;
     view: HotVideoViewMode;
   },
@@ -77,7 +76,6 @@ export function buildHotVideoSortHref(
   return `/hot-videos${buildHotVideoQueryString({
     q: current.q,
     date: current.date,
-    dateEnd: current.dateEnd,
     categoryId: current.categoryId ?? undefined,
     view: current.view,
     sort: sortField,

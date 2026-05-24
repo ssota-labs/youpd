@@ -5,13 +5,13 @@ import {
   parseHotVideoSort,
   parseHotVideoViewMode,
 } from './query-string';
+import { getTodayInKorea } from './today-korea';
 
 describe('parseHotVideoSearchParams', () => {
   it('parses filters and defaults', () => {
     const parsed = parseHotVideoSearchParams({
       q: '게임',
       date: '2026-05-20',
-      dateEnd: '2026-05-22',
       categoryId: '20',
       page: '2',
       limit: '12',
@@ -20,12 +20,27 @@ describe('parseHotVideoSearchParams', () => {
     expect(parsed).toMatchObject({
       q: '게임',
       date: '2026-05-20',
-      dateEnd: '2026-05-22',
       regionCode: 'KR',
       categoryId: '20',
       page: 2,
       limit: 12,
     });
+    expect(parsed.dateEnd).toBeUndefined();
+  });
+
+  it('defaults date to today in Korea when missing', () => {
+    const parsed = parseHotVideoSearchParams({});
+    expect(parsed.date).toBe(getTodayInKorea());
+  });
+
+  it('ignores dateEnd and keeps single-day date filter', () => {
+    const parsed = parseHotVideoSearchParams({
+      date: '2026-05-20',
+      dateEnd: '2026-05-22',
+    });
+
+    expect(parsed.date).toBe('2026-05-20');
+    expect(parsed.dateEnd).toBeUndefined();
   });
 
   it('parses sort and order when sort is set', () => {
@@ -74,9 +89,10 @@ describe('buildHotVideoSortHref', () => {
       buildHotVideoSortHref('views', {
         sort: 'views',
         order: 'desc',
+        date: '2026-05-20',
         view: 'grid',
       }),
-    ).toBe('/hot-videos?view=grid&sort=views&order=asc');
+    ).toBe('/hot-videos?date=2026-05-20&view=grid&sort=views&order=asc');
   });
 
   it('defaults to desc when switching sort fields', () => {
@@ -84,9 +100,12 @@ describe('buildHotVideoSortHref', () => {
       buildHotVideoSortHref('subscribers', {
         sort: 'views',
         order: 'asc',
+        date: '2026-05-20',
         view: 'list',
         categoryId: '20',
       }),
-    ).toBe('/hot-videos?categoryId=20&view=list&sort=subscribers&order=desc');
+    ).toBe(
+      '/hot-videos?date=2026-05-20&categoryId=20&view=list&sort=subscribers&order=desc',
+    );
   });
 });

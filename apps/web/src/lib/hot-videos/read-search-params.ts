@@ -6,6 +6,7 @@ import {
   type HotVideoSortOrder,
   type HotVideoViewMode,
 } from './query-string';
+import { resolveHotVideoDate } from './today-korea';
 
 function pickParam(
   searchParams: ReadonlyURLSearchParams,
@@ -17,8 +18,7 @@ function pickParam(
 
 export function readHotVideoUrlState(searchParams: ReadonlyURLSearchParams): {
   q?: string;
-  date?: string;
-  dateEnd?: string;
+  date: string;
   categoryId?: string | null;
   source?: string;
   isShort?: string;
@@ -39,8 +39,7 @@ export function readHotVideoUrlState(searchParams: ReadonlyURLSearchParams): {
 
   return {
     q: pickParam(searchParams, 'q'),
-    date: pickParam(searchParams, 'date'),
-    dateEnd: pickParam(searchParams, 'dateEnd'),
+    date: resolveHotVideoDate(pickParam(searchParams, 'date')),
     categoryId:
       categoryIdRaw === undefined || categoryIdRaw === 'all'
         ? undefined

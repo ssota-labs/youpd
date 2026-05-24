@@ -41,9 +41,9 @@ const SORT_OPTIONS = [
 
 export function HotVideoSortChips() {
   const searchParams = useSearchParams();
-  const { q, date, dateEnd, categoryId, view, sort, order } =
+  const { q, date, categoryId, view, sort, order } =
     readHotVideoUrlState(searchParams);
-  const filterState = { sort, order, q, date, dateEnd, categoryId, view };
+  const filterState = { sort, order, q, date, categoryId, view };
 
   return (
     <div className="flex flex-wrap items-center gap-1">

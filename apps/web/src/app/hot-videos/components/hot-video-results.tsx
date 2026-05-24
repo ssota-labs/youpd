@@ -21,8 +21,7 @@ type HotVideoResultsProps = {
   hasMore: boolean;
   filters: {
     q?: string;
-    date?: string;
-    dateEnd?: string;
+    date: string;
     categoryId?: string | null;
     view: 'grid' | 'list';
     sort?: HotVideoSortField;
@@ -55,7 +54,7 @@ export function HotVideoResults({
           </EmptyMedia>
           <EmptyTitle>조건에 맞는 핫비디오가 없습니다</EmptyTitle>
           <EmptyDescription>
-            날짜 범위, 카테고리, 검색어를 바꿔보세요. 일일 트렌딩 수집 cron이
+            날짜, 카테고리, 검색어를 바꿔보세요. 일일 트렌딩 수집 cron이
             아직 실행되지 않았을 수도 있습니다.
           </EmptyDescription>
         </EmptyHeader>
@@ -71,7 +70,6 @@ export function HotVideoResults({
   const paginationBase = {
     q: filters.q,
     date: filters.date,
-    dateEnd: filters.dateEnd,
     categoryId: filters.categoryId ?? undefined,
     view: filters.view,
     sort: filters.sort,

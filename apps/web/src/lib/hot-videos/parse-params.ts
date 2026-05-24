@@ -1,6 +1,7 @@
 import 'server-only';
 import { SearchStoredHotVideosInputSchema } from '@youpd/api/youtube';
 import { parseHotVideoSort } from './query-string';
+import { resolveHotVideoDate } from './today-korea';
 
 export type { HotVideoViewMode, HotVideoSortField, HotVideoSortOrder } from './query-string';
 export {
@@ -52,8 +53,7 @@ export function parseHotVideoSearchParams(
 
   return SearchStoredHotVideosInputSchema.parse({
     q: pickString(sp, 'q') || undefined,
-    date: pickString(sp, 'date') || undefined,
-    dateEnd: pickString(sp, 'dateEnd') || undefined,
+    date: resolveHotVideoDate(pickString(sp, 'date')),
     regionCode: pickString(sp, 'regionCode') || 'KR',
     categoryId:
       categoryIdRaw === undefined
