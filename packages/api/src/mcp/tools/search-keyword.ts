@@ -21,10 +21,10 @@ export const SearchKeywordInputSchema = z
     max_results: z.number().int().min(1).max(50).default(50),
     /**
      * When set, follow search.list nextPageToken until this many videos are
-     * collected or YouTube returns no further pages (max 500 total).
+     * collected or YouTube returns no further pages (max 1000 total).
      * When omitted, only the first page is fetched (size = max_results).
      */
-    max_total_results: z.number().int().min(1).max(500).optional(),
+    max_total_results: z.number().int().min(1).max(1000).optional(),
     region_code: z.string().length(2).optional(),
     order: z
       .enum(['date', 'rating', 'relevance', 'title', 'videoCount', 'viewCount'])

@@ -45,6 +45,22 @@ describe('SearchKeywordInputSchema', () => {
     expect(parsed.order).toBe('relevance');
     expect(parsed.max_results).toBe(50);
   });
+  it('accepts max_total_results up to 1000', () => {
+    expect(
+      SearchKeywordInputSchema.safeParse({
+        keyword: 'k',
+        max_total_results: 1000,
+      }).success,
+    ).toBe(true);
+  });
+  it('rejects max_total_results above 1000', () => {
+    expect(
+      SearchKeywordInputSchema.safeParse({
+        keyword: 'k',
+        max_total_results: 1001,
+      }).success,
+    ).toBe(false);
+  });
 });
 
 describe('searchKeyword', () => {
