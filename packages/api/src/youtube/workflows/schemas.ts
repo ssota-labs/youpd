@@ -182,3 +182,30 @@ export const ListKeywordHarvestsInputSchema = z
 export type ListKeywordHarvestsInput = z.infer<
   typeof ListKeywordHarvestsInputSchema
 >;
+
+export const SearchKeywordHarvestResultsInputSchema = z
+  .object({
+    harvestId: z.string().uuid(),
+    regionCode: RegionCodeSchema,
+    q: z.string().trim().max(200).optional(),
+    page: z.number().int().min(1).default(1),
+    limit: z.number().int().min(1).max(100).default(24),
+    sort: HotVideoSortFieldSchema.optional(),
+    order: HotVideoSortOrderSchema.optional(),
+    isShort: z.boolean().nullable().optional(),
+    minPerformanceGrade: ScoreGradeFilterSchema.nullable().optional(),
+    minContributionGrade: ScoreGradeFilterSchema.nullable().optional(),
+    scoreLogic: ScoreLogicSchema.optional(),
+    minSubscribers: z.number().int().min(0).optional(),
+    maxSubscribers: z.number().int().min(0).optional(),
+    minViews: z.number().int().min(0).optional(),
+    maxViews: z.number().int().min(0).optional(),
+    publishedAfter: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    publishedBefore: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    performanceGrades: z.array(ScoreGradeFilterSchema).optional(),
+    contributionGrades: z.array(ScoreGradeFilterSchema).optional(),
+  })
+  .strict();
+export type SearchKeywordHarvestResultsInput = z.infer<
+  typeof SearchKeywordHarvestResultsInputSchema
+>;

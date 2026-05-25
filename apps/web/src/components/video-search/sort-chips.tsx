@@ -19,11 +19,12 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { readHotVideoUrlState } from '@/lib/hot-videos/read-search-params';
+import type { VideoSearchFieldConfig } from '@/lib/video-search/config';
+import { readVideoSearchUrlState } from '@/lib/video-search/read-search-params';
 import {
-  buildHotVideoSortHref,
-  type HotVideoSortField,
-} from '@/lib/hot-videos/query-string';
+  buildVideoSearchSortHref,
+  type VideoSearchSortField,
+} from '@/lib/video-search/query-string';
 
 const SORT_OPTIONS = [
   { key: 'views' as const, label: '조회수', icon: RiEyeLine },
@@ -34,12 +35,25 @@ const SORT_OPTIONS = [
   { key: 'videoCount' as const, label: '총 영상 수', icon: RiFilmLine },
   { key: 'publishedAt' as const, label: '게시일', icon: RiCalendarLine },
 ] satisfies ReadonlyArray<{
-  key: HotVideoSortField;
+  key: VideoSearchSortField;
   label: string;
   icon: typeof RiEyeLine;
 }>;
 
-export function HotVideoSortChips() {
+type VideoSearchSortChipsProps = {
+  basePath: string;
+  fields?: VideoSearchFieldConfig;
+};
+
+export function VideoSearchSortChips({
+  basePath,
+  fields = {
+    q: true,
+    date: true,
+    categoryId: true,
+    source: true,
+  },
+}: VideoSearchSortChipsProps) {
   const searchParams = useSearchParams();
   const {
     q,
@@ -61,13 +75,21 @@ export function HotVideoSortChips() {
     view,
     sort,
     order,
-  } =
-    readHotVideoUrlState(searchParams);
+    regionCode,
+  } = readVideoSearchUrlState(searchParams, fields);
+
+  const queryOmit = [
+    ...(fields.date ? [] : ['date']),
+    ...(fields.categoryId ? [] : ['categoryId']),
+    ...(fields.source ? [] : ['source']),
+  ];
+
   const filterState = {
     sort,
     order,
     q,
     date,
+    regionCode,
     categoryId,
     source,
     isShort,
@@ -103,7 +125,14 @@ export function HotVideoSortChips() {
                 aria-label={`${option.label} 정렬${active ? (order === 'asc' ? ' 오름차순' : ' 내림차순') : ''}`}
                 aria-pressed={active}
               >
-                <Link href={buildHotVideoSortHref(option.key, filterState)}>
+                <Link
+                  href={buildVideoSearchSortHref(
+                    basePath,
+                    option.key,
+                    filterState,
+                    queryOmit,
+                  )}
+                >
                   <Icon data-icon="inline-start" />
                   {option.label}
                   {active ? <DirectionIcon data-icon="inline-end" /> : null}

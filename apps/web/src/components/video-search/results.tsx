@@ -13,19 +13,26 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty';
-import { buildHotVideoQueryString, type HotVideoSortField, type HotVideoSortOrder } from '@/lib/hot-videos/query-string';
-import { dedupeHotVideoRows, hotVideoRowKey } from '@/lib/hot-videos/row-key';
-import { HotVideoCard, HotVideoListRow } from './hot-video-card';
+import {
+  buildVideoSearchQueryString,
+  type VideoSearchSortField,
+  type VideoSearchSortOrder,
+} from '@/lib/video-search/query-string';
+import { dedupeHotVideoRows, hotVideoRowKey } from '@/lib/video-search/row-key';
+import { VideoCard, VideoListRow } from './card';
 
-type HotVideoResultsProps = {
+type VideoSearchResultsProps = {
   videos: HotVideoRow[];
   view: 'grid' | 'list';
   categoryLabels: Record<string, string>;
   page: number;
   hasMore: boolean;
+  apiPath: string;
+  resetHref: string;
   filters: {
     q?: string;
-    date: string;
+    date?: string;
+    regionCode?: string;
     categoryId?: string | null;
     source?: string | string[];
     isShort?: string;
@@ -41,9 +48,10 @@ type HotVideoResultsProps = {
     performanceGrades?: string;
     contributionGrades?: string;
     view: 'grid' | 'list';
-    sort?: HotVideoSortField;
-    order?: HotVideoSortOrder;
+    sort?: VideoSearchSortField;
+    order?: VideoSearchSortOrder;
   };
+  queryOmit?: string[];
 };
 
 function categoryLabel(
@@ -54,14 +62,17 @@ function categoryLabel(
   return categoryLabels[categoryId];
 }
 
-export function HotVideoResults({
+export function VideoSearchResults({
   videos,
   view,
   categoryLabels,
   page,
   hasMore,
+  apiPath,
+  resetHref,
   filters,
-}: HotVideoResultsProps) {
+  queryOmit = [],
+}: VideoSearchResultsProps) {
   const [rows, setRows] = useState(() => dedupeHotVideoRows(videos));
   const [nextPage, setNextPage] = useState(page + 1);
   const [canLoadMore, setCanLoadMore] = useState(hasMore);
@@ -95,13 +106,16 @@ export function HotVideoResults({
         const source = Array.isArray(filters.source)
           ? filters.source.join(',')
           : filters.source;
-        const query = buildHotVideoQueryString({
-          ...filters,
-          source,
-          page: nextPage,
-        });
+        const query = buildVideoSearchQueryString(
+          {
+            ...filters,
+            source,
+            page: nextPage,
+          },
+          queryOmit,
+        );
 
-        fetch(`/api/hot-videos${query}`)
+        fetch(`${apiPath}${query}`)
           .then((response) => {
             if (!response.ok) {
               throw new Error(`Failed to load page ${nextPage}`);
@@ -138,7 +152,7 @@ export function HotVideoResults({
       cancelled = true;
       observer.disconnect();
     };
-  }, [canLoadMore, filters, nextPage]);
+  }, [apiPath, canLoadMore, filters, nextPage, queryOmit]);
 
   if (rows.length === 0) {
     return (
@@ -147,15 +161,14 @@ export function HotVideoResults({
           <EmptyMedia variant="icon">
             <RiVideoLine />
           </EmptyMedia>
-          <EmptyTitle>조건에 맞는 핫비디오가 없습니다</EmptyTitle>
+          <EmptyTitle>조건에 맞는 영상이 없습니다</EmptyTitle>
           <EmptyDescription>
-            날짜, 카테고리, 검색어를 바꿔보세요. 일일 트렌딩 수집 cron이
-            아직 실행되지 않았을 수도 있습니다.
+            검색어나 필터를 바꿔보세요.
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
           <Button variant="outline" size="sm" asChild>
-            <Link href="/hot-videos">필터 초기화</Link>
+            <Link href={resetHref}>필터 초기화</Link>
           </Button>
         </EmptyContent>
       </Empty>
@@ -167,7 +180,7 @@ export function HotVideoResults({
       {view === 'grid' ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5">
           {rows.map((row) => (
-            <HotVideoCard
+            <VideoCard
               key={hotVideoRowKey(row)}
               row={row}
               categoryLabel={categoryLabel(categoryLabels, row.categoryId)}
@@ -177,7 +190,7 @@ export function HotVideoResults({
       ) : (
         <div className="flex flex-col gap-2">
           {rows.map((row) => (
-            <HotVideoListRow
+            <VideoListRow
               key={hotVideoRowKey(row)}
               row={row}
               categoryLabel={categoryLabel(categoryLabels, row.categoryId)}
@@ -186,15 +199,24 @@ export function HotVideoResults({
         </div>
       )}
 
-      <div ref={sentinelRef} className="flex min-h-10 items-center justify-center border-t border-border pt-4">
+      <div
+        ref={sentinelRef}
+        className="flex min-h-10 items-center justify-center border-t border-border pt-4"
+      >
         {isLoadingMore ? (
-          <span className="text-xs text-muted-foreground">다음 핫비디오를 불러오는 중...</span>
+          <span className="text-xs text-muted-foreground">
+            다음 영상을 불러오는 중...
+          </span>
         ) : loadError ? (
           <span className="text-xs text-destructive">{loadError}</span>
         ) : canLoadMore ? (
-          <span className="text-xs text-muted-foreground">스크롤하면 더 불러옵니다</span>
+          <span className="text-xs text-muted-foreground">
+            스크롤하면 더 불러옵니다
+          </span>
         ) : (
-          <span className="text-xs text-muted-foreground">모든 결과를 확인했습니다</span>
+          <span className="text-xs text-muted-foreground">
+            모든 결과를 확인했습니다
+          </span>
         )}
       </div>
     </section>

@@ -1,45 +1,47 @@
 import { Suspense } from 'react';
-import { listTrendingChartTargets } from '@youpd/api/youtube';
-import { HotVideoResultsSection } from './components/hot-video-results-section';
-import { HotVideoSortChips } from './components/hot-video-sort-chips';
-import { HotVideoStatusBar } from './components/hot-video-status-bar';
 import {
-  HotVideoChromeSkeleton,
-  HotVideoGridSkeleton,
-  HotVideoStatusBarSkeleton,
-} from './components/hot-video-skeleton';
-import { HotVideosChromeSection } from './components/hot-videos-chrome-section';
+  HotVideosChromeSection,
+  HotVideosResultsSection,
+  HotVideosStatusBarSection,
+} from '@/components/video-search/hot-videos-sections';
+import { VideoSearchSortChips } from '@/components/video-search/sort-chips';
+import {
+  VideoSearchChromeSkeleton,
+  VideoSearchGridSkeleton,
+  VideoSearchStatusBarSkeleton,
+} from '@/components/video-search/skeleton';
+import { HOT_VIDEOS_SEARCH_CONFIG } from '@/lib/video-search/config';
 
 type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 export default function HotVideosPage({ searchParams }: PageProps) {
-  const categories = listTrendingChartTargets({ regionCodes: ['KR'] });
+  const config = HOT_VIDEOS_SEARCH_CONFIG;
 
   return (
     <>
       <div className="border-b border-border bg-background">
-        <Suspense fallback={<HotVideoChromeSkeleton />}>
-          <HotVideosChromeSection
-            categories={categories}
-            searchParams={searchParams}
-          />
+        <Suspense fallback={<VideoSearchChromeSkeleton />}>
+          <HotVideosChromeSection searchParams={searchParams} />
         </Suspense>
 
         <div className="flex flex-col gap-2 border-t border-border px-4 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8 xl:px-10">
-          <Suspense fallback={<HotVideoStatusBarSkeleton />}>
-            <HotVideoStatusBar searchParams={searchParams} />
+          <Suspense fallback={<VideoSearchStatusBarSkeleton />}>
+            <HotVideosStatusBarSection searchParams={searchParams} />
           </Suspense>
           <Suspense fallback={null}>
-            <HotVideoSortChips />
+            <VideoSearchSortChips
+              basePath={config.basePath}
+              fields={config.fields}
+            />
           </Suspense>
         </div>
       </div>
 
       <div className="px-4 py-4 sm:px-6 lg:px-8 xl:px-10">
-        <Suspense fallback={<HotVideoGridSkeleton />}>
-          <HotVideoResultsSection searchParams={searchParams} />
+        <Suspense fallback={<VideoSearchGridSkeleton />}>
+          <HotVideosResultsSection searchParams={searchParams} />
         </Suspense>
       </div>
     </>

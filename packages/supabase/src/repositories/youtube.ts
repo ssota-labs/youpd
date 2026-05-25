@@ -193,17 +193,8 @@ export type HotVideoScoreGrade =
 
 export type HotVideoScoreLogic = 'or' | 'and';
 
-export type SearchHotVideosInput = {
-  regionCode?: string;
-  date?: string | null;
-  dateEnd?: string | null;
-  categoryId?: string | null;
-  source?: string | string[] | null;
+export type SharedVideoFilterInput = {
   q?: string | null;
-  limit?: number;
-  offset?: number;
-  sort?: HotVideoSortField;
-  order?: HotVideoSortOrder;
   isShort?: boolean | null;
   minPerformanceGrade?: HotVideoScoreGrade | null;
   minContributionGrade?: HotVideoScoreGrade | null;
@@ -216,6 +207,36 @@ export type SearchHotVideosInput = {
   publishedBefore?: string;
   performanceGrades?: HotVideoScoreGrade[];
   contributionGrades?: HotVideoScoreGrade[];
+};
+
+export type SearchHotVideosInput = SharedVideoFilterInput & {
+  regionCode?: string;
+  date?: string | null;
+  dateEnd?: string | null;
+  categoryId?: string | null;
+  source?: string | string[] | null;
+  limit?: number;
+  offset?: number;
+  sort?: HotVideoSortField;
+  order?: HotVideoSortOrder;
+};
+
+export type SearchKeywordHarvestResultsInput = SharedVideoFilterInput & {
+  harvestId: string;
+  limit?: number;
+  offset?: number;
+  sort?: HotVideoSortField;
+  order?: HotVideoSortOrder;
+};
+
+export type SearchKeywordHarvestResultsResult = {
+  rows: {
+    result: YouTubeKeywordVideoResultRow;
+    video: YouTubeVideoRow;
+    channel: YouTubeChannelRow | null;
+  }[];
+  total: number;
+  hasMore: boolean;
 };
 
 export const HOT_VIDEO_SOURCE_YOUTUBE_TRENDING = 'youtube_trending';
@@ -830,56 +851,8 @@ export async function upsertChannelMetricSnapshots(
     .returning();
 }
 
-function buildHotVideoFilterClauses(input: {
-  regionCode?: string;
-  date?: string | null;
-  dateEnd?: string | null;
-  categoryId?: string | null;
-  source?: string | string[] | null;
-  q?: string | null;
-  isShort?: boolean | null;
-  minPerformanceGrade?: HotVideoScoreGrade | null;
-  minContributionGrade?: HotVideoScoreGrade | null;
-  scoreLogic?: HotVideoScoreLogic;
-  minSubscribers?: number;
-  maxSubscribers?: number;
-  minViews?: number;
-  maxViews?: number;
-  publishedAfter?: string;
-  publishedBefore?: string;
-  performanceGrades?: HotVideoScoreGrade[];
-  contributionGrades?: HotVideoScoreGrade[];
-}): SQL[] {
-  const clauses: SQL[] = [
-    eq(youtubeHotVideos.regionCode, input.regionCode ?? 'KR'),
-  ];
-
-  if (input.date) {
-    if (input.dateEnd) {
-      clauses.push(gte(youtubeHotVideos.hotDate, input.date));
-      clauses.push(lte(youtubeHotVideos.hotDate, input.dateEnd));
-    } else {
-      clauses.push(eq(youtubeHotVideos.hotDate, input.date));
-    }
-  }
-
-  if (input.categoryId !== undefined) {
-    clauses.push(
-      input.categoryId === null
-        ? sql`${youtubeHotVideos.categoryId} is null`
-        : eq(youtubeHotVideos.categoryId, input.categoryId),
-    );
-  }
-
-  if (input.source != null) {
-    const sources = Array.isArray(input.source) ? input.source : [input.source];
-    const filtered = sources.filter((value) => value.length > 0);
-    if (filtered.length === 1) {
-      clauses.push(eq(youtubeHotVideos.source, filtered[0]!));
-    } else if (filtered.length > 1) {
-      clauses.push(inArray(youtubeHotVideos.source, filtered));
-    }
-  }
+function buildSharedVideoFilterClauses(input: SharedVideoFilterInput): SQL[] {
+  const clauses: SQL[] = [];
 
   const searchTerm = input.q?.trim();
   if (searchTerm) {
@@ -929,12 +902,57 @@ function buildHotVideoFilterClauses(input: {
   return clauses;
 }
 
-function buildHotVideoOrderBy(
-  sort: HotVideoSortField | undefined,
-  order: HotVideoSortOrder = 'desc',
-) {
-  const tieBreak = [desc(youtubeHotVideos.hotDate), asc(youtubeHotVideos.rank)];
+function buildHotVideoFilterClauses(input: SearchHotVideosInput): SQL[] {
+  const clauses: SQL[] = [
+    eq(youtubeHotVideos.regionCode, input.regionCode ?? 'KR'),
+  ];
 
+  if (input.date) {
+    if (input.dateEnd) {
+      clauses.push(gte(youtubeHotVideos.hotDate, input.date));
+      clauses.push(lte(youtubeHotVideos.hotDate, input.dateEnd));
+    } else {
+      clauses.push(eq(youtubeHotVideos.hotDate, input.date));
+    }
+  }
+
+  if (input.categoryId !== undefined) {
+    clauses.push(
+      input.categoryId === null
+        ? sql`${youtubeHotVideos.categoryId} is null`
+        : eq(youtubeHotVideos.categoryId, input.categoryId),
+    );
+  }
+
+  if (input.source != null) {
+    const sources = Array.isArray(input.source) ? input.source : [input.source];
+    const filtered = sources.filter((value) => value.length > 0);
+    if (filtered.length === 1) {
+      clauses.push(eq(youtubeHotVideos.source, filtered[0]!));
+    } else if (filtered.length > 1) {
+      clauses.push(inArray(youtubeHotVideos.source, filtered));
+    }
+  }
+
+  clauses.push(...buildSharedVideoFilterClauses(input));
+
+  return clauses;
+}
+
+function buildKeywordHarvestFilterClauses(
+  input: SearchKeywordHarvestResultsInput,
+): SQL[] {
+  return [
+    eq(youtubeKeywordVideoResults.harvestId, input.harvestId),
+    ...buildSharedVideoFilterClauses(input),
+  ];
+}
+
+function buildVideoOrderBy(
+  sort: HotVideoSortField | undefined,
+  order: HotVideoSortOrder,
+  tieBreak: SQL[],
+) {
   if (!sort) {
     return tieBreak;
   }
@@ -960,18 +978,10 @@ function buildHotVideoOrderBy(
       primary = sql`${youtubeVideos.publishedAt}`;
       break;
     case 'contribution':
-      primary = sql`case
-        when ${youtubeChannels.averageViewCount} > 0
-        then ${youtubeVideos.viewCount}::float / ${youtubeChannels.averageViewCount}
-        else null
-      end`;
+      primary = contributionRatioSql;
       break;
     case 'performance':
-      primary = sql`case
-        when ${youtubeChannels.subscriberCount} > 0
-        then ${youtubeVideos.viewCount}::float / ${youtubeChannels.subscriberCount}
-        else null
-      end`;
+      primary = performanceRatioSql;
       break;
     default:
       return tieBreak;
@@ -981,6 +991,23 @@ function buildHotVideoOrderBy(
     sql`${primary} ${sql.raw(direction)} ${sql.raw(nulls)}`,
     ...tieBreak,
   ];
+}
+
+function buildHotVideoOrderBy(
+  sort: HotVideoSortField | undefined,
+  order: HotVideoSortOrder = 'desc',
+) {
+  return buildVideoOrderBy(sort, order, [
+    desc(youtubeHotVideos.hotDate),
+    asc(youtubeHotVideos.rank),
+  ]);
+}
+
+function buildKeywordHarvestOrderBy(
+  sort: HotVideoSortField | undefined,
+  order: HotVideoSortOrder = 'desc',
+) {
+  return buildVideoOrderBy(sort, order, [asc(youtubeKeywordVideoResults.rank)]);
 }
 
 export async function queryHotVideos(
@@ -1260,6 +1287,38 @@ function kstDayRange(ymd: string): { start: Date; end: Date } {
   return { start, end };
 }
 
+export async function getKeywordHarvestSession(
+  harvestId: string,
+): Promise<KeywordHarvestSessionSummary | null> {
+  const db = getDbClient();
+  const [row] = await db
+    .select()
+    .from(youtubeHarvestSessions)
+    .where(
+      and(
+        eq(youtubeHarvestSessions.id, harvestId),
+        eq(youtubeHarvestSessions.type, 'keyword_search'),
+      ),
+    )
+    .limit(1);
+
+  if (!row) return null;
+
+  const parsed = parseKeywordHarvestQuery(row.query);
+  return {
+    id: row.id,
+    keyword: parsed.keyword,
+    regionCode: parsed.regionCode,
+    searchOrder: parsed.searchOrder,
+    limit: parsed.limit,
+    forceRefresh: parsed.forceRefresh,
+    status: row.status as HarvestStatus,
+    resultCount: row.resultCount,
+    startedAt: row.startedAt,
+    completedAt: row.completedAt,
+  };
+}
+
 export async function listKeywordHarvestSessionsByDate(input: {
   date: string;
   regionCode?: string;
@@ -1361,6 +1420,53 @@ export async function listKeywordHarvestResults(input: {
       promoted: promotedVideoIds.has(row.video.videoId),
     };
   });
+}
+
+export async function searchKeywordHarvestResults(
+  input: SearchKeywordHarvestResultsInput,
+): Promise<SearchKeywordHarvestResultsResult> {
+  const db = getDbClient();
+  const limit = Math.min(Math.max(input.limit ?? 24, 1), 100);
+  const offset = Math.max(input.offset ?? 0, 0);
+  const clauses = buildKeywordHarvestFilterClauses(input);
+
+  const baseQuery = db
+    .select({
+      result: youtubeKeywordVideoResults,
+      video: youtubeVideos,
+      channel: youtubeChannels,
+    })
+    .from(youtubeKeywordVideoResults)
+    .innerJoin(
+      youtubeVideos,
+      eq(youtubeKeywordVideoResults.videoId, youtubeVideos.videoId),
+    )
+    .leftJoin(youtubeChannels, eq(youtubeVideos.channelId, youtubeChannels.channelId))
+    .where(and(...clauses));
+
+  const [countRow] = await db
+    .select({ total: count() })
+    .from(youtubeKeywordVideoResults)
+    .innerJoin(
+      youtubeVideos,
+      eq(youtubeKeywordVideoResults.videoId, youtubeVideos.videoId),
+    )
+    .leftJoin(youtubeChannels, eq(youtubeVideos.channelId, youtubeChannels.channelId))
+    .where(and(...clauses));
+
+  const total = Number(countRow?.total ?? 0);
+  const orderBy = buildKeywordHarvestOrderBy(input.sort, input.order ?? 'desc');
+
+  const rows = await baseQuery
+    .orderBy(...orderBy)
+    .limit(limit)
+    .offset(offset);
+
+  return {
+    rows,
+    total,
+    hasMore: offset + rows.length < total,
+  };
 }
 
 export async function queryPromotableKeywordResults(input: {
