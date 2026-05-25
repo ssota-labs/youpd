@@ -7,9 +7,9 @@ import {
   isPartialGradeSelection,
   resolveInitialGradeSelection,
   serializeGradeSelection,
-} from '@/lib/hot-videos/grade-filter';
-import type { HotVideoFilterBucket } from '@/lib/hot-videos/filter-stats';
-import { gradeLabelKo } from '@/lib/hot-videos/format';
+} from '@/lib/video-search/grade-filter';
+import type { HotVideoFilterBucket } from '@/lib/video-search/filter-stats';
+import { gradeLabelKo } from '@/lib/video-search/format';
 import { cn } from '@/lib/utils';
 
 type FilterGradeCardsProps = {

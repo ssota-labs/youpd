@@ -14,9 +14,9 @@ import {
   formatScore,
   gradeBadgeVariant,
   gradeLabelKo,
-} from '@/lib/hot-videos/format';
+} from '@/lib/video-search/format';
 
-type HotVideoCardProps = {
+type VideoCardProps = {
   row: HotVideoRow;
   categoryLabel?: string;
 };
@@ -51,7 +51,7 @@ function ScoreColumn({
   );
 }
 
-export function HotVideoCard({ row, categoryLabel }: HotVideoCardProps) {
+export function VideoCard({ row, categoryLabel }: VideoCardProps) {
   const video = row.video;
   if (!video) return null;
 
@@ -156,7 +156,7 @@ export function HotVideoCard({ row, categoryLabel }: HotVideoCardProps) {
   );
 }
 
-export function HotVideoListRow({
+export function VideoListRow({
   row,
   categoryLabel,
 }: {

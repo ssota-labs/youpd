@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { searchStoredHotVideos } from '@youpd/api/youtube';
-import { parseHotVideoSearchParams } from '@/lib/video-search/parse-params';
+import { searchKeywordHarvestResults } from '@youpd/api/youtube';
+import { parseKeywordHarvestSearchParams } from '@/lib/video-search/parse-keyword-harvest-params';
 
 function searchParamsToRecord(
   searchParams: URLSearchParams,
@@ -19,10 +19,18 @@ function searchParamsToRecord(
   return result;
 }
 
-export async function GET(request: Request) {
+type RouteContext = {
+  params: Promise<{ harvestId: string }>;
+};
+
+export async function GET(request: Request, context: RouteContext) {
+  const { harvestId } = await context.params;
   const url = new URL(request.url);
-  const filters = parseHotVideoSearchParams(searchParamsToRecord(url.searchParams));
-  const result = await searchStoredHotVideos(filters);
+  const filters = parseKeywordHarvestSearchParams(
+    harvestId,
+    searchParamsToRecord(url.searchParams),
+  );
+  const result = await searchKeywordHarvestResults(filters);
 
   return NextResponse.json({
     page: result.data.page,

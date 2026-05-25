@@ -25,7 +25,7 @@ function GridCardSkeleton() {
   );
 }
 
-export function HotVideoGridSkeleton() {
+export function VideoSearchGridSkeleton() {
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5">
       {Array.from({ length: 10 }).map((_, index) => (
@@ -35,7 +35,7 @@ export function HotVideoGridSkeleton() {
   );
 }
 
-export function HotVideoChromeSkeleton() {
+export function VideoSearchChromeSkeleton() {
   return (
     <>
       <div className="flex items-center justify-between border-b border-border px-4 py-3 sm:px-6 lg:px-8 xl:px-10">
@@ -55,7 +55,7 @@ export function HotVideoChromeSkeleton() {
   );
 }
 
-export function HotVideoStatusBarSkeleton() {
+export function VideoSearchStatusBarSkeleton() {
   return (
     <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
       <Skeleton className="h-5 w-24" />
@@ -64,13 +64,13 @@ export function HotVideoStatusBarSkeleton() {
   );
 }
 
-export function HotVideosPageSkeleton() {
+export function VideoSearchPageSkeleton() {
   return (
     <>
       <div className="border-b border-border bg-background">
-        <HotVideoChromeSkeleton />
+        <VideoSearchChromeSkeleton />
         <div className="flex flex-col gap-2 border-t border-border px-4 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8 xl:px-10">
-          <HotVideoStatusBarSkeleton />
+          <VideoSearchStatusBarSkeleton />
           <div className="flex flex-wrap gap-1">
             {Array.from({ length: 7 }).map((_, index) => (
               <Skeleton key={index} className="h-5 w-20" />
@@ -79,7 +79,7 @@ export function HotVideosPageSkeleton() {
         </div>
       </div>
       <div className="px-4 py-4 sm:px-6 lg:px-8 xl:px-10">
-        <HotVideoGridSkeleton />
+        <VideoSearchGridSkeleton />
       </div>
     </>
   );

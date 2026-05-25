@@ -10,8 +10,8 @@ import {
 } from '@/components/ui/chart';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
-import { formatCompactMetric, formatRangeBound } from '@/lib/hot-videos/format-metric';
-import type { HotVideoMetricRangeStats } from '@/lib/hot-videos/filter-stats';
+import { formatCompactMetric, formatRangeBound } from '@/lib/video-search/format-metric';
+import type { HotVideoMetricRangeStats } from '@/lib/video-search/filter-stats';
 
 type FilterRangeFieldProps = {
   title: string;

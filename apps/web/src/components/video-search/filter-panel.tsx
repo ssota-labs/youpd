@@ -3,16 +3,18 @@
 import { FilterGradeCards } from './filter-grade-cards';
 import { FilterPublishDateField } from './filter-publish-date-field';
 import { FilterRangeField } from './filter-range-field';
-import type { HotVideoFilterStats } from '@/lib/hot-videos/filter-stats';
+import type { HotVideoFilterStats } from '@/lib/video-search/filter-stats';
 import {
   isPartialGradeSelection,
   resolveInitialGradeSelection,
-} from '@/lib/hot-videos/grade-filter';
+} from '@/lib/video-search/grade-filter';
 
-export const HOT_VIDEOS_FILTER_FORM_ID = 'hot-videos-filter-form';
+export const VIDEO_SEARCH_FILTER_FORM_ID = 'video-search-filter-form';
+export const HOT_VIDEOS_FILTER_FORM_ID = VIDEO_SEARCH_FILTER_FORM_ID;
 
-type HotVideosFilterPanelProps = {
+type VideoSearchFilterPanelProps = {
   filterStats: HotVideoFilterStats;
+  showSource?: boolean;
   source?: string;
   isShort?: string;
   scoreLogic?: string;
@@ -28,8 +30,9 @@ type HotVideosFilterPanelProps = {
   minContributionGrade?: string;
 };
 
-export function HotVideosFilterPanel({
+export function VideoSearchFilterPanel({
   filterStats,
+  showSource = true,
   source,
   isShort,
   scoreLogic,
@@ -43,7 +46,7 @@ export function HotVideosFilterPanel({
   contributionGrades,
   minPerformanceGrade,
   minContributionGrade,
-}: HotVideosFilterPanelProps) {
+}: VideoSearchFilterPanelProps) {
   return (
     <div className="flex flex-col gap-4 p-4">
       <div className="grid gap-4 sm:grid-cols-2">
@@ -51,7 +54,7 @@ export function HotVideosFilterPanel({
           title="조회수"
           stats={filterStats.views}
           filterable
-          formId={HOT_VIDEOS_FILTER_FORM_ID}
+          formId={VIDEO_SEARCH_FILTER_FORM_ID}
           minName="minViews"
           maxName="maxViews"
           initialMin={minViews}
@@ -62,7 +65,7 @@ export function HotVideosFilterPanel({
           title="구독자"
           stats={filterStats.subscribers}
           filterable
-          formId={HOT_VIDEOS_FILTER_FORM_ID}
+          formId={VIDEO_SEARCH_FILTER_FORM_ID}
           minName="minSubscribers"
           maxName="maxSubscribers"
           initialMin={minSubscribers}
@@ -70,7 +73,7 @@ export function HotVideosFilterPanel({
         />
         <FilterPublishDateField
           stats={filterStats.publishedAt}
-          formId={HOT_VIDEOS_FILTER_FORM_ID}
+          formId={VIDEO_SEARCH_FILTER_FORM_ID}
           initialAfter={publishedAfter}
           initialBefore={publishedBefore}
         />
@@ -80,7 +83,7 @@ export function HotVideosFilterPanel({
         <FilterGradeCards
           title="기여도"
           buckets={filterStats.contributionGrades}
-          formId={HOT_VIDEOS_FILTER_FORM_ID}
+          formId={VIDEO_SEARCH_FILTER_FORM_ID}
           fieldName="contributionGrades"
           initialGrades={contributionGrades}
           initialMinimum={minContributionGrade}
@@ -89,7 +92,7 @@ export function HotVideosFilterPanel({
         <FilterGradeCards
           title="성과도"
           buckets={filterStats.performanceGrades}
-          formId={HOT_VIDEOS_FILTER_FORM_ID}
+          formId={VIDEO_SEARCH_FILTER_FORM_ID}
           fieldName="performanceGrades"
           initialGrades={performanceGrades}
           initialMinimum={minPerformanceGrade}
@@ -97,25 +100,27 @@ export function HotVideosFilterPanel({
       </div>
 
       <div className="grid gap-3 border-t border-border pt-4 sm:grid-cols-2 lg:grid-cols-4">
-        <label className="flex flex-col gap-1 text-[0.625rem] font-medium text-muted-foreground">
-          Source
-          <select
-            form={HOT_VIDEOS_FILTER_FORM_ID}
-            name="source"
-            defaultValue={source ?? 'all'}
-            aria-label="Source"
-            className="h-8 rounded-md border border-input bg-transparent px-2 text-sm text-foreground"
-          >
-            <option value="all">전체 source</option>
-            <option value="youtube_trending">youtube_trending</option>
-            <option value="keyword_promoted">keyword_promoted</option>
-          </select>
-        </label>
+        {showSource ? (
+          <label className="flex flex-col gap-1 text-[0.625rem] font-medium text-muted-foreground">
+            Source
+            <select
+              form={VIDEO_SEARCH_FILTER_FORM_ID}
+              name="source"
+              defaultValue={source ?? 'all'}
+              aria-label="Source"
+              className="h-8 rounded-md border border-input bg-transparent px-2 text-sm text-foreground"
+            >
+              <option value="all">전체 source</option>
+              <option value="youtube_trending">youtube_trending</option>
+              <option value="keyword_promoted">keyword_promoted</option>
+            </select>
+          </label>
+        ) : null}
 
         <label className="flex flex-col gap-1 text-[0.625rem] font-medium text-muted-foreground">
           Shorts
           <select
-            form={HOT_VIDEOS_FILTER_FORM_ID}
+            form={VIDEO_SEARCH_FILTER_FORM_ID}
             name="isShort"
             defaultValue={isShort ?? 'all'}
             aria-label="쇼츠"
@@ -130,7 +135,7 @@ export function HotVideosFilterPanel({
         <label className="flex flex-col gap-1 text-[0.625rem] font-medium text-muted-foreground">
           점수 조합
           <select
-            form={HOT_VIDEOS_FILTER_FORM_ID}
+            form={VIDEO_SEARCH_FILTER_FORM_ID}
             name="scoreLogic"
             defaultValue={scoreLogic ?? 'or'}
             aria-label="점수 조합"
@@ -144,6 +149,8 @@ export function HotVideosFilterPanel({
     </div>
   );
 }
+
+export const HotVideosFilterPanel = VideoSearchFilterPanel;
 
 export function countActiveAdvancedFilters(input: {
   source?: string;

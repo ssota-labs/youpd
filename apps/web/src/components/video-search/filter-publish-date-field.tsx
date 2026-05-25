@@ -11,8 +11,8 @@ import {
 } from '@/components/ui/chart';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import type { HotVideoPublishDateStats } from '@/lib/hot-videos/filter-stats';
-import { getTodayInKorea } from '@/lib/hot-videos/today-korea';
+import type { HotVideoPublishDateStats } from '@/lib/video-search/filter-stats';
+import { getTodayInKorea } from '@/lib/video-search/today-korea';
 import { cn } from '@/lib/utils';
 
 type FilterPublishDateFieldProps = {

@@ -9,5 +9,6 @@ export * from './list-keyword-harvests';
 export * from './promote-keyword-results-to-hot-videos';
 export * from './run-keyword-search-batch';
 export * from './search-stored-hot-videos';
+export * from './search-keyword-harvest-results';
 export * from './run-keyword-search-analysis';
 export * from './schemas';
