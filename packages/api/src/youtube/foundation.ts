@@ -67,7 +67,7 @@ const RegionCodeSchema = z.string().length(2).default('KR');
 export const SearchYouTubeVideosInputSchema = z
   .object({
     keyword: z.string().min(1).max(200),
-    limit: z.number().int().min(1).max(50).default(50),
+    limit: z.number().int().min(1).max(1000).default(50),
     regionCode: RegionCodeSchema,
     order: z
       .enum(['date', 'rating', 'relevance', 'title', 'videoCount', 'viewCount'])
@@ -424,7 +424,8 @@ export async function searchYouTubeVideos(input: SearchYouTubeVideosInput) {
 
   const raw = await searchKeyword({
     keyword: input.keyword,
-    max_results: input.limit,
+    max_results: Math.min(input.limit, 50),
+    max_total_results: input.limit,
     region_code: input.regionCode,
     order: input.order,
   });

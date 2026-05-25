@@ -32,7 +32,7 @@ export const SearchKeywordWorkflowInputSchema = z
   .object({
     keyword: z.string().min(1).max(200),
     regionCode: RegionCodeSchema,
-    limit: z.number().int().min(1).max(50).default(50),
+    limit: z.number().int().min(1).max(1000).default(50),
     order: z
       .enum(['date', 'rating', 'relevance', 'title', 'videoCount', 'viewCount'])
       .default('relevance'),
@@ -162,7 +162,7 @@ export const RunKeywordSearchBatchInputSchema = z
   .object({
     keywords: z.array(z.string().min(1).max(200)).min(1).max(50),
     regionCode: RegionCodeSchema,
-    limit: z.number().int().min(1).max(50).default(50),
+    limit: z.number().int().min(1).max(1000).default(50),
     order: z
       .enum(['date', 'rating', 'relevance', 'title', 'videoCount', 'viewCount'])
       .default('relevance'),

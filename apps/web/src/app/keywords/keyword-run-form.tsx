@@ -76,7 +76,7 @@ export function KeywordRunForm({ defaultRegionCode }: KeywordRunFormProps) {
               name="limit"
               defaultValue={50}
               min={1}
-              max={50}
+              max={1000}
               className="w-24"
             />
           </label>
