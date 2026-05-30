@@ -14,6 +14,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: [
+      'packages/api/src/**/*.integration.test.ts',
       'packages/supabase/src/**/*.integration.test.ts',
       'apps/admin/src/**/*.integration.test.ts',
       'apps/web/src/**/*.integration.test.ts',
