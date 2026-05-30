@@ -3,8 +3,10 @@ import {
   keywordHarvestSearchConfig,
   type VideoSearchConfig,
 } from '@/lib/video-search/config';
+import { getProbeMetrics } from '@youpd/api/youtube';
 import { loadKeywordHarvestPageData } from '@/lib/video-search/load-keyword-harvest-page-data';
 import { VideoSearchChrome } from './chrome';
+import { ProbeMetricsStrip } from './probe-metrics-strip';
 import { VideoSearchResults } from './results';
 import { VideoSearchStatusBar } from './status-bar';
 
@@ -46,6 +48,18 @@ function buildClientFilters(
     sort,
     order: sort ? order : undefined,
   };
+}
+
+export async function KeywordHarvestMetricsSection({
+  params,
+}: {
+  params: Promise<{ harvestId: string }>;
+}) {
+  const { harvestId } = await params;
+  const result = await getProbeMetrics(harvestId);
+  if (!result.data) return null;
+
+  return <ProbeMetricsStrip harvestId={harvestId} metrics={result.data} />;
 }
 
 export async function KeywordHarvestChromeSection({

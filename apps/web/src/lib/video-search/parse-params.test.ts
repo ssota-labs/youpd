@@ -98,7 +98,7 @@ describe('parseHotVideoSearchParams', () => {
     });
     expect(parsed.q).toBeUndefined();
     expect(parsed.categoryId).toBeUndefined();
-    expect(parsed.source).toBeUndefined();
+    expect(parsed.source).toEqual(['keyword', 'keyword_promoted']);
     expect(parsed.isShort).toBeUndefined();
     expect(parsed.minPerformanceGrade).toBeUndefined();
     expect(parsed.minContributionGrade).toBeUndefined();

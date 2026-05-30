@@ -79,7 +79,7 @@ export function parseHotVideoSearchParams(
     categoryId: normalizeHotVideoCategoryId(categoryIdRaw),
     source:
       sourceRaw === undefined || sourceRaw === 'all'
-        ? undefined
+        ? ['keyword', 'keyword_promoted']
         : sourceRaw.includes(',')
           ? sourceRaw.split(',').map((value) => value.trim()).filter(Boolean)
           : sourceRaw,

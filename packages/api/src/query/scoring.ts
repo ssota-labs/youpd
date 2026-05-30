@@ -104,6 +104,153 @@ export function lengthAdjustedScore(args: {
   };
 }
 
+export const YOUTUBE_SCORE_POLICY_V1 = 'youtube_score_v1' as const;
+export const YOUTUBE_SCORE_POLICY_V2 = 'youtube_score_v2' as const;
+export type YouTubeScorePolicyVersion =
+  | typeof YOUTUBE_SCORE_POLICY_V1
+  | typeof YOUTUBE_SCORE_POLICY_V2;
+
+export type VideoScoreV2 = ScoreBundle & {
+  policyVersion: typeof YOUTUBE_SCORE_POLICY_V2;
+  absoluteViews: {
+    viewCount: number | null;
+    grade: ScoreGrade;
+    multiplier: number;
+  };
+  recency: {
+    daysSincePublish: number | null;
+    score: number | null;
+    label: string | null;
+  };
+  rankScore: number | null;
+};
+
+export function gradeAbsoluteViews(
+  viewCount: number | null,
+  options?: { isShort?: boolean | null },
+): { grade: ScoreGrade; multiplier: number } {
+  if (viewCount == null || !Number.isFinite(viewCount)) {
+    return { grade: 'Unknown', multiplier: 1 };
+  }
+
+  const scale = options?.isShort === true ? 0.2 : 1;
+  const v = viewCount;
+
+  if (v < 10_000 * scale) return { grade: 'Worst', multiplier: 0.7 };
+  if (v < 50_000 * scale) return { grade: 'Bad', multiplier: 0.85 };
+  if (v < 200_000 * scale) return { grade: 'Normal', multiplier: 1 };
+  if (v < 1_000_000 * scale) return { grade: 'Good', multiplier: 1 };
+  return { grade: 'Great', multiplier: 1 };
+}
+
+export function recencyScoreFromPublishedAt(
+  publishedAt: Date | string | null | undefined,
+  now: Date = new Date(),
+): { daysSincePublish: number | null; score: number | null; label: string | null } {
+  if (!publishedAt) {
+    return { daysSincePublish: null, score: null, label: null };
+  }
+  const published =
+    publishedAt instanceof Date ? publishedAt : new Date(publishedAt);
+  if (Number.isNaN(published.getTime())) {
+    return { daysSincePublish: null, score: null, label: null };
+  }
+  const daysSincePublish = Math.max(
+    0,
+    (now.getTime() - published.getTime()) / (24 * 60 * 60 * 1000),
+  );
+  const score = Math.exp(-daysSincePublish / 14);
+  const label =
+    daysSincePublish <= 7
+      ? '최근 1주'
+      : daysSincePublish <= 30
+        ? '최근 1개월'
+        : '이전';
+  return { daysSincePublish, score, label };
+}
+
+export function computeRankScore(bundle: {
+  lengthAdjustment: ScoreBundle['lengthAdjustment'];
+  recencyScore: number | null;
+  absoluteViewMultiplier: number;
+}): number | null {
+  const base = bundle.lengthAdjustment.adjustedScore;
+  if (base == null || !Number.isFinite(base)) return null;
+  const recencyFactor =
+    bundle.recencyScore == null ? 1 : 0.7 + 0.3 * bundle.recencyScore;
+  return base * recencyFactor * bundle.absoluteViewMultiplier;
+}
+
+export function scoreVideoV2(args: {
+  viewCount: number | null;
+  subscriberCount: number | null;
+  averageViewCount: number | null;
+  durationSec: number | null;
+  publishedAt?: Date | string | null;
+  isShort?: boolean | null;
+  now?: Date;
+}): VideoScoreV2 {
+  const base = scoreVideo({
+    viewCount: args.viewCount,
+    subscriberCount: args.subscriberCount,
+    averageViewCount: args.averageViewCount,
+    durationSec: args.durationSec,
+  });
+  const absoluteViews = gradeAbsoluteViews(args.viewCount, {
+    isShort: args.isShort,
+  });
+  const recency = recencyScoreFromPublishedAt(args.publishedAt, args.now);
+  const rankScore = computeRankScore({
+    lengthAdjustment: base.lengthAdjustment,
+    recencyScore: recency.score,
+    absoluteViewMultiplier: absoluteViews.multiplier,
+  });
+
+  return {
+    ...base,
+    policyVersion: YOUTUBE_SCORE_POLICY_V2,
+    absoluteViews: {
+      viewCount: args.viewCount,
+      grade: absoluteViews.grade,
+      multiplier: absoluteViews.multiplier,
+    },
+    recency,
+    rankScore,
+  };
+}
+
+export function buildHotCandidateExplanation(input: {
+  keyword: string;
+  keywordRank: number;
+  performanceGrade: ScoreGrade;
+  contributionGrade: ScoreGrade;
+  viewCount: number | null;
+}): string {
+  const views =
+    input.viewCount != null
+      ? new Intl.NumberFormat('ko-KR').format(input.viewCount)
+      : '—';
+  return `${input.keyword} 검색 풀 #${input.keywordRank}위 · 성과 ${input.performanceGrade} / 기여 ${input.contributionGrade} · 조회수 ${views}`;
+}
+
+export function emptyGradeDistribution(): Record<ScoreGrade, number> {
+  return {
+    Unknown: 0,
+    Worst: 0,
+    Bad: 0,
+    Normal: 0,
+    Good: 0,
+    Great: 0,
+  };
+}
+
+export function incrementGradeDistribution(
+  dist: Record<ScoreGrade, number>,
+  grade: ScoreGrade,
+): void {
+  dist[grade] = (dist[grade] ?? 0) + 1;
+}
+
 export function scoreVideo(args: {
   viewCount: number | null;
   subscriberCount: number | null;
