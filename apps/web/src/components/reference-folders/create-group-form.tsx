@@ -14,7 +14,8 @@ export function CreateReferenceGroupForm() {
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formEl = event.currentTarget;
+    const form = new FormData(formEl);
     setLoading(true);
     setError(null);
     const res = await fetch('/api/reference-groups', {
@@ -34,8 +35,8 @@ export function CreateReferenceGroupForm() {
       setError(payload.error ?? '그룹 생성에 실패했습니다');
       return;
     }
+    formEl.reset();
     router.refresh();
-    event.currentTarget.reset();
   }
 
   return (

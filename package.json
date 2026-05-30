@@ -14,6 +14,7 @@
     "test": "turbo run test",
     "test:integration": "bash scripts/test-integration.sh",
     "test:e2e": "playwright test",
+    "test:e2e:artifacts": "playwright test --reporter=html,list",
     "db:up": "supabase start",
     "db:down": "supabase stop",
     "db:reset": "supabase db reset --local",
