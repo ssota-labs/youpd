@@ -17,6 +17,8 @@ This file is the default entrypoint for coding agents. Use it to understand the 
 
 - YouPD operates under the SSOTA Labs operating system. Follow SSOTA Labs ontology workflows for project, meeting, document, action, entity, stakeholder, and business-unit operations.
 - Product and project planning SSOT: [https://www.notion.so/TV-35e2f1b57fc380e59f84e5ed02c788d1?v=35e2f1b57fc380afac17000cc9357cf7&source=copy_link](https://www.notion.so/TV-35e2f1b57fc380e59f84e5ed02c788d1?v=35e2f1b57fc380afac17000cc9357cf7&source=copy_link), [https://www.notion.so/35e2f1b57fc38072846fd0b29537ec76?v=35e2f1b57fc380afac17000cc9357cf7&source=copy_link](https://www.notion.so/35e2f1b57fc38072846fd0b29537ec76?v=35e2f1b57fc380afac17000cc9357cf7&source=copy_link).
+- **Development task SSOT:** [Notion development task database](https://www.notion.so/paxhumana/55eda245160f43eba0ebe28b71604f89?v=c58d8705594d4e7c8844ab7d98354513) (shared with youpd-skills). Before starting version, phase, feature, PRD, design, or implementation work, read `.cursor/skills/youpd-version-workflow/SKILL.md` and query this database for the current task, dependencies, and linked docs.
+- **Long-form dev docs SSOT:** [유PD 개발 문서](https://www.notion.so/paxhumana/5ac346dac45682cf98ed815c25b32d38) (`collection://b2a346da-c456-8251-a5c9-876afa9c62ef`). Use `.cursor/skills/youpd-dev-docs/SKILL.md` when authoring or updating PRD, 설계, ADR, and related records.
 - Notion is the unified documentation SSOT. Repository docs should stay minimal and operational, acting only as tooling/setup mirrors where local files are required.
 - `.agents/docs/` and `ssota-`* skills define SSOTA Labs ontology workflows as applied to YouPD. Revise them only when they conflict with current project decisions or the SSOTA Labs operating system.
 - Before changing project definitions, specs, task ontology, meeting/action/document workflows, or Notion-linked metadata, read the relevant `ssota-*` skill and use Notion as the source of truth.
@@ -65,7 +67,7 @@ Create nested `AGENTS.md` files for subprojects once a package or app develops l
 - `apps/mcp`: MCP tools and resources (Notion/YouTube workflows, schema/version tools, fetchers). Treat MCP as a **capability layer** with typed contracts; remote transport assumes OAuth and server-side secrets.
 - `packages/agents` (when used): shared domain behavior for tools and policies—no voice-runtime coupling unless the product adds it later.
 - `packages/api`: HTTP/server contracts, route orchestration, request/response schemas, and server-only use cases shared by `apps/web`, `apps/admin`, and `apps/mcp`.
-- `packages/ui`: headless component contracts, shared state machines, design tokens, and web adapters. Do not put product business rules here.
+- `packages/ui`: SSOTA-derived design system (`@youpd/ui`) — tokens in `src/styles/globals.css`, shadcn primitives, `ssota-ui` chrome. See `design/DESIGN.md`. Do not put product business rules here.
 - `packages/db`: Drizzle ORM SSOT: schema definitions, relations, typed queries, generated SQL, and database client factory. Framework- and Supabase-agnostic.
 - `packages/supabase`: implements persistence/auth/storage/realtime ports using Supabase and Drizzle. Do not leak Supabase-specific APIs into domain packages.
 - `packages/types`: shared Zod schemas, DTOs, event types, and branded identifiers.
@@ -135,6 +137,8 @@ Use `.agents/skills/*/SKILL.md` descriptions as the full routing map. Always rea
 
 High-frequency routing:
 
+- Read `youpd-version-workflow` (`.cursor/skills/youpd-version-workflow/SKILL.md`) before starting, continuing, or planning any version/phase/feature task. Query the [Notion development task database](https://www.notion.so/paxhumana/55eda245160f43eba0ebe28b71604f89?v=c58d8705594d4e7c8844ab7d98354513) first; do not plan from repo memory alone.
+- Read `youpd-dev-docs` (`.cursor/skills/youpd-dev-docs/SKILL.md`) when creating or updating PRD, 설계, ADR, or other records in **유PD 개발 문서**.
 - Read `ssota-ontology-setup` before discovering or updating the YouPD Notion SSOT mapping, database IDs, templates, or business-unit/project anchors.
 - Read the relevant `ssota-*` skill before changing project, meeting, document, action, digest, ontology-health, or ontology-extract workflows.
 - Read `mcp-builder` before designing or extending MCP servers, tools, and OAuth-aware remote deployments.

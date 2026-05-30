@@ -23,11 +23,13 @@ Do **not** use this skill for SSOT discovery, database ID mapping, or ontology s
 - **Notion** is the long-term SSOT for YouPD development documents.
 - The **repo** keeps only operationally necessary docs (e.g. `AGENTS.md`, runbooks, code-adjacent READMEs). Do not duplicate full PRDs or design specs in the repo unless the user explicitly asks.
 - Always prefer updating an existing Notion page over creating a duplicate.
+- Before version-scoped doc work (PRD, D3, Spec tied to a release), read `.cursor/skills/youpd-version-workflow/SKILL.md` and query the **development task database** for the active task, dependencies, and linked docs.
 
 ### Canonical references
 
 | Role | Link / ID |
 |------|-----------|
+| Development task database (query before work) | [개발 태스크 DB](https://www.notion.so/paxhumana/55eda245160f43eba0ebe28b71604f89?v=c58d8705594d4e7c8844ab7d98354513) |
 | Documentation operating system (templates, hierarchy) | [프로덕트 오너 \| 문서화 운영체계](https://www.notion.so/paxhumana/368346dac45680789ff6c9859bfa2191) |
 | Target database | [유PD 개발 문서](https://www.notion.so/paxhumana/5ac346dac45682cf98ed815c25b32d38) |
 | Data source | `collection://b2a346da-c456-8251-a5c9-876afa9c62ef` |
@@ -169,6 +171,7 @@ TODO: Add success metrics after stakeholder review; link ADR for tool naming
 
 | Skill | When |
 |-------|------|
+| `youpd-version-workflow` | Select/plan version tasks from the development task database before doc or code work |
 | `ssota-ontology-setup` | Discover or update Notion SSOT mapping, DB IDs, anchors |
 | `notion-cli` | CLI/API operations (`ntn api`, data source queries) |
 | `prd` | PRD content structure and quality bar |
