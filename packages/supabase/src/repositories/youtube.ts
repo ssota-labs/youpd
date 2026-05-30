@@ -1363,6 +1363,7 @@ export async function listKeywordHarvestResults(input: {
   harvestId: string;
   hotDate?: string | null;
   regionCode?: string;
+  videoId?: string;
 }): Promise<KeywordHarvestResultRow[]> {
   const db = getDbClient();
   const rows = await db
@@ -1377,7 +1378,14 @@ export async function listKeywordHarvestResults(input: {
       eq(youtubeKeywordVideoResults.videoId, youtubeVideos.videoId),
     )
     .leftJoin(youtubeChannels, eq(youtubeVideos.channelId, youtubeChannels.channelId))
-    .where(eq(youtubeKeywordVideoResults.harvestId, input.harvestId))
+    .where(
+      input.videoId
+        ? and(
+            eq(youtubeKeywordVideoResults.harvestId, input.harvestId),
+            eq(youtubeKeywordVideoResults.videoId, input.videoId),
+          )
+        : eq(youtubeKeywordVideoResults.harvestId, input.harvestId),
+    )
     .orderBy(asc(youtubeKeywordVideoResults.rank));
 
   const promotedVideoIds = new Set<string>();

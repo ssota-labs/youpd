@@ -168,6 +168,24 @@ export async function getUserKeywordProbe(
   return row ? rowToProbe(row) : null;
 }
 
+export async function getUserKeywordProbeByHarvestId(
+  userId: string,
+  harvestId: string,
+): Promise<UserKeywordProbeRow | null> {
+  const db = getDbClient();
+  const [row] = await db
+    .select()
+    .from(userKeywordProbes)
+    .where(
+      and(
+        eq(userKeywordProbes.userId, userId),
+        eq(userKeywordProbes.linkedHarvestId, harvestId),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
 export async function updateUserKeywordProbe(
   userId: string,
   probeId: string,

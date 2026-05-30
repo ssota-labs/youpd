@@ -146,6 +146,7 @@ export async function KeywordHarvestResultsSection({
       resetHref={config.resetHref ?? config.basePath}
       filters={clientFilters}
       queryOmit={['date', 'categoryId', 'source']}
+      harvestId={harvestId}
     />
   );
 }

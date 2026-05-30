@@ -52,6 +52,8 @@ type VideoSearchResultsProps = {
     order?: VideoSearchSortOrder;
   };
   queryOmit?: string[];
+  /** When set, shows "save to reference" on each video (keyword harvest). */
+  harvestId?: string;
 };
 
 function categoryLabel(
@@ -72,6 +74,7 @@ export function VideoSearchResults({
   resetHref,
   filters,
   queryOmit = [],
+  harvestId,
 }: VideoSearchResultsProps) {
   const [rows, setRows] = useState(() => dedupeHotVideoRows(videos));
   const [nextPage, setNextPage] = useState(page + 1);
@@ -184,6 +187,7 @@ export function VideoSearchResults({
               key={hotVideoRowKey(row)}
               row={row}
               categoryLabel={categoryLabel(categoryLabels, row.categoryId)}
+              harvestId={harvestId}
             />
           ))}
         </div>
@@ -194,6 +198,7 @@ export function VideoSearchResults({
               key={hotVideoRowKey(row)}
               row={row}
               categoryLabel={categoryLabel(categoryLabels, row.categoryId)}
+              harvestId={harvestId}
             />
           ))}
         </div>
