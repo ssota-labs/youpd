@@ -2,11 +2,11 @@
 
 import { useState } from 'react';
 import { Button } from '@youpd/ui/components/ui/button';
-import type { HomeOnboarding } from '@youpd/types';
+import type { HomeFeedResponse, HomeOnboarding } from '@youpd/types';
 
 type OnboardingFormProps = {
   initial?: HomeOnboarding | null;
-  onSaved: () => void;
+  onSaved: (feed: HomeFeedResponse, stubBanner?: boolean) => void;
 };
 
 export function OnboardingForm({ initial, onSaved }: OnboardingFormProps) {
@@ -14,24 +14,73 @@ export function OnboardingForm({ initial, onSaved }: OnboardingFormProps) {
   const [channelDescription, setChannelDescription] = useState(
     initial?.channelDescription ?? '',
   );
+  const [ownChannelUrl, setOwnChannelUrl] = useState('');
+  const [referenceUrls, setReferenceUrls] = useState('');
+  const [excludedTopics, setExcludedTopics] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+
+  function buildPayload() {
+    const referenceChannelUrls = referenceUrls
+      .split(/[\n,]+/)
+      .map((url) => url.trim())
+      .filter(Boolean);
+    const excluded = excludedTopics
+      .split(/[\n,]+/)
+      .map((topic) => topic.trim())
+      .filter(Boolean);
+
+    return {
+      interestTopics,
+      channelDescription,
+      ownChannelUrl: ownChannelUrl.trim() || undefined,
+      referenceChannelUrls,
+      excludedTopics: excluded,
+      preferredRegionCode: 'KR',
+      autoRunHarvest: false,
+    };
+  }
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
     setPending(true);
     try {
+      const payload = buildPayload();
+
+      const generateRes = await fetch('/api/probes/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (generateRes.ok) {
+        const body = (await generateRes.json()) as {
+          feed: HomeFeedResponse;
+          stubBanner?: boolean;
+        };
+        onSaved(body.feed, body.stubBanner);
+        return;
+      }
+
+      if (generateRes.status !== 401) {
+        const body = (await generateRes.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        throw new Error(body?.error ?? `생성 실패 (${generateRes.status})`);
+      }
+
       const res = await fetch('/api/home/onboarding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ interestTopics, channelDescription }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
         throw new Error(body?.error ?? `저장 실패 (${res.status})`);
       }
-      onSaved();
+      const feed = (await res.json()) as HomeFeedResponse;
+      onSaved(feed, feed.source === 'fixture');
     } catch (err) {
       setError(err instanceof Error ? err.message : '저장 실패');
     } finally {
@@ -76,10 +125,45 @@ export function OnboardingForm({ initial, onSaved }: OnboardingFormProps) {
         />
       </label>
 
+      <label htmlFor="own-channel-url" className="mt-3 flex flex-col gap-1 text-sm">
+        <span className="font-medium">내 채널 URL (선택)</span>
+        <input
+          id="own-channel-url"
+          type="url"
+          value={ownChannelUrl}
+          onChange={(e) => setOwnChannelUrl(e.target.value)}
+          placeholder="https://www.youtube.com/@..."
+          className="rounded-md border border-input bg-transparent px-3 py-2"
+        />
+      </label>
+
+      <label htmlFor="reference-urls" className="mt-3 flex flex-col gap-1 text-sm">
+        <span className="font-medium">참고 채널 URL (선택, 쉼표/줄바꿈)</span>
+        <textarea
+          id="reference-urls"
+          rows={2}
+          value={referenceUrls}
+          onChange={(e) => setReferenceUrls(e.target.value)}
+          placeholder="참고할 채널 링크"
+          className="rounded-md border border-input bg-transparent px-3 py-2"
+        />
+      </label>
+
+      <label htmlFor="excluded-topics" className="mt-3 flex flex-col gap-1 text-sm">
+        <span className="font-medium">제외 주제 (선택)</span>
+        <input
+          id="excluded-topics"
+          value={excludedTopics}
+          onChange={(e) => setExcludedTopics(e.target.value)}
+          placeholder="예: 게임, 먹방"
+          className="rounded-md border border-input bg-transparent px-3 py-2"
+        />
+      </label>
+
       {error ? <p className="mt-2 text-sm text-destructive">{error}</p> : null}
 
       <Button type="submit" className="mt-4" disabled={pending}>
-        {pending ? '저장 중…' : '추천 프로브 받기'}
+        {pending ? '생성 중…' : '프로브 추천 받기'}
       </Button>
     </form>
   );

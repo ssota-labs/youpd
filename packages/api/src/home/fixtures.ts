@@ -20,6 +20,7 @@ export function buildFixtureHomeFeed(
         '입력하신 관심 주제와 채널 설명에서 “반복 업무·엑셀” 신호가 강합니다. SEO 검색량이 아니라 레퍼런스 풀 탐색용 프로브입니다.',
       searchStatus: 'ready' as const,
       suggestedKeywords: ['엑셀 자동화', '보고서 자동화', '피벗테이블 매크로'],
+      status: 'draft' as const,
     },
     {
       id: PROBE_2,
@@ -33,6 +34,7 @@ export function buildFixtureHomeFeed(
         '채널 설명의 “기획·운영” 키워드와 맞는 솔루션 인지 단계 프로브입니다.',
       searchStatus: 'not_run' as const,
       suggestedKeywords: ['노션 업무 시스템', '노션 템플릿', '콘텐츠 기획 노션'],
+      status: 'draft' as const,
     },
   ];
 

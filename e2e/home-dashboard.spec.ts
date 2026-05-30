@@ -39,7 +39,7 @@ test.describe('home dashboard', () => {
     await page
       .getByLabel('채널 설명')
       .fill('직장인 생산성·1인 크리에이터 운영 채널');
-    await page.getByRole('button', { name: '추천 프로브 받기' }).click();
+    await page.getByRole('button', { name: '프로브 추천 받기' }).click();
 
     await expect(page.getByText('직장인 엑셀·반복 업무 레퍼런스 풀')).toBeVisible({
       timeout: 15_000,
