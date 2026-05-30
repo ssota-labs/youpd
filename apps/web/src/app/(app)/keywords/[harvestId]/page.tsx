@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import {
   KeywordHarvestChromeSection,
+  KeywordHarvestMetricsSection,
   KeywordHarvestResultsSection,
   KeywordHarvestStatusBarSection,
 } from '@/components/video-search/keyword-harvest-sections';
@@ -42,6 +43,10 @@ export default function KeywordHarvestDetailPage({
           </Suspense>
         </div>
       </div>
+
+      <Suspense fallback={null}>
+        <KeywordHarvestMetricsSection params={params} />
+      </Suspense>
 
       <div className="px-4 py-4 sm:px-6 lg:px-8 xl:px-10">
         <Suspense fallback={<VideoSearchGridSkeleton />}>

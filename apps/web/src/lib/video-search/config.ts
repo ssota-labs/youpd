@@ -11,6 +11,7 @@ export type VideoSearchConfig = {
   basePath: string;
   apiPath: string;
   title: string;
+  description?: string;
   fields: VideoSearchFieldConfig;
   headerExtras?: ReactNode;
   resetHref?: string;
@@ -23,6 +24,8 @@ export const HOT_VIDEOS_SEARCH_CONFIG: Omit<
   basePath: '/hot-videos',
   apiPath: '/api/hot-videos',
   title: 'Hot Videos',
+  description:
+    'YouTube 전체 트렌딩이 아니라, 검색한 키워드 풀 안의 성과 좋은 영상입니다.',
   resetHref: '/hot-videos',
   fields: {
     q: true,

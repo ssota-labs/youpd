@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { gradeRatio, lengthAdjustedScore, minGradeToRatioThreshold, scoreVideo } from './scoring';
+import {
+  buildHotCandidateExplanation,
+  gradeAbsoluteViews,
+  gradeRatio,
+  lengthAdjustedScore,
+  minGradeToRatioThreshold,
+  recencyScoreFromPublishedAt,
+  scoreVideo,
+  scoreVideoV2,
+} from './scoring';
 
 describe('gradeRatio', () => {
   it('uses the ADR-022 logarithmic buckets', () => {
@@ -60,5 +69,55 @@ describe('scoreVideo', () => {
     expect(out.contribution.grade).toBe('Good');
     expect(out.highPerforming).toBe(true);
     expect(out.lengthAdjustment.adjustedScore).toBeGreaterThan(0);
+  });
+});
+
+describe('scoreVideoV2', () => {
+  it('adds absolute views, recency, and rankScore', () => {
+    const publishedAt = new Date('2026-05-20T00:00:00Z');
+    const now = new Date('2026-05-30T00:00:00Z');
+    const out = scoreVideoV2({
+      viewCount: 1_000_000,
+      subscriberCount: 50_000,
+      averageViewCount: 25_000,
+      durationSec: 300,
+      publishedAt,
+      now,
+    });
+    expect(out.policyVersion).toBe('youtube_score_v2');
+    expect(out.absoluteViews.grade).toBe('Great');
+    expect(out.recency.score).toBeGreaterThan(0);
+    expect(out.rankScore).toBeGreaterThan(0);
+    expect(out.highPerforming).toBe(true);
+  });
+
+  it('formats hot candidate explanation in Korean', () => {
+    const summary = buildHotCandidateExplanation({
+      keyword: '엑셀 자동화',
+      keywordRank: 3,
+      performanceGrade: 'Good',
+      contributionGrade: 'Great',
+      viewCount: 120_000,
+    });
+    expect(summary).toContain('엑셀 자동화');
+    expect(summary).toContain('#3위');
+    expect(summary).not.toContain('트렌딩');
+  });
+});
+
+describe('gradeAbsoluteViews', () => {
+  it('uses KR longform thresholds by default', () => {
+    expect(gradeAbsoluteViews(5_000).grade).toBe('Worst');
+    expect(gradeAbsoluteViews(250_000).grade).toBe('Good');
+    expect(gradeAbsoluteViews(2_000_000).grade).toBe('Great');
+  });
+});
+
+describe('recencyScoreFromPublishedAt', () => {
+  it('decays with publish age', () => {
+    const now = new Date('2026-05-30T00:00:00Z');
+    const recent = recencyScoreFromPublishedAt('2026-05-28T00:00:00Z', now);
+    const old = recencyScoreFromPublishedAt('2025-01-01T00:00:00Z', now);
+    expect(recent.score).toBeGreaterThan(old.score ?? 0);
   });
 });

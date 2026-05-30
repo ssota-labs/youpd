@@ -111,8 +111,8 @@ export function VideoSearchFilterPanel({
               className="h-8 rounded-md border border-input bg-transparent px-2 text-sm text-foreground"
             >
               <option value="all">전체 source</option>
-              <option value="youtube_trending">youtube_trending</option>
               <option value="keyword_promoted">keyword_promoted</option>
+              <option value="keyword">keyword</option>
             </select>
           </label>
         ) : null}

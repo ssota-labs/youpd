@@ -181,7 +181,12 @@ export function VideoSearchChrome({
     <>
       <header className="flex items-center justify-between border-b border-border px-4 py-3 sm:px-6 lg:px-8 xl:px-10">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold tracking-tight">{config.title}</span>
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <span className="text-sm font-semibold tracking-tight">{config.title}</span>
+            {config.description ? (
+              <span className="text-xs text-muted-foreground">{config.description}</span>
+            ) : null}
+          </div>
           {q ? (
             <Badge variant="secondary" className="max-w-[240px] truncate">
               {q}
