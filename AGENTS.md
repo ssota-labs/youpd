@@ -178,6 +178,27 @@ Other local URLs (optional): Studio `http://127.0.0.1:54323`, Inbucket/Mailpit `
 
 Still set manually on the main clone (not from Supabase): `YOUTUBE_API_KEY`, `CRON_SECRET`, Notion/OAuth secrets — see root and `apps/*/`.env.example`.
 
+## Cursor Cloud specific instructions
+
+Cloud VMs ship Node 22 at `/exec-daemon/node`. YouPD requires **Node 24** — prepend nvm’s bin dir to `PATH` on every shell session (the VM update script does this before `pnpm install`):
+
+```bash
+export NVM_DIR="$HOME/.nvm"
+. "$NVM_DIR/nvm.sh"
+nvm use 24 2>/dev/null || nvm install 24
+export PATH="$NVM_DIR/versions/node/v24.16.0/bin:$PATH"
+```
+
+**Docker + Supabase (not in the update script):** Local DB/integration/E2E need Docker and the Supabase CLI (`npm install -g supabase`). If `pnpm db:up` reports permission denied on `/var/run/docker.sock`, run `sudo chmod 666 /var/run/docker.sock` (or add the user to the `docker` group and re-login). Then `pnpm db:up` and `pnpm db:reset` before integration tests, E2E, or Hot Videos data.
+
+**Env files (one-time per VM, gitignored):** Copy `.env.example` → `.env.local`, `apps/web/.env.example` → `apps/web/.env.local`, `apps/mcp/.env.example` → `apps/mcp/.env.local`, and add `apps/admin/.env.local` with at least `DATABASE_URL` + `SUPABASE_URL` + `SUPABASE_ANON_KEY` (Next.js 16 only auto-loads `.env*` from each app directory). Fill Supabase keys from the demo JWT table above or `supabase status -o env`. Worktrees on a machine with a main clone can use `pnpm worktree:env` instead.
+
+**Hot Videos demo seed:** After DB reset, `set -a && source .env.local && set +a` then `pnpm --filter @youpd/api exec tsx /workspace/e2e/seed-hot-videos.ts` (absolute path — required when exec cwd is `packages/api`).
+
+**Long-running dev servers:** Use tmux (`tmux -f /exec-daemon/tmux.portal.conf`) — e.g. `pnpm --filter @youpd/web dev` (:3000), `admin` (:3001), `mcp` (:3002). Standard commands: `docs/testing.md`, root `package.json` scripts.
+
+**Known lint noise on `main`:** `@youpd/web` may fail `react-hooks/set-state-in-effect` in `apps/web/src/components/video-search/results.tsx` (pre-existing); typecheck and unit/integration tests still run independently.
+
 ## Setup And Development Commands
 
 The repository may start before the monorepo is scaffolded. Once scaffolded, keep these root commands available:
