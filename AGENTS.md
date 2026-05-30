@@ -296,7 +296,17 @@ nvm use 24 2>/dev/null || nvm install 24
 export PATH="$NVM_DIR/versions/node/v24.16.0/bin:$PATH"
 ```
 
-**Docker + Supabase (not in the update script):** Local DB/integration/E2E need Docker and the Supabase CLI (`npm install -g supabase`). If `pnpm db:up` reports permission denied on `/var/run/docker.sock`, run `sudo chmod 666 /var/run/docker.sock` (or add the user to the `docker` group and re-login). Then `pnpm db:up` and `pnpm db:reset` before integration tests, E2E, or Hot Videos data.
+**Docker + Supabase (not in the update script):** Local DB/integration/E2E need Docker and the Supabase CLI (`npm install -g supabase`). On Cursor Cloud the daemon is often **stopped** even when the CLI is installed — start it before Supabase/E2E:
+
+```bash
+sudo service docker start
+sudo chmod 666 /var/run/docker.sock   # if permission denied on the socket
+docker ps
+```
+
+Then `pnpm db:up` and `pnpm db:reset` before integration tests, E2E, or Hot Videos data. Playwright (`pnpm test:e2e`) calls `supabase status` via `e2e/load-supabase-env.ts` — the stack must be running. After `next dev`, do **not** commit auto-edited `apps/*/next-env.d.ts` (`.next/dev/types/...`); `git restore` those files.
+
+**Automation memory mirror:** `.cursor/automation-memory/MEMORIES.md` (scheduler notes; same Docker/bootstrap content).
 
 **Env files (one-time per VM, gitignored):** Copy `.env.example` → `.env.local`, `apps/web/.env.example` → `apps/web/.env.local`, `apps/mcp/.env.example` → `apps/mcp/.env.local`, and add `apps/admin/.env.local` with at least `DATABASE_URL` + `SUPABASE_URL` + `SUPABASE_ANON_KEY` (Next.js 16 only auto-loads `.env*` from each app directory). Fill Supabase keys from the demo JWT table above or `supabase status -o env`. Worktrees on a machine with a main clone can use `pnpm worktree:env` instead.
 
