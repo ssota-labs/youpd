@@ -7,9 +7,13 @@ import { runKeywordSearchBatchAction } from './actions';
 
 type KeywordRunFormProps = {
   defaultRegionCode: string;
+  defaultKeywords?: string;
 };
 
-export function KeywordRunForm({ defaultRegionCode }: KeywordRunFormProps) {
+export function KeywordRunForm({
+  defaultRegionCode,
+  defaultKeywords,
+}: KeywordRunFormProps) {
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [results, setResults] = useState<
@@ -53,6 +57,7 @@ export function KeywordRunForm({ defaultRegionCode }: KeywordRunFormProps) {
             name="keywords"
             required
             rows={5}
+            defaultValue={defaultKeywords}
             placeholder={'엑셀 자동화\n노션 템플릿\n업무 자동화'}
             className="rounded-md border border-input bg-transparent px-3 py-2 font-mono text-sm"
           />

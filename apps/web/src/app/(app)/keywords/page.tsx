@@ -29,27 +29,31 @@ export default async function KeywordsAdminPage({ searchParams }: PageProps) {
   const sp = await searchParams;
   const date = pickString(sp, 'date') ?? todayYmd();
   const regionCode = pickString(sp, 'regionCode') ?? 'KR';
+  const prefillRaw = pickString(sp, 'prefill');
+  const defaultKeywords = prefillRaw
+    ? decodeURIComponent(prefillRaw)
+        .split(',')
+        .map((k) => k.trim())
+        .filter(Boolean)
+        .join('\n')
+    : undefined;
   const data = await loadKeywordHarvestsAction(date, regionCode);
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-6 sm:px-6 lg:px-8">
       <header className="flex flex-col gap-2">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Keyword Harvest</h1>
-            <p className="text-sm text-muted-foreground">
-              키워드 검색 실행과 날짜별 수집 내역을 관리합니다.
-            </p>
-          </div>
-          <div className="flex items-center gap-3 text-sm">
-            <Link href="/hot-videos" className="text-muted-foreground underline">
-              Hot Videos
-            </Link>
-          </div>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Keyword Harvest</h1>
+          <p className="text-sm text-muted-foreground">
+            키워드 검색 실행과 날짜별 수집 내역을 관리합니다.
+          </p>
         </div>
       </header>
 
-      <KeywordRunForm defaultRegionCode={regionCode} />
+      <KeywordRunForm
+        defaultRegionCode={regionCode}
+        defaultKeywords={defaultKeywords}
+      />
 
       <section className="rounded-lg border border-border bg-card p-4 shadow-sm">
         <form className="mb-4 flex flex-wrap items-end gap-3">

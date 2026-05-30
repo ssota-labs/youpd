@@ -3,5 +3,5 @@ export default function HotVideosLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <div className="min-h-screen bg-background">{children}</div>;
+  return children;
 }
