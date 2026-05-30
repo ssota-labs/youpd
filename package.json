@@ -21,7 +21,9 @@
     "db:push": "node -e \"console.error('drizzle-kit migrate is forbidden by AGENTS.md. Use supabase migration new + pnpm db:reset.'); process.exit(1)\"",
     "youtube:keys:sync": "pnpm --filter @youpd/api youtube:keys:sync",
     "worktree:env": "bash scripts/link-env-from-main.sh",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "storybook": "pnpm --filter @youpd/ui storybook",
+    "build-storybook": "pnpm --filter @youpd/ui build-storybook"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.0",

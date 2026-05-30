@@ -8,9 +8,9 @@ import {
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
-} from '@/components/ui/chart';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+} from '@youpd/ui/components/ui/chart';
+import { Button } from '@youpd/ui/components/ui/button';
+import { Input } from '@youpd/ui/components/ui/input';
 import type { HotVideoPublishDateStats } from '@/lib/video-search/filter-stats';
 import { getTodayInKorea } from '@/lib/video-search/today-korea';
 import { cn } from '@/lib/utils';
@@ -92,7 +92,6 @@ export function FilterPublishDateField({
       <ChartContainer
         config={publishChartConfig}
         className="aspect-auto h-20 w-full"
-        initialDimension={{ width: 320, height: 80 }}
       >
         <LineChart
           accessibilityLayer

@@ -1,0 +1,45 @@
+---
+description: YouPD UI — SSOTA-derived tokens and @youpd/ui components
+globs: apps/web/**/*.{tsx,css}, apps/admin/**/*.{tsx,css}, packages/ui/**/*
+alwaysApply: false
+---
+
+# YouPD UI (SSOTA design system)
+
+## Tokens
+
+- Colors, radius, shadows: `packages/ui/src/styles/globals.css` only.
+- Canvas/block palette: `packages/ui/src/lib/style-tokens.ts` (`ColorToken`, `TAILWIND_COLOR_PALETTE`).
+- Do not introduce one-off hex/oklch in app components.
+
+## Imports
+
+```tsx
+// ✅
+import { Button } from "@youpd/ui/components/ui/button";
+import { cn } from "@youpd/ui/lib/utils";
+
+// ❌ — do not add new files under apps/*/src/components/ui
+import { Button } from "@/components/ui/button";
+```
+
+## Style rules
+
+- Primary actions: `Button` variant `default` (coral primary + `shadow-xs`).
+- Toolbar / canvas: prefer `ssota-ui` (`ToolbarContainer`, `ToolbarIconButton`).
+- Radius: `rounded-md` for controls; match `--radius` (0.75rem), not arbitrary `rounded-lg` on buttons.
+- Spacing: `gap-2` / `gap-4` for toolbars; `p-6` for empty/card interiors.
+- Icons: Lucide in shared UI; Remix Icon only where YouPD pages already use `@remixicon/react`.
+
+## shadcn
+
+- Registry config: `packages/ui/components.json` (style: **new-york**, cssVariables: true).
+- Add components to `packages/ui`, not `apps/web`.
+
+## Storybook
+
+Run `pnpm storybook` (or `pnpm --filter @youpd/ui storybook`) — port **6006**. Add stories under `packages/ui/src/stories/`.
+
+## Reference
+
+Human-readable catalog: `design/DESIGN.md`.

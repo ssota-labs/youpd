@@ -1,4 +1,4 @@
-import { Skeleton } from '@/components/ui/skeleton';
+import { Skeleton } from '@youpd/ui/components/ui/skeleton';
 
 function GridCardSkeleton() {
   return (

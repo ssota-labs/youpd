@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Button } from '@youpd/ui/components/ui/button';
+import { Input } from '@youpd/ui/components/ui/input';
 import { runKeywordSearchBatchAction } from './actions';
 
 type KeywordRunFormProps = {
