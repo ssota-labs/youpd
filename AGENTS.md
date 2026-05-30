@@ -23,6 +23,94 @@ This file is the default entrypoint for coding agents. Use it to understand the 
 - `.agents/docs/` and `ssota-`* skills define SSOTA Labs ontology workflows as applied to YouPD. Revise them only when they conflict with current project decisions or the SSOTA Labs operating system.
 - Before changing project definitions, specs, task ontology, meeting/action/document workflows, or Notion-linked metadata, read the relevant `ssota-*` skill and use Notion as the source of truth.
 
+## Development SSOT And Agentic Workflow
+
+**Notion is the source of truth for how we build YouPD.** The repository holds code; Notion holds tasks, specs, policies, and decisions. Git history alone does not capture reasoning.
+
+### Git branches
+
+| Branch | Role |
+|---|---|
+| **`main`** | Release line. Human promotion only — **agents must never auto-merge here**. |
+| **`dev`** | Integration branch. All agent PRs target `dev`. Guarded auto-merge allowed when gates pass. |
+
+Repo: `ssota-labs/youpd`. Start feature branches from latest `main`; open PRs with **base `dev`**.
+
+### Development router (read first)
+
+For **any** development request (work, reconciliation, docs, implementation, scheduler tick), start here. Skills are not auto-loaded every turn; this section is the always-on gate.
+
+#### Step 0 — Notion (mandatory)
+
+1. Confirm **Notion MCP** is connected. If not, stop — do not plan or code from memory.
+2. Load context from the [development task database](https://www.notion.so/paxhumana/55eda245160f43eba0ebe28b71604f89?v=c58d8705594d4e7c8844ab7d98354513):
+   - User named a task → fetch that row.
+   - Otherwise → identify in-progress or next eligible row; confirm in one line before proceeding.
+3. Docs database: `https://www.notion.so/paxhumana/5ac346dac45682cf98ed815c25b32d38`
+
+#### Step 1 — De-dupe and conflict-first
+
+Before picking new work, check:
+
+- Open PRs to `dev`: `gh pr list --base dev --state open`
+- In-progress Notion tasks with overlapping scope
+- Dirty worktree or unresolved merge conflicts on task branches
+- Recent automation run notes on active tasks
+
+**Priority:** resolve conflicts / finish in-flight PRs / P0 reconciliation **before** starting new features.
+
+#### Step 2 — Classify intent
+
+| User / scheduler says | Intent | Read skill |
+|---|---|---|
+| 정합성 체크, reconciliation, drift audit | `reconcile` | `.cursor/skills/youpd-reconciliation/SKILL.md` |
+| 작업 진행, continue task, implement | `work` | Step 3 |
+| PRD, 설계, Blueprint, Policy, ADR | `document` | `.cursor/skills/youpd-documentation-workflow/SKILL.md` |
+
+**Reconcile default scope:** entire development task database (all `상태`), `dev` at current HEAD — unless the user narrowed scope.
+
+#### Step 3 — `work` branch
+
+Use the loaded task’s `작업 유형`:
+
+| Route | Read skill |
+|---|---|
+| PRD 작성, 설계 작성, 상세 로드맵 작성 | `.cursor/skills/youpd-documentation-workflow/SKILL.md` |
+| 구현, 검증 | `.cursor/skills/youpd-implementation-workflow/SKILL.md` |
+
+Small Spec/Policy patches (single topic, same PR) → implementation skill close-out, not documentation skill.
+
+#### Scheduler loop (Cursor Automation)
+
+When running on a schedule (e.g. every 5 minutes):
+
+1. Notion gate (Step 0)
+2. De-dupe / conflict-first (Step 1)
+3. If P0 reconciliation → run reconcile skill; do not start new IMPL
+4. Else resume in-progress task/PR or pick next eligible `대기` task with satisfied dependencies
+5. Route to documentation or implementation skill
+6. At close-out, **guarded merge to `dev` only** when all merge gates pass (see below)
+
+Do **not** enable the scheduler until `dev` merge preflight has passed (write access + successful test merge).
+
+#### Guarded merge policy (`dev` only)
+
+Merge a PR to **`dev`** when **all** apply:
+
+- PR base branch is `dev` (never `main`)
+- CI/checks green (or no required checks configured)
+- No merge conflicts
+- No open P0 reconciliation for the task
+- No secrets, service keys, or destructive git/db operations in the diff
+
+If merge fails (permissions, branch rules, conflicts), stop and report — fix rules/permissions before continuing the scheduler.
+
+**Policy SSOT:** Notion doc *YouPD Agentic Workflow Policy* (`태그`: `정책`).
+
+### Search before you build
+
+Search Notion for related tasks, ADRs, specs, and policies before creating duplicates.
+
 ## Required Runtime And Versions
 
 Use the current stable ecosystem unless a task explicitly requires otherwise.
@@ -137,8 +225,12 @@ Use `.agents/skills/*/SKILL.md` descriptions as the full routing map. Always rea
 
 High-frequency routing:
 
-- Read `youpd-version-workflow` (`.cursor/skills/youpd-version-workflow/SKILL.md`) before starting, continuing, or planning any version/phase/feature task. Query the [Notion development task database](https://www.notion.so/paxhumana/55eda245160f43eba0ebe28b71604f89?v=c58d8705594d4e7c8844ab7d98354513) first; do not plan from repo memory alone.
-- Read `youpd-dev-docs` (`.cursor/skills/youpd-dev-docs/SKILL.md`) when creating or updating PRD, 설계, ADR, or other records in **유PD 개발 문서**.
+- Follow **Development SSOT And Agentic Workflow** above before any substantive work. Query the [Notion development task database](https://www.notion.so/paxhumana/55eda245160f43eba0ebe28b71604f89?v=c58d8705594d4e7c8844ab7d98354513) first; do not plan from repo memory alone.
+- Read `youpd-reconciliation` when running 정합성 checks or before starting IMPL after drift.
+- Read `youpd-documentation-workflow` for Blueprint, PRD, D3, Policy, ADR tasks.
+- Read `youpd-implementation-workflow` for 구현/검증, PR workflow, and guarded merge to `dev`.
+- Read `youpd-dev-docs` when creating or updating records in **유PD 개발 문서** (authoring details).
+- `youpd-version-workflow` is a deprecated compatibility alias — prefer the three workflow skills above.
 - Read `ssota-ontology-setup` before discovering or updating the YouPD Notion SSOT mapping, database IDs, templates, or business-unit/project anchors.
 - Read the relevant `ssota-*` skill before changing project, meeting, document, action, digest, ontology-health, or ontology-extract workflows.
 - Read `mcp-builder` before designing or extending MCP servers, tools, and OAuth-aware remote deployments.

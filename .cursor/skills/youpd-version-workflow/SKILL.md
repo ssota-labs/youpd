@@ -1,9 +1,33 @@
 ---
 name: youpd-version-workflow
-description: Guides YouPD version work from the Notion development task database. Use when the user asks to start, continue, identify, plan, or implement a YouPD phase/version task from Notion, mentions the YouPD development task database, or asks to work on the next version. Also use before any substantive feature, implementation, PRD, or design work when task context is unclear.
+description: Deprecated router alias — use AGENTS.md Development router first, then youpd-reconciliation, youpd-documentation-workflow, or youpd-implementation-workflow. Kept for backward compatibility with slash commands and older rules.
 ---
 
-# YouPD Version Workflow
+# YouPD Version Workflow (router alias)
+
+> **Prefer `AGENTS.md` → Development SSOT And Agentic Workflow** for all new work. This file is a thin compatibility wrapper; detailed procedures live in the specialized skills below.
+
+## Read first (mandatory)
+
+1. **`AGENTS.md`** — Development router (Notion gate, scheduler loop, de-dupe, merge policy).
+2. Query the [development task database](https://www.notion.so/paxhumana/55eda245160f43eba0ebe28b71604f89?v=c58d8705594d4e7c8844ab7d98354513).
+
+## Route to specialized skills
+
+| Intent | Skill |
+|---|---|
+| 정합성, reconciliation, drift | `.cursor/skills/youpd-reconciliation/SKILL.md` |
+| PRD, D3, Blueprint, Policy, ADR docs | `.cursor/skills/youpd-documentation-workflow/SKILL.md` |
+| 구현, 검증, PR to `dev` | `.cursor/skills/youpd-implementation-workflow/SKILL.md` |
+| Notion doc authoring details | `.cursor/skills/youpd-dev-docs/SKILL.md` |
+
+## Legacy reference
+
+The sections below remain for agents that still load this skill directly. New edits belong in the specialized skills or `AGENTS.md`.
+
+---
+
+# YouPD Version Workflow (legacy body)
 
 Use this skill to select and execute the next **YouPD (유피디)** development unit from the Notion task database.
 
