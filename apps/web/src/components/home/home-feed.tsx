@@ -10,15 +10,22 @@ import { SystemStatusPanel } from './system-status';
 export function HomeFeed({ initial }: { initial: HomeFeedResponse }) {
   const [feed, setFeed] = useState(initial);
   const [editing, setEditing] = useState(false);
+  const [stubBanner, setStubBanner] = useState(initial.source === 'fixture');
   const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
+
+  const applyFeed = useCallback((data: HomeFeedResponse, showStub?: boolean) => {
+    setFeed(data);
+    setEditing(false);
+    if (showStub !== undefined) setStubBanner(showStub);
+    else if (data.source === 'fixture') setStubBanner(true);
+  }, []);
 
   const reloadFeed = useCallback(async () => {
     const res = await fetch('/api/home/feed');
     if (!res.ok) return;
     const data = (await res.json()) as HomeFeedResponse;
-    setFeed(data);
-    setEditing(false);
-  }, []);
+    applyFeed(data);
+  }, [applyFeed]);
 
   const visibleCandidates = useMemo(
     () => feed.candidates.filter((c) => !dismissed.has(c.id)),
@@ -38,6 +45,13 @@ export function HomeFeed({ initial }: { initial: HomeFeedResponse }) {
 
       <SystemStatusPanel status={feed.systemStatus} source={feed.source} />
 
+      {stubBanner && feed.source !== 'live' ? (
+        <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+          AI 추천 미설정 — 규칙 기반 샘플 프로브를 표시합니다. 수동 프로브 추가와 검색
+          실행은 계속 사용할 수 있습니다.
+        </p>
+      ) : null}
+
       {feed.onboarding && !editing ? (
         <div className="flex flex-wrap items-center gap-2 rounded-md border border-dashed border-border px-3 py-2 text-sm">
           <span className="text-muted-foreground">저장된 맥락:</span>
@@ -49,7 +63,7 @@ export function HomeFeed({ initial }: { initial: HomeFeedResponse }) {
       ) : null}
 
       {showOnboarding ? (
-        <OnboardingForm initial={feed.onboarding} onSaved={reloadFeed} />
+        <OnboardingForm initial={feed.onboarding} onSaved={applyFeed} />
       ) : feed.probes.length === 0 ? (
         <p className="text-sm text-muted-foreground">추천 프로브가 없습니다. 맥락을 수정해 보세요.</p>
       ) : (
@@ -62,6 +76,7 @@ export function HomeFeed({ initial }: { initial: HomeFeedResponse }) {
               onDismissCandidate={(id) =>
                 setDismissed((prev) => new Set(prev).add(id))
               }
+              onProbeDismissed={reloadFeed}
             />
           ))}
         </div>
