@@ -55,7 +55,9 @@ After every reconciliation run, create **one** page in [유PD 개발 문서](htt
 
 ### 4. Report back in chat
 
-Share the Notion URL, P0/P1 counts, top fixes, and suggested task moves (`보류` / doc tasks). Do **not** set tasks to `완료` unless the user asked.
+Share the Notion URL, P0/P1 counts, top fixes, and task status updates applied.
+
+When this run is closing out a dedicated **검증** or reconciliation task row, set that task to **`완료`** after the Notion log is filed — do not ask the user. For drift found on other rows, apply **`보류`** or doc/IMPL fix tasks directly when the fix is unambiguous; otherwise note in the reconciliation log only.
 
 ## P0 policy
 

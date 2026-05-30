@@ -2,16 +2,16 @@
 
 ## Project
 
-**YouPD (유피디)** is a YouTube planning and production workflow product: Notion-backed operating pages and databases, YouTube Data API capture, and agent-facing **MCP** tools. Remote MCP runs with **OAuth**; a **Next.js** app hosts **API routes** (callbacks, metering, orchestration) and sits alongside **Supabase** for durable account data—profiles, plans, usage counters, and rate limits.
+**YouPD (유피디)** is a YouTube planning and production workflow product moving toward a **web SaaS** surface first: Next.js app, YouTube Data API capture, Supabase for account data (profiles, plans, usage counters, rate limits), and optional Notion-backed operating pages for the product workspace.
 
-Ground product and MCP behavior in these local specs (Notion SSOT remains authoritative for long-form history):
+Ground product behavior in these local specs (Notion SSOT remains authoritative for long-form history):
 
 - `docs/유피디 — 유튜브 기획 제작 커스텀 에이전트 기획안 c29d45781454451ea58ed4677b23e946.md`
-- `docs/뷰트랩 자체 구축 설계 — Notion DB + YouTube API + MCP c478864759b447d7aa2c2065f5547232.md`
+- `docs/뷰트랩 자체 구축 설계 — Notion DB + YouTube API + MCP c478864759b447d7aa2c2065f5547232.md` (historical; MCP/worker scope deferred — see Out of scope)
 
 This file is the default entrypoint for coding agents. Use it to understand the stack, package boundaries, architectural rules, and which `.agents/skills/`* skill to read before work.
 
-**Out of scope for now:** native mobile apps (Expo), device voice runtimes, and ElevenLabs-specific voice agent hosting. Reintroduce only when the product explicitly needs them.
+**Out of scope for now:** native mobile apps (Expo), device voice runtimes, ElevenLabs-specific voice agent hosting, **`apps/mcp`** (remote MCP server, OAuth transport, MCP tools), and **Notion Workers** (`@notionhq/workers`, worker deploy/sync). Reintroduce only when the product explicitly needs them. Agent work should focus on **`apps/web`**, shared **`packages/*`**, and Supabase—not MCP or worker code paths unless the user asks.
 
 ## Source Of Truth
 
@@ -42,10 +42,10 @@ For **any** development request (work, reconciliation, docs, implementation, sch
 
 #### Step 0 — Notion (mandatory)
 
-1. Confirm **Notion MCP** is connected. If not, stop — do not plan or code from memory.
+1. Confirm **Notion** is reachable for the development task DB (Notion plugin, CLI, or user-provided task context). If not, stop — do not plan or code from memory.
 2. Load context from the [development task database](https://www.notion.so/paxhumana/55eda245160f43eba0ebe28b71604f89?v=c58d8705594d4e7c8844ab7d98354513):
    - User named a task → fetch that row.
-   - Otherwise → identify in-progress or next eligible row; confirm in one line before proceeding.
+   - Otherwise → identify in-progress or next eligible row; state the selected task ID in the run report and proceed without waiting for user confirmation.
 3. Docs database: `https://www.notion.so/paxhumana/5ac346dac45682cf98ed815c25b32d38`
 
 #### Step 1 — De-dupe and conflict-first
@@ -87,11 +87,29 @@ When running on a schedule (e.g. every 5 minutes):
 1. Notion gate (Step 0)
 2. De-dupe / conflict-first (Step 1)
 3. If P0 reconciliation → run reconcile skill; do not start new IMPL
-4. Else resume in-progress task/PR or pick next eligible `대기` task with satisfied dependencies
-5. Route to documentation or implementation skill
-6. At close-out, **guarded merge to `dev` only** when all merge gates pass (see below)
+4. Else resume only in-progress task/PR work whose dependencies are satisfied, or pick the next eligible `대기` task with satisfied dependencies
+5. If no dependency-ready in-progress or `대기` task exists, **no-op for this tick**: report "no eligible dependency-ready work" if a report is required, and do not force work, bypass dependencies, or start speculative tasks
+6. Route selected work to documentation or implementation skill
+7. At close-out, **guarded merge to `dev` only** when all merge gates pass (see below)
+8. **Autonomous task completion (CRITICAL)** — when close-out gates pass, set the task `상태` to **`완료`** in Notion immediately. Do **not** ask the user for approval, propose completion, or leave the task in `진행중` waiting for human sign-off. Skipping this **blocks all downstream `종속성` tasks** and stops the scheduler until fixed.
 
 Do **not** enable the scheduler until `dev` merge preflight has passed (write access + successful test merge).
+
+#### Autonomous task completion (all agent runs) — **CRITICAL**
+
+**This step is load-bearing.** The development task DB uses `종속성` / `Blocked by` to gate every downstream task. Implementation and documentation gates require predecessor rows to be **`완료`** with artifacts present (doc on Notion or code on `dev`). If an agent finishes work but leaves the row in `진행중` or `대기`, or only *proposes* `완료` and waits for a human, **no later task becomes dependency-ready**, the scheduler **no-ops on every tick**, and the **entire agentic pipeline stops** — even when PRs are merged and docs are written. There is no parallel bypass. **Always set `완료` when close-out gates pass.**
+
+Agents run **end-to-end without human approval**. Apply Notion updates directly; never "propose" status changes and wait.
+
+| `작업 유형` | Set `완료` when |
+|---|---|
+| **PRD 작성 / 설계 작성 / 상세 로드맵 작성** | Linked doc in docs DB is non-empty, correct `태그`, linked via `관련 문서`, and task acceptance criteria are met |
+| **구현** | Implementation gate passed; verify commands passed; PR merged to `dev` (or no code change required and deliverable recorded) |
+| **검증** | Verification plan executed; no P0 findings for this task; required E2E/integration evidence captured per testing policy |
+
+If close-out gates fail, set `보류` with a blocker note on the task page — do **not** ask the user what to do next. The next scheduler tick resumes or no-ops.
+
+**Never** block the dependency chain by leaving a finished task in `진행중` or `대기`.
 
 #### Guarded merge policy (`dev` only)
 
@@ -124,17 +142,16 @@ Use the current stable ecosystem unless a task explicitly requires otherwise.
 - Styling: Tailwind CSS 4. Use shadcn/ui for web primitives.
 - Auth, database, storage, realtime: Supabase, with Drizzle ORM as the schema/query SSOT.
 
-Before adding or upgrading dependencies, check package registries and product docs. Do not rely on memory for rapidly changing packages such as Next.js, Supabase, Drizzle, Tailwind, shadcn/ui, MCP-related SDKs, or Zod.
+Before adding or upgrading dependencies, check package registries and product docs. Do not rely on memory for rapidly changing packages such as Next.js, Supabase, Drizzle, Tailwind, shadcn/ui, or Zod.
 
 ## Target Monorepo Layout
 
 ```text
 apps/
-  web/          # Next.js 16: web surface, OAuth flows, Vercel API routes
+  web/          # Next.js 16: web surface, API routes, OAuth callbacks, metering
   admin/        # Admin/operations console when it grows beyond apps/web
-  mcp/          # MCP server and tools (remote; OAuth-aware)
 packages/
-  agents/       # Optional: shared domain logic, tool policies, orchestration helpers (not voice-specific)
+  agents/       # Optional: shared domain logic and orchestration helpers
   api/          # Shared API contracts, route handlers, DTO mappers, server orchestration
   ui/           # Shared headless UI contracts, design tokens, web-focused adapters
   db/           # Drizzle schema, query DSL, migration generation, createDbClient
@@ -146,49 +163,48 @@ docs/           # Architecture decisions, setup, product specs mirrored from SSO
 supabase/       # Supabase CLI config, local Docker stack, runtime migrations
 ```
 
+`apps/mcp/` may exist in the repo but is **out of scope** for current agent work unless the user explicitly requests it.
+
 Create nested `AGENTS.md` files for subprojects once a package or app develops local rules that should override this root file.
 
 ## Package Responsibilities
 
-- `apps/web`: Next.js surface, marketing or app UI, server components, **API routes** for MCP companion behavior (OAuth callbacks, entitlement checks, usage accounting), and integration with Supabase server-side.
+- `apps/web`: Next.js surface, marketing or app UI, server components, **API routes** (OAuth callbacks, entitlement checks, usage accounting), and Supabase server-side integration. **Primary focus** for current work.
 - `apps/admin`: operational admin UI. Keep it thin and use shared API/domain packages.
-- `apps/mcp`: MCP tools and resources (Notion/YouTube workflows, schema/version tools, fetchers). Treat MCP as a **capability layer** with typed contracts; remote transport assumes OAuth and server-side secrets.
-- `packages/agents` (when used): shared domain behavior for tools and policies—no voice-runtime coupling unless the product adds it later.
-- `packages/api`: HTTP/server contracts, route orchestration, request/response schemas, and server-only use cases shared by `apps/web`, `apps/admin`, and `apps/mcp`.
+- `packages/agents` (when used): shared domain behavior—no voice-runtime coupling unless the product adds it later.
+- `packages/api`: HTTP/server contracts, route orchestration, request/response schemas, and server-only use cases shared by `apps/web` and `apps/admin`.
 - `packages/ui`: SSOTA-derived design system (`@youpd/ui`) — tokens in `src/styles/globals.css`, shadcn primitives, `ssota-ui` chrome. See `design/DESIGN.md`. Do not put product business rules here.
 - `packages/db`: Drizzle ORM SSOT: schema definitions, relations, typed queries, generated SQL, and database client factory. Framework- and Supabase-agnostic.
 - `packages/supabase`: implements persistence/auth/storage/realtime ports using Supabase and Drizzle. Do not leak Supabase-specific APIs into domain packages.
 - `packages/types`: shared Zod schemas, DTOs, event types, and branded identifiers.
 - `packages/config`: shared build, lint, TypeScript, test, and formatting configuration.
 
+Do **not** edit `apps/mcp` or Notion Worker deploy/sync code unless the user explicitly expands scope.
+
 ## Architecture Rules
 
 Follow an adapter-port, hexagonal architecture pattern.
 
 - Domain logic belongs in `packages/api`, `packages/agents` (if present), or another domain-focused package, not in React components or route files.
-- Frameworks live at the edges: Next.js in `apps/web` and `apps/admin`, MCP transport in `apps/mcp`, Supabase in `packages/supabase`.
-- Define ports/interfaces for persistence, auth, external APIs (YouTube, Notion), tool clients, telemetry, file storage, and optional LLM providers.
+- Frameworks live at the edges: Next.js in `apps/web` and `apps/admin`, Supabase in `packages/supabase`.
+- Define ports/interfaces for persistence, auth, external APIs (YouTube, Notion product integrations when in scope), telemetry, file storage, and optional LLM providers.
 - Implement adapters separately from orchestration. External provider responses must normalize into project-owned types before higher layers consume them.
 - Keep React components thin: render state, call hooks/actions, and delegate business decisions to packages.
-- Use Zod 4 schemas at network, storage, tool, and external provider boundaries.
+- Use Zod 4 schemas at network, storage, and external provider boundaries.
 - Prefer explicit errors over silent fallback behavior. Avoid compatibility shims for unshipped branch-only behavior.
-- MCP is a capability layer, not a UI-only service. MCP tools should expose typed contracts and, where supported, UI resources attached to specific tools.
-
-## MCP, Tools, And Orchestration
-
-- MCP tools must have typed inputs/outputs, Zod validation, deterministic error shapes, and unit or integration tests where feasible.
-- Enforce **plans, rate limits, and usage** via Supabase (or server-side checks) before expensive YouTube API or Notion mutations; do not rely on the client alone.
-- OAuth tokens and provider secrets stay **server-side**; MCP and API routes use privileged adapters—never expose service keys in public env vars or untrusted bundles.
-- Optional LLM usage remains **adapter-based**; do not hard-code a single vendor in domain logic.
 
 ## App, Web, And API Rules
 
 - Use Next.js 16 App Router in web/admin. Prefer server components by default; use client components only for interactivity, browser APIs, or stateful UI.
 - API routes deployed on Vercel should live close to `apps/web` while delegating orchestration to `packages/api` and domain packages.
-- Browsers and MCP clients call **project APIs** or typed MCP surfaces, not database clients directly.
+- Browsers call **project APIs**, not database clients directly.
 - Use standard `fetch` or typed HTTP wrappers. Avoid Axios unless a specific dependency requires it.
 - Never place secrets in `NEXT_PUBLIC_`*.
 - Use TanStack Query or an equivalent cache intentionally for client data. Define query keys and invalidation rules near API contracts.
+- Enforce **plans, rate limits, and usage** via Supabase (or server-side checks) before expensive YouTube API calls; do not rely on the client alone.
+- OAuth tokens and provider secrets stay **server-side** in API routes—never expose service keys in public env vars or untrusted bundles.
+- Optional LLM usage remains **adapter-based**; do not hard-code a single vendor in domain logic.
+- If a planned workflow needs a new external API key or OAuth app that is not already configured, do not block the sprint on secrets. Implement the typed adapter boundary, local fixtures/stubs, and a clear "not configured" UI/API state; continue with manual URL upload/input fallback where possible.
 
 ## UI And Design Rules
 
@@ -233,7 +249,6 @@ High-frequency routing:
 - `youpd-version-workflow` is a deprecated compatibility alias — prefer the three workflow skills above.
 - Read `ssota-ontology-setup` before discovering or updating the YouPD Notion SSOT mapping, database IDs, templates, or business-unit/project anchors.
 - Read the relevant `ssota-*` skill before changing project, meeting, document, action, digest, ontology-health, or ontology-extract workflows.
-- Read `mcp-builder` before designing or extending MCP servers, tools, and OAuth-aware remote deployments.
 - Read `vercel-react-best-practices`, `next-best-practices`, `shadcn`, `open-pencil`, or UI/design skills before Next.js, web UI, shared component, or design work.
 - Read `supabase` and, for schema/query performance, `supabase-postgres-best-practices` before Supabase, database, auth, RLS, migration, or storage work.
 - Read `agent-browser`, `browser-use`, or `playwright` before browser QA, screenshots, scraping, or end-to-end UI verification.
@@ -248,7 +263,7 @@ pnpm install
 pnpm worktree:env
 ```
 
-- **Script:** `scripts/link-env-from-main.sh` (also `pnpm worktree:env`). Symlinks four ignored env files from the main worktree: `.env.local`, `apps/web/.env.local`, `apps/web/.env.youtube` (YouTube API key pool for `pnpm youtube:keys:sync`), `apps/mcp/.env.local`. Next.js 16 only auto-loads `.env*` from each app directory, not the repo root alone.
+- **Script:** `scripts/link-env-from-main.sh` (also `pnpm worktree:env`). Symlinks ignored env files from the main worktree: `.env.local`, `apps/web/.env.local`, `apps/web/.env.youtube` (YouTube API key pool for `pnpm youtube:keys:sync`). Next.js 16 only auto-loads `.env*` from each app directory, not the repo root alone.
 - **Main clone resolution:** `YOUPD_MAIN_WORKTREE` if set; else the worktree on branch `main`; else the first worktree that already has `.env.local`.
 - **Copy instead of link** (e.g. different ports per worktree): `pnpm worktree:env -- --copy`
 - **Canonical local clone** (this machine): `/Users/titanism/projects/youpd` on branch `main`.
@@ -312,7 +327,6 @@ Expected app-specific commands after scaffolding:
 ```bash
 pnpm --filter @youpd/web dev
 pnpm --filter @youpd/admin dev
-pnpm --filter @youpd/mcp dev
 ```
 
 Expected database commands after Supabase setup:
@@ -334,12 +348,23 @@ Full local workflow (worktree env, Supabase reset, auth stubs, unit / integratio
 Testing must run in a closed loop for every meaningful change.
 
 - Unit tests for pure logic, schemas, mappers, policies, reducers, state machines, hooks, and adapters with mocks (`pnpm test`).
-- Integration tests for API contracts, package boundaries, MCP tools, and Supabase adapters against **local Supabase** (`pnpm test:integration`; requires `pnpm db:up` — see `docs/testing.md`).
+- Integration tests for API contracts, package boundaries, and Supabase adapters against **local Supabase** (`pnpm test:integration`; requires `pnpm db:up` — see `docs/testing.md`).
 - E2E tests for critical user flows in `apps/web` and `apps/admin` where relevant (`pnpm test:e2e`, Playwright under `e2e/`).
 - Design/component tests for shared UI contracts on the web surface.
 - Lint, typecheck, and tests must pass before handoff unless the user explicitly accepts a known failing state.
 
 Do not claim verification success unless the relevant command actually ran and passed. If the repo is not scaffolded enough to run a check, say that clearly.
+
+### E2E Evidence Policy
+
+For web UI work, E2E tests are not just pass/fail gates. They must leave enough evidence for the user and the next agent to review the implemented flow.
+
+- Any sprint that changes `apps/web`, `apps/admin`, shared UI chrome, route navigation, or critical user flows must add or update Playwright E2E coverage.
+- Normal verification can use `pnpm test:e2e`, with screenshots/videos/traces retained on failure according to the Playwright config.
+- Final sprint close-out on latest `dev` must run a full evidence mode command, expected as `pnpm test:e2e:artifacts`. If that command does not exist yet, the sprint must add it before claiming the evidence policy is satisfied.
+- Full evidence mode must save screenshots, videos, traces, and an HTML report for the covered flows. Use ignored artifact locations such as `test-results/` and `playwright-report/`; never commit generated screenshots, videos, traces, or reports.
+- The final agent report must include the E2E command run, artifact output paths, which screenshots/videos/traces were produced, and any flows intentionally not covered.
+- If the app cannot run E2E because required local services or env are missing, report the blocker explicitly and do not claim E2E success.
 
 ## Browser And App Automation
 

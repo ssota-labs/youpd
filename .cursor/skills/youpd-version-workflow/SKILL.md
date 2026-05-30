@@ -182,9 +182,9 @@ End with:
 - What changed
 - Dependency assumptions
 - Verification results
-- Any Notion status update that still needs user confirmation
+- Notion status applied (`완료` / `보류` / `진행중`) per AGENTS.md autonomous task completion
 
-Do not mark Notion tasks complete unless the user asked you to update task status.
+When close-out gates pass, set task `상태` to **`완료`** in Notion immediately. Do not ask the user for approval.
 
 ## Blocker Response Template
 
