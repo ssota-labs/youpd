@@ -2,10 +2,10 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { RiExternalLinkLine } from '@remixicon/react';
 import type { HotVideoRow } from '@youpd/api/youtube';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
+import { Avatar, AvatarFallback, AvatarImage } from '@youpd/ui/components/ui/avatar';
+import { Badge } from '@youpd/ui/components/ui/badge';
+import { Button } from '@youpd/ui/components/ui/button';
+import { Separator } from '@youpd/ui/components/ui/separator';
 import { cn } from '@/lib/utils';
 import {
   formatCount,
@@ -108,7 +108,7 @@ export function VideoCard({ row, categoryLabel }: VideoCardProps) {
               ) : null}
             </p>
           </div>
-          <Button variant="outline" size="icon-xs" asChild>
+          <Button variant="outline" size="icon-sm" asChild>
             <Link href={video.url} target="_blank" rel="noopener noreferrer" aria-label="YouTube에서 열기">
               <RiExternalLinkLine />
             </Link>
@@ -116,7 +116,7 @@ export function VideoCard({ row, categoryLabel }: VideoCardProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          <Avatar size="sm">
+          <Avatar className="size-8">
             {channel?.thumbnailUrl ? (
               <AvatarImage src={channel.thumbnailUrl} alt={channelTitle} />
             ) : null}
@@ -214,7 +214,7 @@ export function VideoListRow({
               ) : null}
             </p>
           </div>
-          <Button variant="outline" size="icon-xs" asChild>
+          <Button variant="outline" size="icon-sm" asChild>
             <Link href={video.url} target="_blank" rel="noopener noreferrer" aria-label="YouTube에서 열기">
               <RiExternalLinkLine />
             </Link>
@@ -222,7 +222,7 @@ export function VideoListRow({
         </div>
 
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <Avatar size="sm">
+          <Avatar className="size-8">
             {channel?.thumbnailUrl ? (
               <AvatarImage src={channel.thumbnailUrl} alt={channelTitle} />
             ) : null}

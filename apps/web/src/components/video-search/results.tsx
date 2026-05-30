@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { RiVideoLine } from '@remixicon/react';
 import type { HotVideoRow } from '@youpd/api/youtube';
-import { Button } from '@/components/ui/button';
+import { Button } from '@youpd/ui/components/ui/button';
 import {
   Empty,
   EmptyContent,
@@ -12,7 +12,7 @@ import {
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from '@/components/ui/empty';
+} from '@youpd/ui/components/ui/empty';
 import {
   buildVideoSearchQueryString,
   type VideoSearchSortField,

@@ -1,19 +1,12 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Noto_Sans } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { TooltipProvider } from "@youpd/ui/components/ui/tooltip";
 
-const notoSans = Noto_Sans({ subsets: ["latin"], variable: "--font-sans" });
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  variable: "--font-sans",
 });
 
 export const metadata: Metadata = {
@@ -27,16 +20,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="ko"
-      className={cn(
-        "h-full antialiased font-sans",
-        geistSans.variable,
-        geistMono.variable,
-        notoSans.variable,
-      )}
-    >
-      <body className="flex min-h-full flex-col bg-background text-foreground">
+    <html lang="ko" className={cn("h-full antialiased", inter.variable)}>
+      <body className="flex min-h-full flex-col bg-background font-sans text-foreground">
         <TooltipProvider>{children}</TooltipProvider>
       </body>
     </html>

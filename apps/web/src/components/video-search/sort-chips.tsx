@@ -13,12 +13,12 @@ import {
   RiTimeLine,
   RiUserLine,
 } from '@remixicon/react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@youpd/ui/components/ui/button';
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from '@/components/ui/tooltip';
+} from '@youpd/ui/components/ui/tooltip';
 import type { VideoSearchFieldConfig } from '@/lib/video-search/config';
 import { readVideoSearchUrlState } from '@/lib/video-search/read-search-params';
 import {
@@ -120,7 +120,7 @@ export function VideoSearchSortChips({
             <TooltipTrigger asChild>
               <Button
                 variant={active ? 'default' : 'outline'}
-                size="xs"
+                size="sm"
                 asChild
                 aria-label={`${option.label} 정렬${active ? (order === 'asc' ? ' 오름차순' : ' 내림차순') : ''}`}
                 aria-pressed={active}

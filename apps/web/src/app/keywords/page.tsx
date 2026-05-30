@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Button } from '@youpd/ui/components/ui/button';
+import { Input } from '@youpd/ui/components/ui/input';
 import { loadKeywordHarvestsAction } from './actions';
 import { KeywordRunForm } from './keyword-run-form';
 

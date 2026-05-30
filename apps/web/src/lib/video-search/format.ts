@@ -1,5 +1,5 @@
 import type { VariantProps } from 'class-variance-authority';
-import { badgeVariants } from '@/components/ui/badge';
+import { badgeVariants } from '@youpd/ui/components/ui/badge';
 
 export function formatCount(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return '-';

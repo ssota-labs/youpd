@@ -7,9 +7,9 @@ import {
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
-} from '@/components/ui/chart';
-import { Input } from '@/components/ui/input';
-import { Slider } from '@/components/ui/slider';
+} from '@youpd/ui/components/ui/chart';
+import { Input } from '@youpd/ui/components/ui/input';
+import { Slider } from '@youpd/ui/components/ui/slider';
 import { formatCompactMetric, formatRangeBound } from '@/lib/video-search/format-metric';
 import type { HotVideoMetricRangeStats } from '@/lib/video-search/filter-stats';
 
@@ -68,7 +68,6 @@ function MetricHistogramChart({
     <ChartContainer
       config={histogramChartConfig}
       className="aspect-auto h-20 w-full"
-      initialDimension={{ width: 320, height: 80 }}
     >
       <BarChart
         accessibilityLayer

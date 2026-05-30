@@ -12,8 +12,8 @@ import {
   RiRefreshLine,
   RiSearchLine,
 } from '@remixicon/react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Badge } from '@youpd/ui/components/ui/badge';
+import { Button } from '@youpd/ui/components/ui/button';
 import {
   Dialog,
   DialogClose,
@@ -23,8 +23,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+} from '@youpd/ui/components/ui/dialog';
+import { Input } from '@youpd/ui/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -32,13 +32,13 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
+} from '@youpd/ui/components/ui/select';
+import { Separator } from '@youpd/ui/components/ui/separator';
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from '@/components/ui/tooltip';
+} from '@youpd/ui/components/ui/tooltip';
 import type { VideoSearchConfig } from '@/lib/video-search/config';
 import type { HotVideoFilterStats } from '@/lib/video-search/filter-stats';
 import { readVideoSearchUrlState } from '@/lib/video-search/read-search-params';
