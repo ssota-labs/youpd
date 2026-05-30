@@ -11,13 +11,14 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "lint": "echo \"(types) no lint configured\"",
-    "test": "echo \"(types) no tests configured\""
-  },
-  "dependencies": {
-    "zod": "^4.0.0"
+    "test": "vitest run"
   },
   "devDependencies": {
     "@youpd/config": "workspace:*",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "dependencies": {
+    "zod": "^4.0.0"
   }
 }

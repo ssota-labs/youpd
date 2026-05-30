@@ -17,9 +17,11 @@ async function expectSeededHotVideos(page: import('@playwright/test').Page) {
 }
 
 test.describe('apps/web', () => {
-  test('root page responds', async ({ request }) => {
-    const response = await request.get(`${BASE_URL}/`);
-    expect(response.status(), await response.text()).toBe(200);
+  test('root redirects to home', async ({ request }) => {
+    const response = await request.get(`${BASE_URL}/`, { maxRedirects: 0 });
+    expect(response.status()).toBeGreaterThanOrEqual(300);
+    expect(response.status()).toBeLessThan(400);
+    expect(response.headers().location).toMatch(/\/home$/);
   });
 
   test('hot videos page responds via API', async ({ request }) => {
