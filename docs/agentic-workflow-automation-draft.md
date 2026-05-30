@@ -37,7 +37,7 @@ Preflight required before first production use: successful test merge PR into de
 
 - [x] `gh auth` with `repo` scope (admin on ssota-labs/youpd)
 - [x] `dev` branch published on origin
-- [ ] Test PR merged into `dev` (see feat/agentic-workflow-setup PR)
+- [ ] Test PR merged into `dev` (PR #35 — verified 2026-05-30)
 - [ ] Branch protection on `dev` documented (private repo: API may be unavailable; merges use admin token)
 
 ## Merge policy summary
