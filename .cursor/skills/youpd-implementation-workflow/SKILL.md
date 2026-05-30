@@ -62,7 +62,8 @@ Follow [references/close-out.md](references/close-out.md):
 - **Small Spec/Policy** — inline when change is limited to this PR
 - **Reconcile delta** — task row vs merged code on `dev`
 - **Guarded merge** — merge PR to `dev` only when all merge gates pass (see close-out)
-- **Report** — user summary; propose `완료` only if user asked
+- **Complete task** — set Notion `상태` to **`완료`** when close-out gates pass; do not ask the user for approval
+- **Report** — task ID, PR URL, merge status, verification results, Notion status applied
 
 ### 7. Merge gates (dev only)
 

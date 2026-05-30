@@ -40,4 +40,4 @@ Uncheck axes that were **out of scope** for this run. Do not paste long P0/P1 ta
 
 ## Chat reply
 
-After filing Notion, summarize in chat: Notion page URL, axes run, P0/P1 counts, and top fixes. Do **not** set tasks to `완료` unless the user asked.
+After filing Notion, summarize in chat: Notion page URL, axes run, P0/P1 counts, top fixes, and any task status updates applied (`완료` on the reconciliation/VERF task when gates pass; `보류` on drift rows when unambiguous).

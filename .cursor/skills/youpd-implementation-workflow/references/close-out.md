@@ -18,8 +18,8 @@ Add `pnpm test:e2e` when critical web flows change.
 
 - Link new/updated docs via task `관련 문서`
 - Set correct `태그` (스펙, 정책, 릴리즈 노트, ADR, …)
-- Move task to `진행중` when starting; `보류` if blocked
-- Optional: note PR URL and branch on task page body
+- Set `진행중` when starting; `보류` if blocked (with blocker note on task page)
+- Note PR URL and branch on task page body when applicable
 
 ## 3c Small Spec / Policy (in this workflow)
 
@@ -35,8 +35,8 @@ Compare task `상태` and title to code on `dev`:
 
 | Finding | Severity |
 |---|---|
-| Code merged to `dev` but task not ready for `완료` proposal | P2 |
-| User asked `완료` but code missing on `dev` | P0 |
+| Code merged to `dev` but task still `진행중`/`대기` after close-out gates pass | P2 — set `완료` now |
+| Task `완료` but code missing on `dev` | P0 |
 | D3/Spec clearly contradicts merged code | P1 |
 
 For **`검증`** tasks: run or recommend [youpd-reconciliation](../../youpd-reconciliation/SKILL.md) with **full task database** scope unless recently done.
@@ -61,10 +61,28 @@ Merge only if:
 
 If merge fails (permissions, protection, conflicts), **stop** and report — do not retry blindly.
 
-## 3f Report
+## 3f Complete task (autonomous)
+
+Set Notion `상태` to **`완료`** when **all** apply for this task type. Do **not** ask the user for approval.
+
+**구현**
+
+- Implementation gate was satisfied at start
+- `pnpm typecheck`, `pnpm test`, `pnpm lint` passed (plus integration/E2E when applicable)
+- PR merged to `dev`, or session explicitly required doc-only/no-code deliverable
+
+**검증**
+
+- Verification plan in linked PRD/D3 executed
+- No P0 findings for this task scope
+- E2E evidence captured when UI flows were in scope (`AGENTS.md` testing policy)
+
+If gates fail, set `보류` with blocker note — do not leave finished work in `진행중`.
+
+## 3g Report
 
 - Task ID, what changed (repo + Notion)
 - PR URL and merge status
 - Verification commands and results
 - Reconcile delta / P0–P1
-- Whether `완료` can be proposed (only if user asked)
+- Notion status applied (`완료` / `보류`)

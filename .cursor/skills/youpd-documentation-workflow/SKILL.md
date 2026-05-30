@@ -20,8 +20,19 @@ Primary deliverable is a **Notion document** in [유PD 개발 문서](https://ww
 2. Classify document type (below).
 3. Read dependencies per preconditions.
 4. Draft/update Notion; correct `태그` and templates.
-5. Link `관련 문서`; `진행중` when starting, `보류` if blocked.
-6. Summarize for user; propose `완료` only if user asked.
+5. Link `관련 문서`; `진행중` when starting, `보류` if blocked (with blocker note).
+6. **Close-out (autonomous)** — when deliverable is done, set `상태` to **`완료`** immediately. Do not ask the user for approval.
+7. Summarize: task ID, doc URL(s), `태그`, Notion status applied.
+
+### Autonomous completion gates
+
+Set **`완료`** when **all** apply:
+
+- Linked doc exists in docs DB, is non-empty, and uses the correct `태그`
+- Task is linked via `관련 문서`
+- Task body acceptance criteria are met (PRD scope, D3 contracts, Blueprint section, etc.)
+
+If blocked (missing predecessor, empty dependency doc), set **`보류`** with a note — do not wait for human sign-off.
 
 Do **not** edit `dev`/`main` except to read for Spec accuracy.
 
