@@ -4,4 +4,5 @@ export { getLivenessRow } from './repositories/healthChecks';
 export * from './repositories/quota/index';
 export * from './repositories/youtube-keys';
 export * from './repositories/home-probes';
+export * from './repositories/reference-folders';
 export * from './repositories/youtube';

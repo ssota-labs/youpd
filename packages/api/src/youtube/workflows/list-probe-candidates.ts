@@ -124,3 +124,17 @@ export async function listProbeCandidates(
     warnings,
   );
 }
+
+export async function getProbeCandidateForVideo(
+  harvestId: string,
+  videoId: string,
+  deps: WorkflowDeps = createDefaultWorkflowDeps(),
+) {
+  const { listKeywordHarvestResults } = await import(
+    '@youpd/supabase/repositories/youtube'
+  );
+  const rows = await listKeywordHarvestResults({ harvestId, videoId });
+  if (rows.length === 0) return null;
+  const scored = scoreHarvestRows(rows, new Date(deps.clock.nowIso()));
+  return toKeywordHotCandidate(scored[0]!, harvestId);
+}
