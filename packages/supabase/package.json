@@ -14,7 +14,8 @@
     "./repositories/youtube-keys": "./src/repositories/youtube-keys.ts",
     "./repositories/youtube": "./src/repositories/youtube.ts",
     "./repositories/home-probes": "./src/repositories/home-probes.ts",
-    "./repositories/reference-folders": "./src/repositories/reference-folders.ts"
+    "./repositories/reference-folders": "./src/repositories/reference-folders.ts",
+    "./repositories/creative-templates": "./src/repositories/creative-templates.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
