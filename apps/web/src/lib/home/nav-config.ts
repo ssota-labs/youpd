@@ -49,10 +49,11 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
     matchPrefix: '/hot-videos',
   },
   {
-    kind: 'placeholder',
+    kind: 'link',
     title: 'References',
+    href: '/references',
     icon: FolderOpen,
-    hint: 'S2에서 제공 예정',
+    matchPrefix: '/references',
   },
   {
     kind: 'placeholder',

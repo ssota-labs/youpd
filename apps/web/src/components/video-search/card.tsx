@@ -15,10 +15,12 @@ import {
   gradeBadgeVariant,
   gradeLabelKo,
 } from '@/lib/video-search/format';
+import { SaveReferenceButton } from '@/components/reference-folders/save-reference-button';
 
 type VideoCardProps = {
   row: HotVideoRow;
   categoryLabel?: string;
+  harvestId?: string;
 };
 
 function ScoreColumn({
@@ -51,7 +53,7 @@ function ScoreColumn({
   );
 }
 
-export function VideoCard({ row, categoryLabel }: VideoCardProps) {
+export function VideoCard({ row, categoryLabel, harvestId }: VideoCardProps) {
   const video = row.video;
   if (!video) return null;
 
@@ -151,6 +153,14 @@ export function VideoCard({ row, categoryLabel }: VideoCardProps) {
             value={formatScore(video.score.adjustedScore)}
           />
         </div>
+
+        {harvestId ? (
+          <SaveReferenceButton
+            harvestId={harvestId}
+            videoId={video.id}
+            videoTitle={video.title}
+          />
+        ) : null}
       </div>
     </article>
   );
@@ -159,9 +169,11 @@ export function VideoCard({ row, categoryLabel }: VideoCardProps) {
 export function VideoListRow({
   row,
   categoryLabel,
+  harvestId,
 }: {
   row: HotVideoRow;
   categoryLabel?: string;
+  harvestId?: string;
 }) {
   const video = row.video;
   if (!video) return null;
@@ -258,6 +270,14 @@ export function VideoListRow({
         </Badge>
         <Badge variant="secondary">점수 {formatScore(video.score.adjustedScore)}</Badge>
       </div>
+
+      {harvestId ? (
+        <SaveReferenceButton
+          harvestId={harvestId}
+          videoId={video.id}
+          videoTitle={video.title}
+        />
+      ) : null}
     </article>
   );
 }
