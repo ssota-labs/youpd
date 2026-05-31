@@ -7,4 +7,5 @@ export * from './social-posts';
 export * from './creative-templates';
 export * from './copy-templates';
 export * from './intro-templates';
+export * from './thread-templates';
 export * from './thumbnail-generation';
