@@ -329,7 +329,7 @@ insert into public.video_intro_segments (
 )
 values
   (
-    'g1000000-0000-4000-8000-000000000001',
+    '90100000-0000-4000-8000-000000000001',
     's5-seed-video-01',
     'f1000000-0000-4000-8000-000000000001',
     0,
@@ -341,7 +341,7 @@ values
     '{"sourceHarvestId":"00000000-0000-4000-8000-000000000099","sourceKeyword":"S8 seed","keywordRank":1,"policyVersion":"youtube_score_v2","performanceGrade":"Great","contributionGrade":"Good","absoluteViewGrade":"Good","rankScore":12,"recommendationReason":"Seed intro evidence","poolSource":"keyword"}'
   ),
   (
-    'g1000000-0000-4000-8000-000000000002',
+    '90100000-0000-4000-8000-000000000002',
     's5-seed-video-02',
     'f1000000-0000-4000-8000-000000000002',
     0,
@@ -353,7 +353,7 @@ values
     '{"sourceHarvestId":"00000000-0000-4000-8000-000000000099","sourceKeyword":"S8 seed","keywordRank":2,"policyVersion":"youtube_score_v2","performanceGrade":"Good","contributionGrade":"Good","absoluteViewGrade":"Normal","rankScore":8,"recommendationReason":"Seed intro evidence","poolSource":"keyword"}'
   ),
   (
-    'g1000000-0000-4000-8000-000000000003',
+    '90100000-0000-4000-8000-000000000003',
     's5-seed-video-03',
     'f1000000-0000-4000-8000-000000000003',
     0,
@@ -365,7 +365,7 @@ values
     null
   ),
   (
-    'g1000000-0000-4000-8000-000000000004',
+    '90100000-0000-4000-8000-000000000004',
     's5-seed-video-04',
     'f1000000-0000-4000-8000-000000000004',
     0,
@@ -377,7 +377,7 @@ values
     null
   ),
   (
-    'g1000000-0000-4000-8000-000000000005',
+    '90100000-0000-4000-8000-000000000005',
     's5-seed-video-05',
     'f1000000-0000-4000-8000-000000000005',
     0,
@@ -389,7 +389,7 @@ values
     '{"sourceHarvestId":"00000000-0000-4000-8000-000000000099","sourceKeyword":"S8 seed","keywordRank":3,"policyVersion":"youtube_score_v2","performanceGrade":"Good","contributionGrade":"Good","absoluteViewGrade":"Good","rankScore":10,"recommendationReason":"Seed intro evidence","poolSource":"keyword"}'
   ),
   (
-    'g1000000-0000-4000-8000-000000000006',
+    '90100000-0000-4000-8000-000000000006',
     's5-seed-video-06',
     'f1000000-0000-4000-8000-000000000006',
     0,
@@ -405,12 +405,12 @@ on conflict (id) do nothing;
 insert into public.creative_template_intro_evidence (template_id, intro_segment_id, sort_order)
 select t.id, s.id, v.ord
 from (values
-  ('problem-tension-promise', 'g1000000-0000-4000-8000-000000000001', 0),
-  ('surprise-credibility-bridge', 'g1000000-0000-4000-8000-000000000002', 0),
-  ('story-situation-arc', 'g1000000-0000-4000-8000-000000000003', 0),
-  ('credibility-promise', 'g1000000-0000-4000-8000-000000000004', 0),
-  ('tutorial-fast-hook', 'g1000000-0000-4000-8000-000000000006', 0),
-  ('full-six-slot', 'g1000000-0000-4000-8000-000000000005', 0)
+  ('problem-tension-promise', '90100000-0000-4000-8000-000000000001', 0),
+  ('surprise-credibility-bridge', '90100000-0000-4000-8000-000000000002', 0),
+  ('story-situation-arc', '90100000-0000-4000-8000-000000000003', 0),
+  ('credibility-promise', '90100000-0000-4000-8000-000000000004', 0),
+  ('tutorial-fast-hook', '90100000-0000-4000-8000-000000000006', 0),
+  ('full-six-slot', '90100000-0000-4000-8000-000000000005', 0)
 ) as v(tpl, sid, ord)
 join public.creative_templates t on t.code = v.tpl
 join public.video_intro_segments s on s.id = v.sid::uuid
