@@ -56,10 +56,11 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
     matchPrefix: '/references',
   },
   {
-    kind: 'placeholder',
+    kind: 'link',
     title: 'Thumbnail Library',
+    href: '/thumbnail-templates',
     icon: Image,
-    hint: 'S5에서 제공 예정',
+    matchPrefix: '/thumbnail-templates',
   },
   {
     kind: 'placeholder',
