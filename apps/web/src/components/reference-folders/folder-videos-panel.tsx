@@ -7,6 +7,7 @@ import { useState } from 'react';
 import type { ReferenceFolderVideoItem } from '@youpd/types';
 import { Button } from '@youpd/ui/components/ui/button';
 import { gradeLabelKo } from '@/lib/video-search/format';
+import { IntroExtractActions } from '@/components/reference-folders/intro-extract-actions';
 
 type FolderVideosPanelProps = {
   folderId: string;
@@ -88,6 +89,7 @@ export function FolderVideosPanel({
             ) : null}
           </div>
           <div className="flex shrink-0 items-start gap-2 sm:flex-col">
+            <IntroExtractActions folderId={folderId} itemId={item.id} />
             <Button variant="outline" size="sm" asChild>
               <Link href={`/references/groups/${groupId}`}>그룹</Link>
             </Button>
