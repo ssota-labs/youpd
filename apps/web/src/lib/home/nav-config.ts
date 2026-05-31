@@ -78,10 +78,11 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
     matchPrefix: '/thumbnail-create',
   },
   {
-    kind: 'placeholder',
-    title: 'Intro Library',
+    kind: 'link',
+    title: 'Intro Templates',
+    href: '/intro-templates',
     icon: Sparkles,
-    hint: 'S8에서 제공 예정',
+    matchPrefix: '/intro-templates',
   },
   {
     kind: 'placeholder',
