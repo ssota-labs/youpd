@@ -8,12 +8,12 @@ import { ThumbnailCreateForm } from '@/components/thumbnail-create/create-form';
 import { requireSessionUserId } from '@/lib/auth/require-session-user';
 
 type PageProps = {
-  searchParams: Promise<{ templateId?: string }>;
+  searchParams: Promise<{ templateId?: string; copyTemplateId?: string }>;
 };
 
 export default async function ThumbnailCreatePage({ searchParams }: PageProps) {
   const userId = await requireSessionUserId();
-  const { templateId } = await searchParams;
+  const { templateId, copyTemplateId } = await searchParams;
 
   if (!templateId) {
     redirect('/thumbnail-templates');
@@ -25,10 +25,14 @@ export default async function ThumbnailCreatePage({ searchParams }: PageProps) {
       <div className="min-h-screen bg-background pb-16">
         <header className="border-b border-border px-4 py-4 sm:px-6 lg:px-8">
           <Link
-            href={`/thumbnail-templates/${templateId}`}
+            href={
+              copyTemplateId
+                ? `/copy-templates/${copyTemplateId}`
+                : `/thumbnail-templates/${templateId}`
+            }
             className="text-sm text-muted-foreground hover:text-foreground"
           >
-            ← 템플릿 상세
+            ← {copyTemplateId ? '카피 템플릿' : '템플릿 상세'}
           </Link>
         </header>
         <ThumbnailCreateForm templateId={templateId} initialBootstrap={bootstrap} />

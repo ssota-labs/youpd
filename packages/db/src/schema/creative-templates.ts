@@ -103,6 +103,82 @@ export const creativeTemplateTagLinks = pgTable(
   }),
 );
 
+export const videoTitleAnalyses = pgTable(
+  'video_title_analyses',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    videoId: text('video_id')
+      .notNull()
+      .references(() => youtubeVideos.videoId, { onDelete: 'cascade' }),
+    sourceFolderVideoId: uuid('source_folder_video_id').references(
+      () => referenceFolderVideos.id,
+      { onDelete: 'set null' },
+    ),
+    sourceTitle: text('source_title').notNull(),
+    parsedTitle: text('parsed_title').notNull(),
+    observedAxesJson: jsonb('observed_axes_json').notNull(),
+    lineageSnapshot: jsonb('lineage_snapshot'),
+    analyzedAt: timestamp('analyzed_at', { withTimezone: true }).defaultNow().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    videoUnique: uniqueIndex('video_title_analyses_video_uidx').on(table.videoId),
+  }),
+);
+
+export const creativeTemplateCopyExamples = pgTable(
+  'creative_template_copy_examples',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    templateId: uuid('template_id')
+      .notNull()
+      .references(() => creativeTemplates.id, { onDelete: 'cascade' }),
+    label: text('label').notNull(),
+    filledTitle: text('filled_title').notNull(),
+    slotValuesJson: jsonb('slot_values_json').notNull(),
+    sortOrder: integer('sort_order').notNull().default(0),
+  },
+);
+
+export const creativeTemplateTitleEvidence = pgTable(
+  'creative_template_title_evidence',
+  {
+    templateId: uuid('template_id')
+      .notNull()
+      .references(() => creativeTemplates.id, { onDelete: 'cascade' }),
+    titleAnalysisId: uuid('title_analysis_id')
+      .notNull()
+      .references(() => videoTitleAnalyses.id, { onDelete: 'cascade' }),
+    evidenceNote: text('evidence_note'),
+    sortOrder: integer('sort_order').notNull().default(0),
+  },
+  (table) => ({
+    templateAnalysisUnique: uniqueIndex(
+      'creative_template_title_evidence_uidx',
+    ).on(table.templateId, table.titleAnalysisId),
+  }),
+);
+
+export const copyTemplateThumbnailLinks = pgTable(
+  'copy_template_thumbnail_links',
+  {
+    copyTemplateId: uuid('copy_template_id')
+      .notNull()
+      .references(() => creativeTemplates.id, { onDelete: 'cascade' }),
+    thumbnailTemplateId: uuid('thumbnail_template_id')
+      .notNull()
+      .references(() => creativeTemplates.id, { onDelete: 'cascade' }),
+    pairingRationale: text('pairing_rationale'),
+    sortOrder: integer('sort_order').notNull().default(0),
+  },
+  (table) => ({
+    pairingUnique: uniqueIndex('copy_template_thumbnail_links_uidx').on(
+      table.copyTemplateId,
+      table.thumbnailTemplateId,
+    ),
+  }),
+);
+
 export const creativeTemplateReferenceVideos = pgTable(
   'creative_template_reference_videos',
   {
