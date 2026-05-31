@@ -102,6 +102,7 @@ export const KeywordHotCandidatesResponseSchema = z.object({
   candidates: z.array(KeywordHotCandidateSchema),
 });
 
+export type ScoreGrade = z.infer<typeof ScoreGradeSchema>;
 export type KeywordProbeMetrics = z.infer<typeof KeywordProbeMetricsSchema>;
 export type KeywordHotCandidate = z.infer<typeof KeywordHotCandidateSchema>;
 export type KeywordHotCandidatesResponse = z.infer<

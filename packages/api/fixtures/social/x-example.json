@@ -1,0 +1,15 @@
+{
+  "provider": "x_bookmarks",
+  "externalId": "fixture-x-001",
+  "permalink": "https://x.com/youpd_fixture/status/1999999999999999999",
+  "authorHandle": "youpd_fixture",
+  "authorDisplayName": "YouPD Fixture",
+  "textContent": "Fixture X post for manual URL ingest and reference evidence.",
+  "publishedAt": "2026-05-29T08:30:00.000Z",
+  "metrics": {
+    "likeCount": 890,
+    "replyCount": 42,
+    "repostCount": 120,
+    "viewCount": 45000
+  }
+}

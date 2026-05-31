@@ -1,0 +1,15 @@
+{
+  "provider": "threads",
+  "externalId": "fixture-threads-001",
+  "permalink": "https://www.threads.net/@youpd_fixture/post/C0FIXTURE001",
+  "authorHandle": "youpd_fixture",
+  "authorDisplayName": "YouPD Fixture",
+  "textContent": "Fixture thread post for local social ingest without live API keys.",
+  "publishedAt": "2026-05-30T12:00:00.000Z",
+  "metrics": {
+    "likeCount": 420,
+    "replyCount": 18,
+    "repostCount": 7,
+    "viewCount": 12000
+  }
+}
