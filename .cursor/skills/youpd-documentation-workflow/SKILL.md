@@ -1,6 +1,6 @@
 ---
 name: youpd-documentation-workflow
-description: Write or update YouPD Notion documentation — SaaS Blueprint, PRD, D3 설계, Policy, ADR, dedicated Spec/릴리즈 노트 tasks. Use after AGENTS.md routes "work" to documentation. Not for small Spec patches during implementation (use youpd-implementation-workflow Close-out).
+description: Write or update YouPD Notion documentation — SaaS Blueprint, PRD, Tech Spec (설계), Policy, ADR, dedicated Spec/릴리즈 노트 tasks. Use after AGENTS.md routes "work" to documentation. Not for small Spec patches during implementation (use youpd-implementation-workflow Close-out).
 ---
 
 # YouPD Documentation Workflow
@@ -30,7 +30,7 @@ Set **`완료`** when **all** apply:
 
 - Linked doc exists in docs DB, is non-empty, and uses the correct `태그`
 - Task is linked via `관련 문서`
-- Task body acceptance criteria are met (PRD scope, D3 contracts, Blueprint section, etc.)
+- Task body acceptance criteria are met (PRD scope, Tech Spec contracts, Blueprint section, etc.)
 
 If blocked (missing predecessor, empty dependency doc), set **`보류`** with a note — do not wait for human sign-off.
 
@@ -41,7 +41,7 @@ Do **not** edit `dev`/`main` except to read for Spec accuracy.
 | Route here | Use implementation skill instead |
 |---|---|
 | `작업 유형` = PRD 작성, 설계 작성, 상세 로드맵 작성 | `구현`, `검증` |
-| SaaS Blueprint, Policy, ADR, version PRD/D3 | Small Spec patch (one topic, same PR) |
+| SaaS Blueprint, Policy, ADR, version PRD/Tech Spec | Small Spec patch (one topic, same PR) |
 | Dedicated Spec restructure / large contract rewrite | — |
 
 ## Document types
@@ -51,25 +51,27 @@ Do **not** edit `dev`/`main` except to read for Spec accuracy.
 | **SaaS Blueprint** | Product phase | Web SaaS surface, domain model, route/API map, version cuts |
 | **Policy** | Cumulative | Agentic workflow, merge rules, RLS, metering, MCP OAuth |
 | **Spec** | Living | Current implementation contract |
-| **D2 PRD** | Frozen at release | Why/what for one sprint/version |
-| **D3 Tech Spec** | Frozen at release | What to implement this version |
-| **D4 Release Notes** | Cumulative | Shipped vs plan |
-| **D5 ADR** | Immutable | One major decision |
+| **PRD** | Frozen at release | Why/what for one sprint/version |
+| **Tech Spec** | Frozen at release | What to implement this version |
+| **Release Notes** | Cumulative | Shipped vs plan |
+| **ADR** | Immutable | One major decision |
+
+**Naming:** Use **Tech Spec** in titles and the [문서 타입 카탈로그](https://www.notion.so/dd9b44cc438e45fc8593315cd57eec47). Notion `태그` = `설계`. Legacy internal alias **D3** — do not put in document titles.
 
 **Overlap rule:** longest-lived doc wins — Blueprint for phase map, Policy for recurring rules, Spec for current contracts.
 
 ## Dependency order
 
-SaaS Blueprint → (Policy) + PRD → D3 → Implementation → Spec / Release notes. ADR at decision time.
+SaaS Blueprint → (Policy) + PRD → Tech Spec → Implementation → Spec / Release notes. ADR at decision time.
 
 | Work type | Can start when |
 |---|---|
 | SaaS Blueprint | Product direction accepted (PDR / idea doc read) |
 | Policy | Recurring rule identified |
-| D2 PRD | Blueprint exists (or user asks to draft Blueprint first) |
-| D3 | PRD accepted; Policy/Blueprint read |
+| PRD | Blueprint exists (or user asks to draft Blueprint first) |
+| Tech Spec | PRD accepted; Policy/Blueprint read |
 | Topic Spec | Code/migrations/tests exist on `dev` |
-| D4 | Version shipped to `main` |
+| Release Notes | Version shipped to `main` |
 
 ## Deliverables by type
 
@@ -77,19 +79,19 @@ SaaS Blueprint → (Policy) + PRD → D3 → Implementation → Spec / Release n
 
 Web app scope, Notion-backed workspace, YouTube capture, Supabase account layer, MCP tools, domain model, route/API map, sprint cuts. Name: `YouPD SaaS Technical Blueprint` (not "Phase 1").
 
-### D2 PRD
+### PRD
 
-User scenarios, scope in/out, success metrics, open questions → D3. **No** Drizzle schema, API handlers, migration SQL.
+User scenarios, scope in/out, success metrics, open questions → Tech Spec. **No** Drizzle schema, API handlers, migration SQL.
 
-### D3 Tech Spec
+### Tech Spec
 
-Data model, interfaces, algorithms, verification plan for **this version only**. **No** product-wide scope (→ Blueprint/Policy).
+Data model, interfaces, algorithms, verification plan for **this version only**. **No** product-wide scope (→ Blueprint/Policy). Notion `태그`: `설계`.
 
 ### Topic Spec
 
 **Current Contract** from `dev`; **Not Implemented**; **Validation** (tests); **Change Log**.
 
-### Policy / D4 / D5
+### Policy / Release Notes / ADR
 
 Cumulative rules; ship report; `[ADR-NNNN]` immutable decision.
 
@@ -98,8 +100,8 @@ Cumulative rules; ship report; `[ADR-NNNN]` immutable decision.
 | `작업 유형` | Section |
 |---|---|
 | 상세 로드맵 작성 | SaaS Blueprint |
-| PRD 작성 | D2 PRD |
-| 설계 작성 | D3 |
+| PRD 작성 | PRD |
+| 설계 작성 | Tech Spec |
 | 구현 / 검증 | → implementation skill |
 
 ## Notion `태그`
@@ -109,7 +111,7 @@ Cumulative rules; ship report; `[ADR-NNNN]` immutable decision.
 | SaaS Blueprint | `제품 로드맵` |
 | Policy | `정책` |
 | PRD | `PRD` |
-| D3 | `설계` |
+| Tech Spec | `설계` |
 | Spec | `스펙` |
 | Release | `릴리즈 노트` |
 | ADR | `ADR` |
@@ -118,7 +120,7 @@ Cumulative rules; ship report; `[ADR-NNNN]` immutable decision.
 
 ## Anti-patterns
 
-- Full product schema in one D3 → Blueprint + per-version D3 cuts
-- Recurring agent/merge rules in every D3 → Policy (`YouPD Agentic Workflow Policy`)
+- Full product schema in one Tech Spec → Blueprint + per-version Tech Spec cuts
+- Recurring agent/merge rules in every Tech Spec → Policy (`YouPD Agentic Workflow Policy`)
 - Unimplemented Blueprint items in Spec → Not Implemented section
-- Implementation results in PRD → D4 or Spec
+- Implementation results in PRD → Release Notes or Spec

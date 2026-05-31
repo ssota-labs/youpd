@@ -31,15 +31,15 @@ For each row (or paginate until complete), capture at minimum:
 - Title / task ID
 - `상태`, `작업 유형`
 - `Blocked by`, `Blocking`, `종속성`
-- `관련 문서` (linked PRD, D3, Spec, etc.)
+- `관련 문서` (linked PRD, Tech Spec, Spec, etc.)
 
 ### 2. Run reconciliation axes
 
 Apply [references/checklist.md](references/checklist.md) across **all** loaded tasks:
 
 - **A** Task ↔ Code (`완료` vs merged code on `dev`/`main` per task type)
-- **B** Doc ↔ Code (linked Spec/D3 vs `packages/db`, `apps/*`, tests)
-- **C** Task ↔ Doc (`관련 문서`, empty PRD/D3 on IMPL)
+- **B** Doc ↔ Code (linked Spec/Tech Spec vs `packages/db`, `apps/*`, tests)
+- **C** Task ↔ Doc (`관련 문서`, empty PRD/Tech Spec on IMPL)
 - **D** Task ↔ Git (open PR, branch naming, merge conflicts vs task claim)
 - **E** Dependency graph (predecessors in Notion vs code)
 
@@ -61,4 +61,4 @@ When this run is closing out a dedicated **검증** or reconciliation task row, 
 
 ## P0 policy
 
-If **P0** exists (e.g. `완료` IMPL but code missing; empty PRD/D3 on active IMPL; task claims merged but no PR on `dev`), recommend blocking new implementation until resolved. Scheduler runs should prefer reconciliation/fix tasks over new feature work.
+If **P0** exists (e.g. `완료` IMPL but code missing; empty PRD/Tech Spec on active IMPL; task claims merged but no PR on `dev`), recommend blocking new implementation until resolved. Scheduler runs should prefer reconciliation/fix tasks over new feature work.

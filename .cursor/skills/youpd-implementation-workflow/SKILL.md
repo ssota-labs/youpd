@@ -37,7 +37,7 @@ Before starting new work:
 
 ### 3. Read context
 
-- Linked PRD and D3 from `관련 문서`
+- Linked PRD and Tech Spec from `관련 문서`
 - `AGENTS.md`, `docs/testing.md`, relevant `apps/*` and `packages/*` on `dev`/`main`
 - Predecessor code per `종속성` / Blueprint
 
