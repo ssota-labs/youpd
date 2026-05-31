@@ -1,4 +1,10 @@
 import Link from 'next/link';
+import { notFound, redirect } from 'next/navigation';
+import {
+  ThumbnailGenerationError,
+  getThumbnailCreateBootstrap,
+} from '@youpd/api/thumbnail-generation';
+import { ThumbnailCreateForm } from '@/components/thumbnail-create/create-form';
 import { requireSessionUserId } from '@/lib/auth/require-session-user';
 
 type PageProps = {
@@ -6,27 +12,32 @@ type PageProps = {
 };
 
 export default async function ThumbnailCreatePage({ searchParams }: PageProps) {
-  await requireSessionUserId();
+  const userId = await requireSessionUserId();
   const { templateId } = await searchParams;
 
-  return (
-    <div className="mx-auto max-w-lg px-4 py-16 sm:px-6">
-      <h1 className="text-xl font-semibold">썸네일 제작 (준비 중)</h1>
-      <p className="mt-2 text-sm text-muted-foreground">
-        S6에서 슬롯 기반 생성 플로우가 연결됩니다.
-        {templateId ? (
-          <>
-            {' '}
-            선택된 템플릿 ID: <code className="text-xs">{templateId}</code>
-          </>
-        ) : null}
-      </p>
-      <Link
-        href="/thumbnail-templates"
-        className="mt-6 inline-block text-sm text-primary underline-offset-4 hover:underline"
-      >
-        템플릿 라이브러리로 돌아가기
-      </Link>
-    </div>
-  );
+  if (!templateId) {
+    redirect('/thumbnail-templates');
+  }
+
+  try {
+    const bootstrap = await getThumbnailCreateBootstrap({ userId, templateId });
+    return (
+      <div className="min-h-screen bg-background pb-16">
+        <header className="border-b border-border px-4 py-4 sm:px-6 lg:px-8">
+          <Link
+            href={`/thumbnail-templates/${templateId}`}
+            className="text-sm text-muted-foreground hover:text-foreground"
+          >
+            ← 템플릿 상세
+          </Link>
+        </header>
+        <ThumbnailCreateForm templateId={templateId} initialBootstrap={bootstrap} />
+      </div>
+    );
+  } catch (error) {
+    if (error instanceof ThumbnailGenerationError && error.code === 'NOT_FOUND') {
+      notFound();
+    }
+    throw error;
+  }
 }
