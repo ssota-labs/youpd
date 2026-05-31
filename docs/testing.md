@@ -39,8 +39,10 @@
 
 ```bash
 pnpm install
-pnpm worktree:env
+pnpm env:sync
 ```
+
+`pnpm env:sync`는 Cursor Cloud secret → `.env.local` materialize, git worktree면 메인 클론 링크, 그 외에는 `.env.example` 복사를 시도합니다. worktree만 강제 링크하려면 `pnpm worktree:env`.
 
 메인 클론(`/Users/titanism/projects/youpd` [main] 등)에서 아래 4개를 **심볼릭 링크**합니다.
 
