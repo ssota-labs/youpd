@@ -18,6 +18,7 @@
     "./repositories/creative-templates": "./src/repositories/creative-templates.ts",
     "./repositories/copy-templates": "./src/repositories/copy-templates.ts",
     "./repositories/intro-templates": "./src/repositories/intro-templates.ts",
+    "./repositories/thread-templates": "./src/repositories/thread-templates.ts",
     "./repositories/social": "./src/repositories/social.ts",
     "./repositories/thumbnail-generation": "./src/repositories/thumbnail-generation.ts"
   },
