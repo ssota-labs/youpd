@@ -2,6 +2,7 @@ import {
   Home,
   Image,
   LayoutTemplate,
+  ListTree,
   Type,
   MessageSquare,
   Search,
@@ -83,6 +84,13 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
     href: '/intro-templates',
     icon: Sparkles,
     matchPrefix: '/intro-templates',
+  },
+  {
+    kind: 'link',
+    title: 'Thread Templates',
+    href: '/thread-templates',
+    icon: ListTree,
+    matchPrefix: '/thread-templates',
   },
   {
     kind: 'link',

@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { getSocialPost } from '@youpd/api/social';
 import { requireSessionUserId } from '@/lib/auth/require-session-user';
 import { SaveSocialReferenceButton } from '@/components/social/save-social-reference-button';
+import { ExtractThreadStructureButton } from '@/components/social/extract-thread-structure-button';
 
 type PageProps = {
   params: Promise<{ postId: string }>;
@@ -26,8 +27,9 @@ export default async function SocialPostDetailPage({ params }: PageProps) {
           {post.ingestMode === 'manual' ? ' · 수동 입력' : null}
           {post.fetchStatus === 'user_provided' ? ' · 사용자 제공' : null}
         </p>
-        <div className="mt-4">
+        <div className="mt-4 flex flex-wrap gap-4">
           <SaveSocialReferenceButton socialPostId={post.id} />
+          <ExtractThreadStructureButton socialPostId={post.id} />
         </div>
       </header>
 
