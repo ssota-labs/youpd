@@ -21,7 +21,8 @@ test.describe('thumbnail template library', () => {
 
   test('category filter narrows template list', async ({ page }) => {
     await page.goto(`${BASE_URL}/thumbnail-templates`);
-    await page.getByRole('link', { name: '대비 강조' }).click();
+    // Sidebar category link includes count badge; template cards also prefix category name.
+    await page.getByRole('link', { name: /^대비 강조 \d+$/ }).click();
     await expect(page).toHaveURL(/category=contrast/);
     await expect(page.getByText('고대비 헤드라인')).toBeVisible();
 
