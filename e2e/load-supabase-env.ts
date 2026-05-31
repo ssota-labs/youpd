@@ -50,5 +50,6 @@ export function supabaseWebServerEnv(): NodeJS.ProcessEnv {
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     YOUPD_E2E_SKIP_AUTH: '1',
     YOUPD_HOME_FEED_FIXTURE: '1',
+    THUMBNAIL_IMAGE_PROVIDER: 'stub',
   };
 }
