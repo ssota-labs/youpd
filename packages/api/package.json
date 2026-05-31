@@ -17,7 +17,8 @@
     "./youtube": "./src/youtube/index.ts",
     "./home": "./src/home/index.ts",
     "./reference-folders": "./src/reference-folders/index.ts",
-    "./thumbnail-templates": "./src/thumbnail-templates/index.ts"
+    "./thumbnail-templates": "./src/thumbnail-templates/index.ts",
+    "./thumbnail-generation": "./src/thumbnail-generation/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

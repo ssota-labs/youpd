@@ -63,6 +63,13 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
     matchPrefix: '/thumbnail-templates',
   },
   {
+    kind: 'link',
+    title: 'Create Thumbnail',
+    href: '/thumbnail-create',
+    icon: LayoutTemplate,
+    matchPrefix: '/thumbnail-create',
+  },
+  {
     kind: 'placeholder',
     title: 'Intro Library',
     icon: Sparkles,
