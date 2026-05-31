@@ -20,6 +20,7 @@
     "./thumbnail-templates": "./src/thumbnail-templates/index.ts",
     "./copy-templates": "./src/copy-templates/index.ts",
     "./intro-templates": "./src/intro-templates/index.ts",
+    "./thread-templates": "./src/thread-templates/index.ts",
     "./social": "./src/social/index.ts",
     "./thumbnail-generation": "./src/thumbnail-generation/index.ts"
   },

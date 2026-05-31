@@ -5,6 +5,7 @@ export * from './reference-folders';
 export * from './social';
 export * from './creative-templates';
 export * from './intro-templates';
+export * from './thread-templates';
 export * from './thumbnail-generation';
 export * from './youtube-keys';
 export * from './youtube';
