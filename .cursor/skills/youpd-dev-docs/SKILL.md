@@ -23,7 +23,7 @@ Do **not** use this skill for SSOT discovery, database ID mapping, or ontology s
 - **Notion** is the long-term SSOT for YouPD development documents.
 - The **repo** keeps only operationally necessary docs (e.g. `AGENTS.md`, runbooks, code-adjacent READMEs). Do not duplicate full PRDs or design specs in the repo unless the user explicitly asks.
 - Always prefer updating an existing Notion page over creating a duplicate.
-- Before version-scoped doc work (PRD, D3, Spec tied to a release), read `.cursor/skills/youpd-version-workflow/SKILL.md` and query the **development task database** for the active task, dependencies, and linked docs.
+- Before version-scoped doc work (PRD, Tech Spec, Spec tied to a release), read `.cursor/skills/youpd-version-workflow/SKILL.md` and query the **development task database** for the active task, dependencies, and linked docs.
 
 ### Canonical references
 

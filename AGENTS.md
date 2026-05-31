@@ -243,7 +243,7 @@ High-frequency routing:
 
 - Follow **Development SSOT And Agentic Workflow** above before any substantive work. Query the [Notion development task database](https://www.notion.so/paxhumana/55eda245160f43eba0ebe28b71604f89?v=c58d8705594d4e7c8844ab7d98354513) first; do not plan from repo memory alone.
 - Read `youpd-reconciliation` when running 정합성 checks or before starting IMPL after drift.
-- Read `youpd-documentation-workflow` for Blueprint, PRD, D3, Policy, ADR tasks.
+- Read `youpd-documentation-workflow` for Blueprint, PRD, Tech Spec, Policy, ADR tasks.
 - Read `youpd-implementation-workflow` for 구현/검증, PR workflow, and guarded merge to `dev`.
 - Read `youpd-dev-docs` when creating or updating records in **유PD 개발 문서** (authoring details).
 - `youpd-version-workflow` is a deprecated compatibility alias — prefer the three workflow skills above.

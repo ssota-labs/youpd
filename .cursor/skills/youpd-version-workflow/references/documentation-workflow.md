@@ -2,7 +2,7 @@
 
 Source SSOT: [제품 문서화 가이드 — 문서 체계와 작성 스킬](https://www.notion.so/ada346dac45682dca9f001cfff8ae0fc)
 
-Use this reference when the Notion task database row could be **PRD**, **설계(D3)**, **스펙**, or **구현** work. Read it before classifying the next work unit.
+Use this reference when the Notion task database row could be **PRD**, **설계 (Tech Spec)**, **스펙**, or **구현** work. Read it before classifying the next work unit.
 
 ## Core Principle
 
@@ -13,12 +13,14 @@ Documents have different lifetimes and purposes:
 | **Blueprint** | Phase duration | Phase-wide route map, domain model, milestone plan — not an implementation contract |
 | **Policy** | Cumulative | Rules that persist across versions (migration policy, naming, OAuth, error codes) |
 | **Spec** | Living / topic-based | Current implementation contract (DB schema, MCP tools, API routes, Notion Worker contracts) |
-| **D2 PRD** | Frozen at release | Why and what for this version — user value and scope |
-| **D3 Tech Spec** | Frozen at release | What to implement this version — data model, API, algorithms, verification |
-| **D4 Release Notes** | Cumulative | What actually shipped vs plan |
-| **D5 ADR** | Immutable | One major decision record |
+| **PRD** | Frozen at release | Why and what for this version — user value and scope |
+| **Tech Spec** | Frozen at release | What to implement this version — data model, API, algorithms, verification |
+| **Release Notes** | Cumulative | What actually shipped vs plan |
+| **ADR** | Immutable | One major decision record |
 
-**SSOT rule:** When information overlaps, the longest-lived document wins — D1 for product principles, Blueprint for phase map, Policy for recurring rules, topic Spec for current implementation contracts. **Notion is authoritative**; repo `docs/` mirrors are operational shortcuts only.
+**Naming:** Use **Tech Spec** in document titles and the [문서 타입 카탈로그](https://www.notion.so/dd9b44cc438e45fc8593315cd57eec47). Notion `태그` = `설계`. Legacy internal alias **D3** — workflow shorthand only; do not use in titles.
+
+**SSOT rule:** When information overlaps, the longest-lived document wins — product overview for principles, Blueprint for phase map, Policy for recurring rules, topic Spec for current implementation contracts. **Notion is authoritative**; repo `docs/` mirrors are operational shortcuts only.
 
 ## Decision Flow
 
@@ -29,22 +31,22 @@ flowchart TD
   Classify -->|"Phase-wide map"| Blueprint["Blueprint work"]
   Classify -->|"Recurring rule"| Policy["Policy work"]
   Classify -->|"Current contract update"| Spec["Spec work"]
-  Classify -->|"Version planning"| PRD["D2 PRD work"]
-  Classify -->|"Version design"| D3["D3 Tech Spec work"]
+  Classify -->|"Version planning"| PRD["PRD work"]
+  Classify -->|"Version design"| TechSpec["Tech Spec work"]
   Classify -->|"Code/scripts/migrations"| Impl["Implementation work"]
-  Classify -->|"Post-release"| D4["D4 Release Notes work"]
-  Classify -->|"Major decision"| ADR["D5 ADR work"]
+  Classify -->|"Post-release"| Release["Release Notes work"]
+  Classify -->|"Major decision"| ADR["ADR work"]
 ```
 
 ### Quick classification cues
 
 | Task signal | Work type | Do not confuse with |
 |---|---|---|
-| "기획안", "PRD", user value / scope for one version | **D2 PRD** | D3 (implementation detail), Spec (current contract) |
-| "설계문서", "D3", "Tech Spec", schema/API for one version | **D3 Tech Spec** | Blueprint (phase-wide), Spec (already shipped contract) |
-| "스펙", "Spec", "현재 구현 계약", "스키마 최신화" | **Topic Spec** | D3 (version intent), PRD (user value) |
-| "개발", "구현", "implementation", app/package/MCP work | **Implementation** | PRD/D3 drafting, Spec documentation |
-| "Blueprint", "Phase roadmap", milestone cut plan | **Blueprint** | Version D3 |
+| "기획안", "PRD", user value / scope for one version | **PRD** | Tech Spec (implementation detail), Spec (current contract) |
+| "설계문서", "Tech Spec", schema/API for one version | **Tech Spec** | Blueprint (phase-wide), Spec (already shipped contract) |
+| "스펙", "Spec", "현재 구현 계약", "스키마 최신화" | **Topic Spec** | Tech Spec (version intent), PRD (user value) |
+| "개발", "구현", "implementation", app/package/MCP work | **Implementation** | PRD/Tech Spec drafting, Spec documentation |
+| "Blueprint", "Phase roadmap", milestone cut plan | **Blueprint** | Version Tech Spec |
 | "정책", "Policy", repeated rule across versions | **Policy** | ADR (one-time decision) |
 
 ## Dependency Order
@@ -54,13 +56,13 @@ flowchart LR
   Roadmap["Phase Roadmap"] --> Blueprint["Phase Blueprint"]
   Blueprint --> Policy["Cumulative Policy"]
   Blueprint --> PRD["Version PRD"]
-  Policy --> D3["Version D3"]
-  PRD --> D3
-  D3 --> Implementation["Implementation"]
+  Policy --> TechSpec["Version Tech Spec"]
+  PRD --> TechSpec
+  TechSpec --> Implementation["Implementation"]
   Implementation --> Spec["Topic Specs"]
   Implementation --> ReleaseNotes["Release Notes"]
-  D3 --> ADR["ADR for major decisions"]
-  Spec --> NextD3["Next Version D3"]
+  TechSpec --> ADR["ADR for major decisions"]
+  Spec --> NextTechSpec["Next Version Tech Spec"]
 ```
 
 ### Preconditions by work type
@@ -68,34 +70,34 @@ flowchart LR
 | Work type | Can start when |
 |---|---|
 | **Blueprint** | Phase roadmap or product overview exists |
-| **Policy** | Recurring rule identified (often from Blueprint or repeated D3 content) |
-| **D2 PRD** | Phase roadmap/Blueprint exists or user explicitly requests drafting roadmap first |
-| **D3 Tech Spec** | Version PRD complete or accepted; relevant Policy/Blueprint read |
-| **Implementation** | Roadmap, PRD, and D3 complete or explicitly accepted |
+| **Policy** | Recurring rule identified (often from Blueprint or repeated Tech Spec content) |
+| **PRD** | Phase roadmap/Blueprint exists or user explicitly requests drafting roadmap first |
+| **Tech Spec** | Version PRD complete or accepted; relevant Policy/Blueprint read |
+| **Implementation** | Roadmap, PRD, and Tech Spec complete or explicitly accepted |
 | **Topic Spec** | Relevant code/migrations/MCP tools/tests exist or changed; separate from version planning |
-| **D4 Release Notes** | Version implementation shipped |
-| **D5 ADR** | Major decision made during PRD/D3/implementation |
+| **Release Notes** | Version implementation shipped |
+| **ADR** | Major decision made during PRD/Tech Spec/implementation |
 
 ## What To Do For Each Work Type
 
-### D2 PRD (기획)
+### PRD (기획)
 
 **Goal:** Define why and what for this version.
 
-**Read first:** Phase roadmap/Blueprint, D1 product overview, prior version PRD/D4 if relevant.
+**Read first:** Phase roadmap/Blueprint, product overview, prior version PRD/Release Notes if relevant.
 
 **Produce:** Store in **유PD 개발 문서** via `youpd-dev-docs` skill.
 
 **Produce content:**
 - User scenarios, triggers, natural-language reporting expectations
 - In-scope / out-of-scope for this version
-- Open questions deferred to D3
+- Open questions deferred to Tech Spec
 
-**Do not include:** DB field details, API contracts, migration SQL — send those to D3.
+**Do not include:** DB field details, API contracts, migration SQL — send those to Tech Spec.
 
 **Naming:** `{제품명} v0.X 기획안` (e.g. `YouPD v0.13 MCP Workflow PRD`)
 
-### D3 Tech Spec (설계)
+### Tech Spec (설계)
 
 **Goal:** Define what will actually be implemented this version.
 
@@ -114,11 +116,11 @@ flowchart LR
 
 **Goal:** Document what the **current code** actually guarantees — a living contract, not version-scoped intent.
 
-**Read first:** Current code on `main`, Drizzle migrations, MCP tool definitions, tests, related Policy/Blueprint/D3.
+**Read first:** Current code on `main`, Drizzle migrations, MCP tool definitions, tests, related Policy/Blueprint/Tech Spec.
 
 **Produce:**
 - **Current Contract** — tables, indexes, MCP tools, API routes, error codes, env vars as implemented
-- **Not Implemented / Planned** — Blueprint/D3 items not yet in code
+- **Not Implemented / Planned** — Blueprint/Tech Spec items not yet in code
 - **Validation** — which tests/smoke checks enforce the contract
 - **Change Log** — contract change history
 
@@ -128,22 +130,22 @@ flowchart LR
 
 ### Implementation (구현)
 
-**Goal:** Ship code matching the accepted D3.
+**Goal:** Ship code matching the accepted Tech Spec.
 
-**Read first:** Version PRD, D3, `AGENTS.md`, `docs/testing.md`, current code on `main`.
+**Read first:** Version PRD, Tech Spec, `AGENTS.md`, `docs/testing.md`, current code on `main`.
 
 **Produce:** Changes in `apps/*`, `packages/*`, migrations, tests — per `AGENTS.md`.
 
-**After implementation:** Update topic Specs in Notion; draft D4 release notes.
+**After implementation:** Update topic Specs in Notion; draft Release Notes.
 
-### Blueprint / Policy / D4 / D5
+### Blueprint / Policy / Release Notes / ADR
 
 | Type | When | Key output |
 |---|---|---|
 | **Blueprint** | Phase or large initiative start | Route map, domain model, version cut plan, open questions |
 | **Policy** | Recurring rule emerges | Rules, exceptions, examples, related doc links |
-| **D4 Release Notes** | After version ships | Shipped features, plan vs actual, known issues |
-| **D5 ADR** | Major decision moment | Decision, alternatives, rationale — immutable; supersede with new ADR |
+| **Release Notes** | After version ships | Shipped features, plan vs actual, known issues |
+| **ADR** | Major decision moment | Decision, alternatives, rationale — immutable; supersede with new ADR |
 
 ## Notion Task Database Mapping
 
@@ -155,11 +157,11 @@ When inspecting the development task database, map task labels/links to work typ
 | Notion task kind | Follow section |
 |---|---|
 | Roadmap / Blueprint task | Blueprint |
-| PRD / 기획 task | D2 PRD |
-| Design / D3 / 설계 task | D3 Tech Spec |
+| PRD / 기획 task | PRD |
+| Design / 설계 task | Tech Spec |
 | Spec / 스펙 task | Topic Spec |
 | Development / 구현 task | Implementation |
-| Release / 릴리즈 task | D4 Release Notes |
+| Release / 릴리즈 task | Release Notes |
 
 If the task type is ambiguous, read linked documents and use the classification cues above before proceeding.
 
@@ -168,20 +170,22 @@ If the task type is ambiguous, read linked documents and use the classification 
 | Role | Link / ID |
 |---|---|
 | Development task database | [개발 태스크 DB](https://www.notion.so/paxhumana/55eda245160f43eba0ebe28b71604f89) |
-| Long-form dev docs (PRD, 설계, ADR) | [유PD 개발 문서](https://www.notion.so/paxhumana/5ac346dac45682cf98ed815c25b32d38) |
+| Long-form dev docs (PRD, 설계, ADR) | [유PD 개발 문서](https://www.notion.so/5ac346dac45682cf98ed815c25b32d38) |
+| Document type catalog | [문서 타입 카탈로그](https://www.notion.so/dd9b44cc438e45fc8593315cd57eec47) |
 | Doc data source | `collection://b2a346da-c456-8251-a5c9-876afa9c62ef` |
 | Documentation operating system | [문서화 운영체계](https://www.notion.so/paxhumana/368346dac45680789ff6c9859bfa2191) |
 | Product/project planning | [YouPD planning views](https://www.notion.so/TV-35e2f1b57fc380e59f84e5ed02c788d1) |
 
 ## Anti-Patterns
 
-- Putting the entire phase DB schema in one version D3 → keep in Blueprint, cut per version in D3
-- Copying recurring rules into every version D3 → extract to Policy
+- Putting the entire phase DB schema in one version Tech Spec → keep in Blueprint, cut per version in Tech Spec
+- Copying recurring rules into every version Tech Spec → extract to Policy
 - Creating version-scoped Spec docs → Spec is topic-based and living
 - Marking unimplemented Blueprint items as current Spec contracts → use Not Implemented / Planned
-- Appending implementation results to PRD → use D4 or topic Spec
-- Editing a shipped D3 retroactively → new version D3 or ADR
+- Appending implementation results to PRD → use Release Notes or topic Spec
+- Editing a shipped Tech Spec retroactively → new version Tech Spec or ADR
 - Treating ADR as updatable policy → ADR is immutable; Policy is the living rule set
+- Using **D3** in document titles or catalog rows → use **Tech Spec**
 - Planning from repo `docs/` without checking Notion → Notion wins when they diverge
 
 ## YouPD Examples

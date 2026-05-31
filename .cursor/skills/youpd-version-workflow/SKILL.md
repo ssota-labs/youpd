@@ -17,7 +17,7 @@ description: Deprecated router alias — use AGENTS.md Development router first,
 | Intent | Skill |
 |---|---|
 | 정합성, reconciliation, drift | `.cursor/skills/youpd-reconciliation/SKILL.md` |
-| PRD, D3, Blueprint, Policy, ADR docs | `.cursor/skills/youpd-documentation-workflow/SKILL.md` |
+| PRD, Tech Spec, Blueprint, Policy, ADR docs | `.cursor/skills/youpd-documentation-workflow/SKILL.md` |
 | 구현, 검증, PR to `dev` | `.cursor/skills/youpd-implementation-workflow/SKILL.md` |
 | Notion doc authoring details | `.cursor/skills/youpd-dev-docs/SKILL.md` |
 
@@ -45,14 +45,14 @@ Before classifying a task as PRD, 설계, 스펙, or 구현, read:
 
 **Always read Notion before acting.** Do not plan or implement from repo memory or stale local docs alone.
 
-The work unit may be **documentation** (Blueprint, Policy, PRD, D3, Spec, release notes, ADR) or **implementation** (code in `apps/*`, `packages/*`). Do not start implementation until roadmap, PRD, and D3 are complete or explicitly accepted.
+The work unit may be **documentation** (Blueprint, Policy, PRD, Tech Spec, Spec, release notes, ADR) or **implementation** (code in `apps/*`, `packages/*`). Do not start implementation until roadmap, PRD, and Tech Spec are complete or explicitly accepted.
 
 Normal sequence:
 
 1. Phase roadmap / Blueprint
 2. Cumulative Policy (when recurring rules emerge)
 3. Phase-version PRD (D2)
-4. Phase-version design (D3)
+4. Phase-version design (Tech Spec)
 5. Phase-version development
 6. Topic Spec updates and release notes (after or alongside implementation)
 
@@ -85,11 +85,11 @@ Choose the next work unit by dependency order, not by convenience.
 
 Rules:
 
-- A **development** task can start only if its roadmap, PRD, and D3 design tasks are complete or explicitly accepted.
-- A **D3 design** task can start only if its phase-version PRD is complete or explicitly accepted.
+- A **development** task can start only if its roadmap, PRD, and Tech Spec design tasks are complete or explicitly accepted.
+- A **Tech Spec (설계)** task can start only if its phase-version PRD is complete or explicitly accepted.
 - A **PRD** task can start only if the phase roadmap/Blueprint exists or the user explicitly asks to draft the roadmap first.
-- A **Spec** task updates topic-level current contracts from implemented code — it is not a substitute for PRD or D3. Read migrations, route handlers, MCP tools, and tests on `main`.
-- A **Blueprint** or **Policy** task may precede or run parallel to version PRD/D3 when phase-wide context or recurring rules are needed.
+- A **Spec** task updates topic-level current contracts from implemented code — it is not a substitute for PRD or Tech Spec. Read migrations, route handlers, MCP tools, and tests on `main`.
+- A **Blueprint** or **Policy** task may precede or run parallel to version PRD/Tech Spec when phase-wide context or recurring rules are needed.
 - If multiple eligible tasks exist, prefer the lowest unfinished phase-version number.
 - If the current version is already in progress, continue it before starting a new version unless the user says otherwise.
 
@@ -100,9 +100,9 @@ Before creating a plan, read documents matching the classified work type (see [r
 | Work type | Read |
 |---|---|
 | PRD | Phase roadmap/Blueprint, D1 product overview |
-| D3 design | Version PRD, Blueprint, applicable Policy |
+| Tech Spec design | Version PRD, Blueprint, applicable Policy |
 | Spec | Current code on `main`, migrations, MCP tools, tests |
-| Implementation | Roadmap, PRD, D3, plus repo docs below |
+| Implementation | Roadmap, PRD, Tech Spec, plus repo docs below |
 
 Always read for implementation and spec work:
 
@@ -125,7 +125,7 @@ Do not plan from Notion alone. Plans for implementation and spec work must refle
 
 Before editing code or Notion docs, summarize:
 
-- Selected phase-version and **task type** (PRD / D3 / Spec / implementation / other)
+- Selected phase-version and **task type** (PRD / Tech Spec / Spec / implementation / other)
 - Notion task row(s) used
 - Dependency status
 - Documents read (Notion + repo)
@@ -147,7 +147,7 @@ For **implementation**, follow project rules in `AGENTS.md`:
 - Enforce plans, rate limits, and usage before expensive YouTube/Notion calls
 - Never commit secrets, `.env*`, or local Supabase keys
 
-For **PRD, D3, Spec, Policy, Blueprint, ADR**, follow `youpd-dev-docs` and [references/documentation-workflow.md](references/documentation-workflow.md). Do not mix document types (e.g. implementation detail in PRD, unimplemented Blueprint items in Spec).
+For **PRD, Tech Spec, Spec, Policy, Blueprint, ADR**, follow `youpd-dev-docs` and [references/documentation-workflow.md](references/documentation-workflow.md). Do not mix document types (e.g. implementation detail in PRD, unimplemented Blueprint items in Spec).
 
 ### 6. Verify
 
@@ -199,7 +199,7 @@ Blocked by:
 - [missing PRD/design link, if any]
 
 Next recommended action:
-[roadmap/Blueprint/PRD/D3/Spec task to do first — see references/documentation-workflow.md]
+[roadmap/Blueprint/PRD/Tech Spec/Spec task to do first — see references/documentation-workflow.md]
 ```
 
 ## Related Skills

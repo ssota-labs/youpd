@@ -37,7 +37,7 @@ Compare task `상태` and title to code on `dev`:
 |---|---|
 | Code merged to `dev` but task still `진행중`/`대기` after close-out gates pass | P2 — set `완료` now |
 | Task `완료` but code missing on `dev` | P0 |
-| D3/Spec clearly contradicts merged code | P1 |
+| Tech Spec/Spec clearly contradicts merged code | P1 |
 
 For **`검증`** tasks: run or recommend [youpd-reconciliation](../../youpd-reconciliation/SKILL.md) with **full task database** scope unless recently done.
 
@@ -73,7 +73,7 @@ Set Notion `상태` to **`완료`** when **all** apply for this task type. Do **
 
 **검증**
 
-- Verification plan in linked PRD/D3 executed
+- Verification plan in linked PRD/Tech Spec executed
 - No P0 findings for this task scope
 - E2E evidence captured when UI flows were in scope (`AGENTS.md` testing policy)
 

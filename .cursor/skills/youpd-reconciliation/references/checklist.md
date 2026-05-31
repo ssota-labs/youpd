@@ -6,8 +6,8 @@ Scope default: **full** development task database + `dev` at audit revision (+ `
 
 | Level | Meaning | Example |
 |---|---|---|
-| **P0** | Wrong agent/human action likely | `완료` IMPL, no matching code on `dev`; IMPL with no linked PRD/D3 |
-| **P1** | SSOT trust degraded | D3 contradicts merged migrations; `보류` without blocker note; open merge conflict on task branch |
+| **P0** | Wrong agent/human action likely | `완료` IMPL, no matching code on `dev`; IMPL with no linked PRD/Tech Spec |
+| **P1** | SSOT trust degraded | Tech Spec contradicts merged migrations; `보류` without blocker note; open merge conflict on task branch |
 | **P2** | Hygiene | Stale `AGENTS.md`; orphan doc not linked to any task |
 | **P3** | Doc quality | PRD contains migration SQL; ADR edited in place |
 
@@ -17,7 +17,7 @@ For each row with `작업 유형` = `구현` or `검증`:
 
 | Check | P0 if |
 |---|---|
-| `완료` | Expected artifacts absent on `dev` (schema, routes, MCP tools, tests per D3/IMPL title) |
+| `완료` | Expected artifacts absent on `dev` (schema, routes, MCP tools, tests per Tech Spec/IMPL title) |
 | `진행중` | No branch/PR activity and no WIP note on task |
 | `대기` | Blocking relations claim predecessor `완료` but predecessor code missing |
 
@@ -29,15 +29,15 @@ For each page in `관련 문서` on IMPL/VERF/Spec-related tasks:
 
 | Doc `태그` | Check |
 |---|---|
-| `설계` (D3) | Tables, routes, env vars match `dev` — `packages/db`, `apps/web`, `apps/mcp`, `packages/api` |
+| `설계` (Tech Spec) | Tables, routes, env vars match `dev` — `packages/db`, `apps/web`, `apps/mcp`, `packages/api` |
 | `스펙` | Current Contract section matches merged code; tests cited in doc exist |
-| `PRD` | No implementation-only APIs that contradict D3/code without open question |
+| `PRD` | No implementation-only APIs that contradict Tech Spec/code without open question |
 
 ## Axis C — Task ↔ Doc links
 
 | Check | P0 if |
 |---|---|
-| IMPL / VERF | Zero linked PRD or D3 |
+| IMPL / VERF | Zero linked PRD or Tech Spec |
 | PRD / 설계 tasks | `완료` but linked doc empty or missing |
 | Any task | Linked doc `태그` mismatches work type (PRD content under `설계`) |
 
