@@ -256,14 +256,15 @@ High-frequency routing:
 
 ## Git Worktrees And Local Environment
 
-Git worktrees do not copy ignored files. After creating a worktree (including Cursor worktrees under `.cursor/worktrees/youpd/`), link env from the **main clone** before `pnpm dev` or tests:
+Git worktrees do not copy ignored files. After creating a worktree (including Cursor worktrees under `.cursor/worktrees/youpd/`), sync env before `pnpm dev` or tests:
 
 ```bash
 pnpm install
-pnpm worktree:env
+pnpm env:sync
 ```
 
-- **Script:** `scripts/link-env-from-main.sh` (also `pnpm worktree:env`). Symlinks ignored env files from the main worktree: `.env.local`, `apps/web/.env.local`, `apps/web/.env.youtube` (YouTube API key pool for `pnpm youtube:keys:sync`). Next.js 16 only auto-loads `.env*` from each app directory, not the repo root alone.
+- **Script:** `scripts/sync-env.sh` (also `pnpm env:sync`). On Cursor Cloud, writes `.env.local` from injected secrets. Locally, tries `pnpm worktree:env` (symlink from main) then `.env.example` templates.
+- **Worktree-only link:** `scripts/link-env-from-main.sh` (also `pnpm worktree:env`). Symlinks ignored env files from the main worktree: `.env.local`, `apps/web/.env.local`, `apps/web/.env.youtube` (YouTube API key pool for `pnpm youtube:keys:sync`). Next.js 16 only auto-loads `.env*` from each app directory, not the repo root alone.
 - **Main clone resolution:** `YOUPD_MAIN_WORKTREE` if set; else the worktree on branch `main`; else the first worktree that already has `.env.local`.
 - **Copy instead of link** (e.g. different ports per worktree): `pnpm worktree:env -- --copy`
 - **Canonical local clone** (this machine): `/Users/titanism/projects/youpd` on branch `main`.
@@ -298,7 +299,9 @@ export PATH="$NVM_DIR/versions/node/v24.16.0/bin:$PATH"
 
 **Docker + Supabase (not in the update script):** Local DB/integration/E2E need Docker and the Supabase CLI (`npm install -g supabase`). If `pnpm db:up` reports permission denied on `/var/run/docker.sock`, run `sudo chmod 666 /var/run/docker.sock` (or add the user to the `docker` group and re-login). Then `pnpm db:up` and `pnpm db:reset` before integration tests, E2E, or Hot Videos data.
 
-**Env files (one-time per VM, gitignored):** Copy `.env.example` → `.env.local`, `apps/web/.env.example` → `apps/web/.env.local`, `apps/mcp/.env.example` → `apps/mcp/.env.local`, and add `apps/admin/.env.local` with at least `DATABASE_URL` + `SUPABASE_URL` + `SUPABASE_ANON_KEY` (Next.js 16 only auto-loads `.env*` from each app directory). Fill Supabase keys from the demo JWT table above or `supabase status -o env`. Worktrees on a machine with a main clone can use `pnpm worktree:env` instead.
+**Env files (Cloud + local):** Cursor Cloud injects secrets as **process environment variables**, not as files. On every VM boot, `.cursor/environment.json` runs `.cursor/install.sh`, which calls `pnpm env:sync` to materialize gitignored `.env.local` files from Cloud secrets (when `CLOUD_AGENT_*` is set) or from `.env.example` / worktree link locally. You can also run `pnpm env:sync` manually after adding secrets.
+
+For a **one-time manual setup** (non-Cloud): copy `.env.example` → `.env.local`, `apps/web/.env.example` → `apps/web/.env.local`, `apps/mcp/.env.example` → `apps/mcp/.env.local`, and add `apps/admin/.env.local` with at least `DATABASE_URL` + `SUPABASE_URL` + `SUPABASE_ANON_KEY` (Next.js 16 only auto-loads `.env*` from each app directory). Fill Supabase keys from the demo JWT table above or `supabase status -o env`. Git worktrees on a machine with a main clone can use `pnpm worktree:env` instead.
 
 **Hot Videos demo seed:** After DB reset, `set -a && source .env.local && set +a` then `pnpm --filter @youpd/api exec tsx /workspace/e2e/seed-hot-videos.ts` (absolute path — required when exec cwd is `packages/api`).
 
@@ -312,7 +315,8 @@ The repository may start before the monorepo is scaffolded. Once scaffolded, kee
 
 ```bash
 pnpm install
-pnpm worktree:env   # when using a git worktree (not the main clone)
+pnpm env:sync       # Cloud VM, worktree, or first local setup
+pnpm worktree:env   # git worktree only — link from main clone
 pnpm run dev
 pnpm run build
 pnpm run lint
