@@ -2,6 +2,7 @@ export * from './health';
 export * from './home-probes';
 export * from './quota';
 export * from './reference-folders';
+export * from './social';
 export * from './creative-templates';
 export * from './intro-templates';
 export * from './thumbnail-generation';

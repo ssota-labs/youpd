@@ -85,10 +85,11 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
     matchPrefix: '/intro-templates',
   },
   {
-    kind: 'placeholder',
-    title: 'Thread Library',
+    kind: 'link',
+    title: 'Social',
+    href: '/social',
     icon: MessageSquare,
-    hint: 'S10에서 제공 예정',
+    matchPrefix: '/social',
   },
   {
     kind: 'placeholder',
