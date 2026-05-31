@@ -2,6 +2,7 @@ import {
   Home,
   Image,
   LayoutTemplate,
+  Type,
   MessageSquare,
   Search,
   Settings,
@@ -64,6 +65,13 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
   },
   {
     kind: 'link',
+    title: 'Copy Templates',
+    href: '/copy-templates',
+    icon: Type,
+    matchPrefix: '/copy-templates',
+  },
+  {
+    kind: 'link',
     title: 'Create Thumbnail',
     href: '/thumbnail-create',
     icon: LayoutTemplate,
@@ -80,12 +88,6 @@ export const APP_NAV_ITEMS: AppNavItem[] = [
     title: 'Thread Library',
     icon: MessageSquare,
     hint: 'S10에서 제공 예정',
-  },
-  {
-    kind: 'placeholder',
-    title: 'Template Library',
-    icon: LayoutTemplate,
-    hint: '준비 중',
   },
   {
     kind: 'placeholder',

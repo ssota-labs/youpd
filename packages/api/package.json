@@ -18,6 +18,7 @@
     "./home": "./src/home/index.ts",
     "./reference-folders": "./src/reference-folders/index.ts",
     "./thumbnail-templates": "./src/thumbnail-templates/index.ts",
+    "./copy-templates": "./src/copy-templates/index.ts",
     "./thumbnail-generation": "./src/thumbnail-generation/index.ts"
   },
   "scripts": {
