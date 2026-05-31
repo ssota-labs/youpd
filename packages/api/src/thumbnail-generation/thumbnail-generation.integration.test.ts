@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { ThumbnailSlotValues } from '@youpd/types';
 import { describe, expect, it } from 'vitest';
 import {
   createThumbnailGenerationJob,
@@ -26,8 +27,8 @@ describe('thumbnail generation (integration)', () => {
     );
     expect(headlineSlot).toBeDefined();
 
-    const slotValues = {
-      version: 1 as const,
+    const slotValues: ThumbnailSlotValues = {
+      version: 1,
       values: { [headlineSlot!.key]: 'integration-test' },
     };
     for (const slot of bootstrap.template.slotSchema.slots) {
